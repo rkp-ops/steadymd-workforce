@@ -2569,11 +2569,18 @@ function runForecast(shifts, settings, dynamicRoster) {
   const slaRate = totalArrivals > 0 ? ((totalArrivals - totalMisses) / totalArrivals * 100) : 0;
   const worstHour = hours.reduce((w, h) => h.totalMiss > w.totalMiss ? h : w, hours[0]);
 
-  // Unfilled shift summary
-  const totalOpenShifts = unfilled.length;
-  const totalIncentivized = unfilled.filter(u => u._incentiveMultiplier).length;
+  // Unfilled shift summary — only shifts within the forecast window (startDate → +57h)
+  const forecastEnd = new Date(startDate.getTime() + 57 * 3600000);
+  const forecastUnfilled = unfilled.filter(u => {
+    const sStart = parseDate(u['Start Time'] || u['Start']);
+    const sEnd = parseDate(u['End Time'] || u['End']);
+    if (!sStart || !sEnd) return false;
+    return sStart < forecastEnd && sEnd > startDate; // overlaps forecast window
+  });
+  const totalOpenShifts = forecastUnfilled.length;
+  const totalIncentivized = forecastUnfilled.filter(u => u._incentiveMultiplier).length;
   const incentiveBreakdown = {};
-  unfilled.forEach(u => {
+  forecastUnfilled.forEach(u => {
     if (u._incentiveMultiplier) {
       const key = u._incentiveMultiplier + 'x';
       incentiveBreakdown[key] = (incentiveBreakdown[key] || 0) + 1;
@@ -2589,7 +2596,7 @@ function runForecast(shifts, settings, dynamicRoster) {
     riskLevel: totalOver60 > 0 ? 'HIGH' : totalMisses > 5 ? 'MEDIUM' : 'LOW',
     // Unfilled shift data
     totalOpenShifts, totalIncentivized, incentiveBreakdown,
-    unfilledShifts: unfilled,
+    unfilledShifts: forecastUnfilled,
     peakOpenHour: peakOpenHour ? peakOpenHour.label : ''
   };
 }
