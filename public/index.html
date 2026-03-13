@@ -41,8 +41,8 @@
   --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; font-size: 13px; }
-#root { min-height: 100vh; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; font-size: 13px; overflow-x: hidden; }
+#root { min-height: 100vh; overflow-x: hidden; }
 
 /* Header */
 .header { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-sm); position: sticky; top: 0; z-index: 100; }
@@ -75,10 +75,10 @@ body { font-family: var(--font-sans); background: var(--bg-primary); color: var(
 .tab-btn.active { color: var(--accent-teal); border-bottom-color: var(--accent-teal); font-weight: 600; }
 
 /* Content */
-.content { padding: 16px 20px; max-width: 100%; margin: 0 auto; box-sizing: border-box; }
+.content { padding: 16px 20px; max-width: 100%; margin: 0 auto; box-sizing: border-box; overflow: hidden; }
 
 /* Cards */
-.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm); }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm); overflow: hidden; }
 .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px; }
 
 /* KPI Cards */
@@ -135,7 +135,7 @@ textarea.form-input { min-height: 120px; font-family: var(--font-mono); font-siz
 @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 
 /* Sidebar Layout */
-.layout-with-sidebar { display: grid; grid-template-columns: 260px 1fr; gap: 16px; }
+.layout-with-sidebar { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; }
 .sidebar { position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; }
 @media (max-width: 1100px) { .layout-with-sidebar { grid-template-columns: 1fr; } .sidebar { position: static; max-height: none; } }
 
