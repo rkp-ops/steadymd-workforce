@@ -2261,6 +2261,14 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
   const clearFilters = () => { setServiceLine('ALL'); setDateFrom(''); setDateTo(''); };
   const hasFilters = serviceLine !== 'ALL' || dateFrom || dateTo;
 
+  // Detect which SLs actually exist in the data
+  const availableSLs = useMemo(() => {
+    if (!actualsData) return new Set();
+    const sls = new Set();
+    actualsData.forEach(r => { if (r._detectedSL) sls.add(r._detectedSL); });
+    return sls;
+  }, [actualsData]);
+
   return (
     <div>
       {/* Filters */}
@@ -2287,6 +2295,17 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
           </span>
         )}
       </div>
+      {/* No-data warning when SL filter yields nothing */}
+      {hasFilters && filteredActuals && filteredActuals.length === 0 && (
+        <div className="gap-alert" style={{ marginBottom: 12 }}>
+          <span className="alert-icon">!</span>
+          No {serviceLine !== 'ALL' ? serviceLine : ''} records found{dateFrom || dateTo ? ' in the selected date range' : ''}.
+          {serviceLine !== 'ALL' && !availableSLs.has(serviceLine) && (
+            <span> Your uploaded actuals only contain <strong>{[...availableSLs].join(', ') || 'Unknown'}</strong> data. Upload {serviceLine} actuals to see {serviceLine} metrics here.</span>
+          )}
+          <button className="btn btn-secondary btn-sm" onClick={clearFilters} style={{ marginLeft: 8, fontSize: 10 }}>Clear Filters</button>
+        </div>
+      )}
       {/* Insights Banner */}
       {insights.length > 0 && (
         <div style={{ marginBottom: 16 }}>
