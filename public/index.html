@@ -2264,6 +2264,14 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
   const fmt$ = (v) => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const fmtRT = (v) => v < 60 ? v.toFixed(0) + 's' : (v / 60).toFixed(1) + 'm';
 
+  // Detect which SLs actually exist in the data — MUST be before early return to keep hook count stable
+  const availableSLs = useMemo(() => {
+    if (!actualsData) return new Set();
+    const sls = new Set();
+    actualsData.forEach(r => { if (r._detectedSL) sls.add(r._detectedSL); });
+    return sls;
+  }, [actualsData]);
+
   if (!actualsData && !shiftScheduleData) {
     return (
       <div className="empty-state">
@@ -2279,14 +2287,6 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
 
   const clearFilters = () => { setServiceLine('ALL'); setDateFrom(''); setDateTo(''); };
   const hasFilters = serviceLine !== 'ALL' || dateFrom || dateTo;
-
-  // Detect which SLs actually exist in the data
-  const availableSLs = useMemo(() => {
-    if (!actualsData) return new Set();
-    const sls = new Set();
-    actualsData.forEach(r => { if (r._detectedSL) sls.add(r._detectedSL); });
-    return sls;
-  }, [actualsData]);
 
   return (
     <div>
