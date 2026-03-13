@@ -1892,12 +1892,81 @@ function SLFilter({ value, onChange, options }) {
 // ========================== TAB: EXECUTIVE OVERVIEW ==========================
 function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, masterRoster }) {
   const [serviceLine, setServiceLine] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const cm = useMemo(() => actualsData ? buildColMap(actualsData) : {}, [actualsData]);
   const icm = useMemo(() => incentiveData ? buildColMap(incentiveData) : {}, [incentiveData]);
 
+  // Pre-filter actuals by SL + date range
+  const filteredActuals = useMemo(() => {
+    if (!actualsData) return null;
+    let rows = actualsData;
+    // Service line filter
+    if (serviceLine !== 'ALL') {
+      rows = rows.filter(r => {
+        const partnerVal = cm.partner ? (r[cm.partner] || '') : '';
+        const entityVal = cm.entityName ? (r[cm.entityName] || '') : '';
+        if (serviceLine === 'TC') {
+          return (partnerVal + ' ' + entityVal).toLowerCase().includes('transcarent') || r._detectedSL === 'TC';
+        }
+        const sl = mapPartnerToSL(partnerVal) || mapEntityToSL(entityVal);
+        return sl === serviceLine || r._detectedSL === serviceLine;
+      });
+    }
+    // Date range filter
+    if (dateFrom || dateTo) {
+      const from = dateFrom ? new Date(dateFrom) : null;
+      const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+      rows = rows.filter(r => {
+        const dt = parseDate(cm.date ? r[cm.date] : '');
+        if (!dt) return false;
+        if (from && dt < from) return false;
+        if (to && dt > to) return false;
+        return true;
+      });
+    }
+    return rows;
+  }, [actualsData, serviceLine, dateFrom, dateTo, cm]);
+
+  // Pre-filter shifts by SL + date range
+  const filteredShifts = useMemo(() => {
+    if (!shiftScheduleData) return null;
+    let rows = shiftScheduleData;
+    if (serviceLine !== 'ALL') {
+      rows = rows.filter(r => (r.sl || '') === serviceLine);
+    }
+    if (dateFrom || dateTo) {
+      const from = dateFrom ? new Date(dateFrom) : null;
+      const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+      rows = rows.filter(r => {
+        if (!r.start) return false;
+        if (from && r.start < from) return false;
+        if (to && r.start > to) return false;
+        return true;
+      });
+    }
+    return rows;
+  }, [shiftScheduleData, serviceLine, dateFrom, dateTo]);
+
+  // Pre-filter incentives by date range
+  const filteredIncentives = useMemo(() => {
+    if (!incentiveData) return null;
+    if (!dateFrom && !dateTo) return incentiveData;
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+    return incentiveData.filter(r => {
+      const raw = icm.date ? r[icm.date] : (icm.launchedTime ? r[icm.launchedTime] : '');
+      const dt = parseDate(raw);
+      if (!dt) return false;
+      if (from && dt < from) return false;
+      if (to && dt > to) return false;
+      return true;
+    });
+  }, [incentiveData, dateFrom, dateTo, icm]);
+
   // Weekly trend data across ALL dimensions
   const weeklyTrends = useMemo(() => {
-    const weeks = {}; // weekKey → { volume, slaMet, slaMissed, slaEligible, totalRT, rtCount, hours, shifts, incentiveSpend, incentiveCount, clinicians, states, modalities }
+    const weeks = {};
     const getWeekKey = (dt) => {
       const d = new Date(dt);
       const mon = new Date(d); mon.setDate(mon.getDate() - mon.getDay() + (mon.getDay() === 0 ? -6 : 1));
@@ -1908,8 +1977,8 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
     };
 
     // Actuals → volume, SLA, response time, clinicians, states, modalities
-    if (actualsData) {
-      actualsData.forEach(r => {
+    if (filteredActuals) {
+      filteredActuals.forEach(r => {
         const dt = parseDate(cm.date ? r[cm.date] : '');
         if (!dt) return;
         if (isCanceled(r, cm)) return;
@@ -1931,8 +2000,8 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
     }
 
     // Shifts → hours, shift count, headcount
-    if (shiftScheduleData) {
-      shiftScheduleData.filter(r => !r.unfilled && r.clinician).forEach(r => {
+    if (filteredShifts) {
+      filteredShifts.filter(r => !r.unfilled && r.clinician).forEach(r => {
         if (!r.start) return;
         const wk = getWeekKey(r.start);
         ensure(wk);
@@ -1944,8 +2013,8 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
     }
 
     // Incentives → spend, count
-    if (incentiveData) {
-      incentiveData.forEach(r => {
+    if (filteredIncentives) {
+      filteredIncentives.forEach(r => {
         const raw = icm.date ? r[icm.date] : (icm.launchedTime ? r[icm.launchedTime] : '');
         const dt = parseDate(raw);
         if (!dt) return;
@@ -1975,13 +2044,13 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       topModality: Object.entries(w.modalities).sort((a, b) => b[1] - a[1])[0]?.[0] || '—',
       modalities: w.modalities,
     }));
-  }, [actualsData, shiftScheduleData, incentiveData, cm, icm]);
+  }, [filteredActuals, filteredShifts, filteredIncentives, cm, icm]);
 
   // By-state breakdown
   const stateBreakdown = useMemo(() => {
-    if (!actualsData) return [];
+    if (!filteredActuals) return [];
     const states = {};
-    actualsData.forEach(r => {
+    filteredActuals.forEach(r => {
       if (isCanceled(r, cm)) return;
       const st = cm.state ? (r[cm.state] || '').trim() : '';
       if (!st) return;
@@ -1996,8 +2065,8 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       if (!isNaN(rt) && rt >= 0) { s.totalRT += rt; s.rtCount++; }
     });
     // Add incentive spend by state
-    if (incentiveData) {
-      incentiveData.forEach(r => {
+    if (filteredIncentives) {
+      filteredIncentives.forEach(r => {
         const st = icm.state ? (r[icm.state] || '').trim() : '';
         if (st && states[st]) {
           const amt = parseFloat(String(icm.amount ? r[icm.amount] : '0').replace(/[^0-9.\-]/g, '')) || 0;
@@ -2011,13 +2080,13 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       avgRT: s.rtCount > 0 ? s.totalRT / s.rtCount : null,
       headcount: s.clinicians.size,
     })).sort((a, b) => b.volume - a.volume);
-  }, [actualsData, incentiveData, cm, icm]);
+  }, [filteredActuals, filteredIncentives, cm, icm]);
 
   // By-modality breakdown
   const modalityBreakdown = useMemo(() => {
-    if (!actualsData) return [];
+    if (!filteredActuals) return [];
     const mods = {};
-    actualsData.forEach(r => {
+    filteredActuals.forEach(r => {
       if (isCanceled(r, cm)) return;
       const mod = cm.modality ? (r[cm.modality] || 'Unknown') : 'Unknown';
       if (!mods[mod]) mods[mod] = { modality: mod, volume: 0, slaMet: 0, slaEligible: 0, totalRT: 0, rtCount: 0 };
@@ -2034,7 +2103,7 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       avgRT: m.rtCount > 0 ? m.totalRT / m.rtCount : null,
       share: 0,
     })).sort((a, b) => b.volume - a.volume);
-  }, [actualsData, cm]);
+  }, [filteredActuals, cm]);
 
   // Auto-generated correlation insights
   const insights = useMemo(() => {
@@ -2157,7 +2226,7 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
 
   // Aggregate KPIs
   const kpis = useMemo(() => {
-    if (!actualsData) return null;
+    if (!filteredActuals) return null;
     const totalVol = weeklyTrends.reduce((s, w) => s + w.volume, 0);
     const slaWeeks = weeklyTrends.filter(w => w.slaPct != null);
     const avgSla = slaWeeks.length > 0 ? slaWeeks.reduce((s, w) => s + w.slaPct, 0) / slaWeeks.length : null;
@@ -2168,7 +2237,7 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
     const rtWeeks = weeklyTrends.filter(w => w.avgRT != null);
     const avgRT = rtWeeks.length > 0 ? rtWeeks.reduce((s, w) => s + w.avgRT, 0) / rtWeeks.length : null;
     return { totalVol, avgSla, avgVph, avgHC: Math.round(avgHC), totalInc, avgRT, weekCount: weeklyTrends.length, stateCount: stateBreakdown.length };
-  }, [weeklyTrends, stateBreakdown, actualsData]);
+  }, [weeklyTrends, stateBreakdown, filteredActuals]);
 
   const fmt$ = (v) => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const fmtRT = (v) => v < 60 ? v.toFixed(0) + 's' : (v / 60).toFixed(1) + 'm';
@@ -2186,9 +2255,35 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
 
   const insightColors = { critical: '#E74C3C', warning: '#E17055', info: '#26AEBC', success: '#00B894' };
 
+  const clearFilters = () => { setServiceLine('ALL'); setDateFrom(''); setDateTo(''); };
+  const hasFilters = serviceLine !== 'ALL' || dateFrom || dateTo;
+
   return (
     <div>
-      <SLFilter value={serviceLine} onChange={setServiceLine} />
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <SLFilter value={serviceLine} onChange={setServiceLine} />
+        <label style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-muted)' }}>
+          <span style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>From</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, fontFamily: 'var(--font-sans)' }} />
+        </label>
+        <label style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-muted)' }}>
+          <span style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>To</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, fontFamily: 'var(--font-sans)' }} />
+        </label>
+        {hasFilters && (
+          <button className="btn btn-secondary btn-sm" onClick={clearFilters} style={{ fontSize: 10, marginBottom: 1 }}>
+            Clear Filters
+          </button>
+        )}
+        {hasFilters && filteredActuals && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+            Showing <strong>{filteredActuals.length.toLocaleString()}</strong> of {actualsData ? actualsData.length.toLocaleString() : 0} records
+          </span>
+        )}
+      </div>
       {/* Insights Banner */}
       {insights.length > 0 && (
         <div style={{ marginBottom: 16 }}>
