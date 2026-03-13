@@ -301,6 +301,36 @@ textarea.form-input { min-height: 120px; font-family: var(--font-mono); font-siz
 .ms-check { width: 14px; height: 14px; border: 1.5px solid var(--border-light); border-radius: 3px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; color: #fff; }
 .ms-check.checked { background: var(--accent-teal); border-color: var(--accent-teal); }
 .ms-count { margin-left: auto; font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+
+/* ===== Smart Import Modal ===== */
+.smart-import-modal { width: 95vw; max-width: 1400px; max-height: 92vh; }
+.smart-import-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 20px; font-size: 12px; margin-bottom: 16px; background: var(--bg-primary); padding: 12px; border-radius: var(--radius); }
+.smart-import-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; padding: 12px; background: var(--bg-primary); border-radius: var(--radius); border: 1px solid var(--border); }
+.smart-import-filters .form-group { margin-bottom: 0; min-width: 140px; }
+.smart-import-filters .form-group label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; display: block; margin-bottom: 3px; }
+.smart-import-filters input[type="date"] { padding: 4px 8px; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-secondary); color: var(--text-primary); width: 130px; }
+.smart-import-summary { display: flex; align-items: center; gap: 16px; padding: 8px 14px; background: var(--accent-teal-soft, #e6f6f8); border-radius: var(--radius); font-size: 12px; font-weight: 600; color: var(--accent-teal-dark, #1a8c96); margin-bottom: 10px; }
+.smart-import-summary .count { font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+.smart-import-table { max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.smart-import-table table { width: 100%; }
+.smart-import-table th { position: sticky; top: 0; background: var(--bg-primary); z-index: 2; }
+.smart-import-table th.sortable { cursor: pointer; user-select: none; }
+.smart-import-table th.sortable:hover { color: var(--accent-teal); }
+.smart-import-table td, .smart-import-table th { padding: 4px 8px; font-size: 11px; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.sl-badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+.sl-badge.tc { background: #e6f6f8; color: #1a8c96; }
+.sl-badge.csl { background: #e0eaff; color: #3b6cf5; }
+.sl-badge.wsl { background: #ede9fe; color: #7c3aed; }
+.sl-badge.other-sl { background: var(--bg-primary); color: var(--text-muted); }
+.dow-pills { display: flex; gap: 4px; }
+.dow-pill { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-secondary); cursor: pointer; transition: all 0.12s; }
+.dow-pill:hover { border-color: var(--accent-teal); }
+.dow-pill.active { background: var(--accent-teal); color: #fff; border-color: var(--accent-teal); }
+.toggle-chip { padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.12s; }
+.toggle-chip:hover { border-color: var(--accent-teal); }
+.toggle-chip.on { background: var(--accent-teal); color: #fff; border-color: var(--accent-teal); }
+.smart-import-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); }
+.tag-row { display: inline-block; padding: 1px 5px; border-radius: 8px; font-size: 9px; font-weight: 600; background: var(--bg-primary); color: var(--text-muted); border: 1px solid var(--border); margin-right: 2px; }
 </style>
 </head>
 <body>
@@ -1067,13 +1097,12 @@ const TC_MODEL = {means:[0.0648534431,0.1352874248,6.1589098987,24.0917267162,1.
 // Entity Name → Service Line mapping
 // Entity Name → Service Line mapping (from shift scheduling entity names)
 const ENTITY_SL_MAP = {
-  'transcarent': 'TC',
-  'weight management': 'WSL',
-  'daytime clinical': 'CSL',
-  'nighttime clinical': 'CSL',
-  'on call clinical': 'CSL',
-  'general medicine': 'CSL',
-  'amazon': 'CSL',
+  'transcarent': 'TC', '98point6': 'TC',
+  'weight management': 'WSL', 'ez health': 'WSL', 'noom': 'WSL', 'futur': 'WSL',
+  'daytime clinical': 'CSL', 'nighttime clinical': 'CSL', 'on call clinical': 'CSL',
+  'general medicine': 'CSL', 'amazon': 'CSL',
+  'thirty madison': 'CSL', 'healthome': 'CSL', 'rezilient': 'CSL', 'sanofi': 'CSL',
+  'ma p2': 'CSL',
 };
 
 // Partner Name → Service Line mapping (from consult/incentive data)
@@ -1370,6 +1399,11 @@ function buildColMap(data) {
     shiftDateCol: resolveCol(s, 'Scheduled Shift Date', 'Shift Date', 'shift_date', 'Scheduled Date'),
     hoursBefore: resolveCol(s, 'Hours Before Shift', 'Notice Hours', 'hours_before', 'Time Before'),
     backfillStatus: resolveCol(s, 'Backfill', 'Backfill Status', 'backfill_status', 'Covered', 'Backfilled'),
+    // Arya-specific columns
+    tags: resolveCol(s, 'Tags', 'tags', 'Shift Tags'),
+    shiftType: resolveCol(s, 'Shift Type', 'shift_type', 'Type'),
+    user: resolveCol(s, 'User', 'user', 'Email', 'Clinician Email'),
+    bonus: resolveCol(s, 'Bonus', 'bonus'),
   };
 }
 
@@ -1590,6 +1624,69 @@ function parseShiftCSV(data, masterRoster) {
       weekKey: start ? (() => { const d = new Date(start); d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0,10); })() : ''
     };
   }).filter(r => r.start && (r.clinician || r.unfilled));
+}
+
+// Parse a single Arya CSV row into an enriched object for Smart Import filtering
+function parseAryaRow(row, cm) {
+  const rawName = (row[cm.clinician] || row[cm.name] || '').trim();
+  const normalizedName = normalizeName(rawName);
+  const unfilled = UNFILLED_NAMES.includes(normalizedName.toLowerCase().trim());
+  const entityName = (row[cm.entityName] || '').trim();
+  const sl = entityName ? mapEntityToSL(entityName) : '';
+  const startStr = row[cm.shiftStart] || row[cm.date] || '';
+  const endStr = row[cm.shiftEnd] || '';
+  const startDate = parseDate(startStr);
+  const endDate = parseDate(endStr);
+  const hours = parseFloat(row[cm.scheduledHrs]) || (startDate && endDate ? (endDate - startDate) / 3600000 : 0);
+  const tagsRaw = (row[cm.tags] || '').trim();
+  const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const cred = row[cm.credential] || '';
+  const parsed = parseNameCredential(rawName);
+  return {
+    _name: unfilled ? 'Not Assigned' : (parsed.cleanName || normalizedName),
+    _email: (row[cm.user] || '').trim(),
+    _entityName: entityName,
+    _sl: sl,
+    _startDate: startDate,
+    _endDate: endDate,
+    _dateStr: startDate ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+    _startTimeStr: startDate ? startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+    _endTimeStr: endDate ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+    _hours: Math.round(hours * 100) / 100,
+    _tags: tags,
+    _dow: startDate ? startDate.getDay() : -1,
+    _unfilled: unfilled,
+    _credential: cred || parsed.credential || '',
+    _raw: row  // preserve original row for downstream use
+  };
+}
+
+// Extract all unique filter options from an array of parsed Arya rows
+function extractFilterOptions(parsedRows) {
+  const clinSet = new Set();
+  const entityMap = new Map(); // entity name → SL
+  const tagSet = new Set();
+  let minDate = null, maxDate = null;
+  let totalHours = 0, unfilledCount = 0;
+  const dowSet = new Set();
+
+  parsedRows.forEach(r => {
+    if (!r._unfilled && r._name) clinSet.add(r._name);
+    if (r._unfilled) unfilledCount++;
+    if (r._entityName) entityMap.set(r._entityName, r._sl);
+    r._tags.forEach(t => tagSet.add(t));
+    if (r._startDate) {
+      if (!minDate || r._startDate < minDate) minDate = r._startDate;
+      if (!maxDate || r._startDate > maxDate) maxDate = r._startDate;
+      dowSet.add(r._dow);
+    }
+    totalHours += r._hours || 0;
+  });
+
+  const clinicians = [...clinSet].sort((a, b) => a.localeCompare(b));
+  const entities = [...entityMap.entries()].map(([name, sl]) => ({ name, sl })).sort((a, b) => a.name.localeCompare(b.name));
+  const tags = [...tagSet].sort();
+  return { clinicians, entities, tags, dateRange: { min: minDate, max: maxDate }, dows: [...dowSet].sort(), totalHours: Math.round(totalHours * 10) / 10, unfilledCount };
 }
 
 function staffingColor(filled, required) {
@@ -6963,6 +7060,242 @@ function UploadPreviewModal({ pending, onConfirm, onCancel }) {
   );
 }
 
+// ========================== SMART IMPORT MODAL ==========================
+function SmartImportModal({ rawData, filename, fileSizeBytes, masterRoster, onCommitShifts, onCommitRoster, onCancel, showToast }) {
+  const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Parse all rows once
+  const cm = React.useMemo(() => buildColMap(rawData), [rawData]);
+  const parsedRows = React.useMemo(() => rawData.map(r => parseAryaRow(r, cm)).filter(r => r._startDate), [rawData, cm]);
+  const filterOptions = React.useMemo(() => extractFilterOptions(parsedRows), [parsedRows]);
+
+  // File metadata
+  const fileSize = fileSizeBytes < 1024 ? fileSizeBytes + ' B' : fileSizeBytes < 1048576 ? (fileSizeBytes / 1024).toFixed(1) + ' KB' : (fileSizeBytes / 1048576).toFixed(1) + ' MB';
+  const dateRangeStr = filterOptions.dateRange.min && filterOptions.dateRange.max
+    ? `${filterOptions.dateRange.min.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${filterOptions.dateRange.max.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    : '?';
+
+  // Filter state
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [selClinicians, setSelClinicians] = useState([]);
+  const [selEntities, setSelEntities] = useState([]);
+  const [selTags, setSelTags] = useState([]);
+  const [selDows, setSelDows] = useState([]);
+  const [showUnfilled, setShowUnfilled] = useState(true);
+  const [sortCol, setSortCol] = useState('_startDate');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const resetFilters = () => { setDateFrom(''); setDateTo(''); setSelClinicians([]); setSelEntities([]); setSelTags([]); setSelDows([]); setShowUnfilled(true); };
+
+  // Filter pipeline (AND logic)
+  const filteredRows = React.useMemo(() => {
+    let rows = parsedRows;
+    if (dateFrom) { const d = new Date(dateFrom); rows = rows.filter(r => r._startDate >= d); }
+    if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); rows = rows.filter(r => r._startDate <= d); }
+    if (selClinicians.length > 0) rows = rows.filter(r => selClinicians.includes(r._name));
+    if (selEntities.length > 0) rows = rows.filter(r => selEntities.includes(r._entityName));
+    if (selTags.length > 0) rows = rows.filter(r => r._tags.some(t => selTags.includes(t)));
+    if (!showUnfilled) rows = rows.filter(r => !r._unfilled);
+    if (selDows.length > 0) rows = rows.filter(r => selDows.includes(r._dow));
+    return rows;
+  }, [parsedRows, dateFrom, dateTo, selClinicians, selEntities, selTags, showUnfilled, selDows]);
+
+  // Sort
+  const sortedRows = React.useMemo(() => {
+    const sorted = [...filteredRows];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortCol) {
+        case '_name': cmp = a._name.localeCompare(b._name); break;
+        case '_entityName': cmp = a._entityName.localeCompare(b._entityName); break;
+        case '_sl': cmp = (a._sl || '').localeCompare(b._sl || ''); break;
+        case '_startDate': cmp = (a._startDate || 0) - (b._startDate || 0); break;
+        case '_hours': cmp = a._hours - b._hours; break;
+        default: cmp = 0;
+      }
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+    return sorted;
+  }, [filteredRows, sortCol, sortDir]);
+
+  // Summary stats
+  const uniqueClinicians = React.useMemo(() => new Set(filteredRows.filter(r => !r._unfilled).map(r => r._name)).size, [filteredRows]);
+  const totalHours = React.useMemo(() => Math.round(filteredRows.reduce((s, r) => s + r._hours, 0) * 10) / 10, [filteredRows]);
+  const unfilledInView = React.useMemo(() => filteredRows.filter(r => r._unfilled).length, [filteredRows]);
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+  const sortArrow = (col) => sortCol === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  // Actions
+  const handleUseAsShifts = () => {
+    const rawRows = filteredRows.map(r => r._raw);
+    onCommitShifts(rawRows, filename);
+  };
+
+  const handleUseAsRoster = () => {
+    onCommitRoster(filteredRows, filename);
+  };
+
+  const handleDownloadCSV = () => {
+    if (filteredRows.length === 0) return;
+    const headers = Object.keys(filteredRows[0]._raw);
+    const csvRows = [headers.map(h => `"${h}"`).join(',')];
+    filteredRows.forEach(r => {
+      csvRows.push(headers.map(h => `"${(r._raw[h] || '').replace(/"/g, '""')}"`).join(','));
+    });
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `filtered-${filename}`; a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${filteredRows.length} rows as filtered-${filename}`);
+  };
+
+  // Entity options with SL labels for display
+  const entityOptions = React.useMemo(() => filterOptions.entities.map(e => e.name), [filterOptions]);
+  const entitySLMap = React.useMemo(() => Object.fromEntries(filterOptions.entities.map(e => [e.name, e.sl])), [filterOptions]);
+
+  // Clinician count map (shifts per clinician)
+  const clinCountMap = React.useMemo(() => {
+    const m = {};
+    parsedRows.forEach(r => { if (!r._unfilled && r._name) m[r._name] = (m[r._name] || 0) + 1; });
+    return m;
+  }, [parsedRows]);
+
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal-content smart-import-modal">
+        <div className="modal-header">
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>📦</span> Smart Import
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>{filename}</span>
+          </h3>
+          <button onClick={onCancel} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)', padding: '0 4px' }}>&times;</button>
+        </div>
+        <div className="modal-body" style={{ overflow: 'auto', flex: 1 }}>
+
+          {/* Metadata bar */}
+          <div className="smart-import-meta">
+            <div><span style={{ color: 'var(--text-muted)' }}>Rows:</span> <strong>{parsedRows.length.toLocaleString()}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Size:</span> <strong>{fileSize}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Date Range:</span> <strong>{dateRangeStr}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Clinicians:</span> <strong>{filterOptions.clinicians.length}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Entities:</span> <strong>{filterOptions.entities.length}</strong></div>
+            <div><span style={{ color: 'var(--text-muted)' }}>Unfilled:</span> <strong>{filterOptions.unfilledCount}</strong></div>
+          </div>
+
+          {/* Filter panel */}
+          <div className="smart-import-filters">
+            <div className="form-group">
+              <label>From</label>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>To</label>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            </div>
+            <MultiSelect label="Clinicians" options={filterOptions.clinicians} selected={selClinicians} onChange={setSelClinicians} placeholder="All" countMap={clinCountMap} />
+            <MultiSelect label="Entity" options={entityOptions} selected={selEntities} onChange={setSelEntities} placeholder="All" />
+            {filterOptions.tags.length > 0 && (
+              <MultiSelect label="Tags" options={filterOptions.tags} selected={selTags} onChange={setSelTags} placeholder="All" />
+            )}
+            <div className="form-group">
+              <label>Day of Week</label>
+              <div className="dow-pills">
+                {DOW_LABELS.map((d, i) => (
+                  <button key={i} className={`dow-pill ${selDows.includes(i) ? 'active' : ''}`}
+                    onClick={() => setSelDows(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}>{d}</button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group" style={{ display: 'flex', flexDirection: 'column' }}>
+              <label>Unfilled Shifts</label>
+              <button className={`toggle-chip ${showUnfilled ? 'on' : ''}`} onClick={() => setShowUnfilled(!showUnfilled)}>
+                {showUnfilled ? '✓ Showing' : '✗ Hidden'}
+              </button>
+            </div>
+            <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button className="btn btn-secondary btn-sm" onClick={resetFilters} style={{ fontSize: 11 }}>Reset Filters</button>
+            </div>
+          </div>
+
+          {/* Summary bar */}
+          <div className="smart-import-summary">
+            <span>Showing <span className="count">{filteredRows.length.toLocaleString()}</span> of {parsedRows.length.toLocaleString()} rows</span>
+            <span style={{ color: 'var(--text-muted)' }}>|</span>
+            <span><span className="count">{uniqueClinicians}</span> clinicians</span>
+            <span style={{ color: 'var(--text-muted)' }}>|</span>
+            <span><span className="count">{totalHours.toLocaleString()}</span> total hours</span>
+            {unfilledInView > 0 && <>
+              <span style={{ color: 'var(--text-muted)' }}>|</span>
+              <span style={{ color: 'var(--accent-orange)' }}><span className="count">{unfilledInView}</span> unfilled</span>
+            </>}
+          </div>
+
+          {/* Preview table */}
+          <div className="smart-import-table">
+            <table>
+              <thead>
+                <tr>
+                  <th className="sortable" onClick={() => handleSort('_name')}>Name{sortArrow('_name')}</th>
+                  <th className="sortable" onClick={() => handleSort('_entityName')}>Entity{sortArrow('_entityName')}</th>
+                  <th className="sortable" onClick={() => handleSort('_sl')}>SL{sortArrow('_sl')}</th>
+                  <th className="sortable" onClick={() => handleSort('_startDate')}>Date{sortArrow('_startDate')}</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th className="sortable" onClick={() => handleSort('_hours')} style={{ textAlign: 'right' }}>Hours{sortArrow('_hours')}</th>
+                  <th>Tags</th>
+                  <th>Credential</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.slice(0, 500).map((r, i) => (
+                  <tr key={i} style={r._unfilled ? { opacity: 0.5, fontStyle: 'italic' } : undefined}>
+                    <td title={r._name} style={{ maxWidth: 160 }}>{r._name}</td>
+                    <td title={r._entityName} style={{ maxWidth: 200 }}>{r._entityName}</td>
+                    <td>{r._sl ? <span className={`sl-badge ${r._sl.toLowerCase() === 'tc' ? 'tc' : r._sl.toLowerCase() === 'csl' ? 'csl' : r._sl.toLowerCase() === 'wsl' ? 'wsl' : 'other-sl'}`}>{r._sl}</span> : ''}</td>
+                    <td>{r._dateStr}</td>
+                    <td>{r._startTimeStr}</td>
+                    <td>{r._endTimeStr}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r._hours}</td>
+                    <td>{r._tags.map((t, j) => <span key={j} className="tag-row">{t}</span>)}</td>
+                    <td>{r._credential}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sortedRows.length > 500 && (
+              <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                Showing first 500 of {sortedRows.length.toLocaleString()} rows. Use filters to narrow down.
+              </div>
+            )}
+            {sortedRows.length === 0 && (
+              <div style={{ padding: '24px 12px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
+                No rows match current filters. Try adjusting or resetting filters.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="smart-import-footer">
+          <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-secondary" onClick={handleDownloadCSV} disabled={filteredRows.length === 0}
+            title="Download filtered rows as CSV">📥 Download CSV</button>
+          <button className="btn btn-secondary" onClick={handleUseAsRoster} disabled={filteredRows.length === 0}
+            title="Extract unique clinicians from filtered rows into master roster">👤 Use as Roster</button>
+          <button className="btn btn-primary" onClick={handleUseAsShifts} disabled={filteredRows.length === 0}
+            title="Commit filtered rows as shift schedule data">📅 Use as Shifts ({filteredRows.length.toLocaleString()} rows)</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ========================== LOOKBACK OPTIONS ==========================
 const LOOKBACK_OPTIONS = [
   { value: '2w', label: '2 weeks', days: 14 },
@@ -8038,6 +8371,7 @@ function App() {
   });
   const [toast, setToast] = useState(null);
   const [pendingUpload, setPendingUpload] = useState(null);
+  const [smartImportData, setSmartImportData] = useState(null);
   const [weeklyPerfData, setWeeklyPerfData] = useState({});
 
   // Master Clinician Roster — persisted in localStorage, seeded from TC_CLINICIANS
@@ -8146,6 +8480,54 @@ function App() {
     saveUploadData('shifts_parsed', parsed, filename);
   };
 
+  // Smart Import handlers
+  const handleSmartImportShifts = (filteredRawData, filename) => {
+    handleShiftUpload(filteredRawData, filename);
+    setSmartImportData(null);
+  };
+
+  const handleSmartImportRoster = (filteredRows, filename) => {
+    const clinMap = new Map();
+    filteredRows.forEach(r => {
+      if (r._unfilled) return;
+      const norm = normalizeName(r._name);
+      if (!norm) return;
+      if (!clinMap.has(norm)) {
+        clinMap.set(norm, { name: r._name, credential: r._credential, sls: new Set(), hours: 0 });
+      }
+      const entry = clinMap.get(norm);
+      if (r._sl) entry.sls.add(r._sl);
+      entry.hours += r._hours || 0;
+      if (!entry.credential && r._credential) entry.credential = r._credential;
+    });
+
+    const updated = [...masterRoster];
+    const changes = [];
+    clinMap.forEach((info, norm) => {
+      const idx = updated.findIndex(m => normalizeName(m.name) === norm);
+      if (idx >= 0) {
+        // Update existing — fill in missing credential
+        if ((!updated[idx].credential || updated[idx].credential === '?') && info.credential) {
+          changes.push({ type: 'credential_changed', name: info.name, from: updated[idx].credential, to: info.credential, source: 'arya-import:' + filename, date: new Date().toISOString() });
+          updated[idx] = { ...updated[idx], credential: info.credential, lastUpdated: new Date().toISOString() };
+        }
+      } else {
+        // Add new clinician
+        updated.push({
+          name: info.name, credential: info.credential || '?', stateCount: 0, restricted: false,
+          vph: 0, stateFlags: new Array(24).fill(0), source: 'arya-import:' + filename,
+          lastUpdated: new Date().toISOString(), vphHistory: [], unmatched: true
+        });
+        changes.push({ type: 'added', name: info.name, source: 'arya-import:' + filename, date: new Date().toISOString() });
+      }
+    });
+
+    setMasterRoster(updated);
+    if (changes.length > 0) setRosterChangelog(prev => [...prev, ...changes]);
+    showToast(`${clinMap.size} clinicians processed (${changes.filter(c => c.type === 'added').length} new, ${changes.filter(c => c.type === 'credential_changed').length} updated) from ${filename}`);
+    setSmartImportData(null);
+  };
+
   // Clear all uploaded data (separate action)
   const handleClearAll = () => {
     if (window.confirm('Clear ALL uploaded data? This removes actuals, incentives, roster, and forecast results. History log is preserved.')) {
@@ -8230,9 +8612,9 @@ function App() {
     const maxD = dates.length > 0 ? formatDate(new Date(Math.max(...dates))) : '?';
     const fileSize = fileSizeBytes < 1024 ? fileSizeBytes + ' B' : fileSizeBytes < 1048576 ? (fileSizeBytes / 1024).toFixed(1) + ' KB' : (fileSizeBytes / 1048576).toFixed(1) + ' MB';
 
-    // Auto-confirm shifts and unambiguous actuals (skip modal)
+    // Shifts → Smart Import modal for interactive filtering
     if (type === 'shifts') {
-      commitUpload({ data, filename, type, detectedSL });
+      setSmartImportData({ rawData: data, filename, fileSizeBytes });
       return;
     }
     if (type === 'actuals' && ['TC', 'CSL', 'WSL'].includes(detectedSL)) {
@@ -8430,6 +8812,20 @@ function App() {
           pending={pendingUpload}
           onConfirm={confirmUpload}
           onCancel={cancelUpload}
+        />
+      )}
+
+      {/* Smart Import Modal */}
+      {smartImportData && (
+        <SmartImportModal
+          rawData={smartImportData.rawData}
+          filename={smartImportData.filename}
+          fileSizeBytes={smartImportData.fileSizeBytes}
+          masterRoster={masterRoster}
+          onCommitShifts={handleSmartImportShifts}
+          onCommitRoster={handleSmartImportRoster}
+          onCancel={() => setSmartImportData(null)}
+          showToast={showToast}
         />
       )}
 
