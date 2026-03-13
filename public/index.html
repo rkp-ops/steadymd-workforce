@@ -8821,7 +8821,8 @@ function App() {
     if (type === 'actuals') {
       const finalSL = overrideSL || pending.detectedSL;
       data.forEach(r => { r._detectedSL = finalSL; r._sourceFile = filename; });
-      setActualsData(prev => prev ? [...prev, ...data] : data);
+      const accumulated = actualsData ? [...actualsData, ...data] : data;
+      setActualsData(accumulated);
       const slLabel = finalSL === 'Unknown' ? 'Unknown SL — edit in Historical Log' : finalSL;
       showToast(`${data.length} records loaded (${slLabel}) — ${filename}`);
 
@@ -8851,12 +8852,15 @@ function App() {
         setRosterChangelog(prev => [...prev, ...changes]);
         showToast(`Roster updated: ${changes.length} change(s) detected`);
       }
-      // Persist to Supabase
-      saveUploadData('actuals', data, filename, finalSL);
+      // Persist ACCUMULATED actuals to Supabase (all uploads combined)
+      const slsInAccumulated = [...new Set(accumulated.map(r => r._detectedSL).filter(Boolean))];
+      const persistSL = slsInAccumulated.length === 1 ? slsInAccumulated[0] : 'Mixed';
+      saveUploadData('actuals', accumulated, filename, persistSL);
     } else if (type === 'incentives') {
-      setIncentiveData(prev => prev ? [...prev, ...data] : data);
+      const accIncentives = incentiveData ? [...incentiveData, ...data] : data;
+      setIncentiveData(accIncentives);
       showToast(`Loaded ${data.length} incentive records from ${filename}`);
-      saveUploadData('incentives', data, filename);
+      saveUploadData('incentives', accIncentives, filename);
     } else if (type === 'shifts') {
       setRosterData(data);
       const parsed = parseShiftCSV(data, masterRoster);
