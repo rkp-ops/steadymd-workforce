@@ -336,6 +336,28 @@ textarea.form-input { min-height: 120px; font-family: var(--font-mono); font-siz
 .toggle-chip.on { background: var(--accent-teal); color: #fff; border-color: var(--accent-teal); }
 .smart-import-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); }
 .tag-row { display: inline-block; padding: 1px 5px; border-radius: 8px; font-size: 9px; font-weight: 600; background: var(--bg-primary); color: var(--text-muted); border: 1px solid var(--border); margin-right: 2px; }
+/* Diagnostics Tab */
+.alignment-timeline { display: flex; gap: 2px; align-items: flex-end; height: 120px; padding: 8px 0; }
+.alignment-bar { flex: 1; border-radius: 4px 4px 0 0; min-width: 16px; cursor: pointer; transition: opacity 0.15s; position: relative; }
+.alignment-bar:hover { opacity: 0.85; }
+.alignment-bar .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--text-muted); white-space: nowrap; }
+.alignment-bar .bar-value { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 700; white-space: nowrap; }
+.slider-group { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.slider-group label { font-size: 12px; font-weight: 600; min-width: 120px; color: var(--text-primary); }
+.slider-group input[type="range"] { flex: 1; height: 6px; -webkit-appearance: none; background: var(--border); border-radius: 3px; outline: none; }
+.slider-group input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent-teal); cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.slider-group .slider-value { font-size: 13px; font-weight: 700; font-family: var(--font-mono); min-width: 50px; text-align: right; color: var(--accent-teal-dark); }
+.decomp-row { cursor: pointer; transition: background 0.1s; }
+.decomp-row:hover { background: var(--bg-card-hover); }
+.decomp-row.expanded { background: var(--accent-teal-soft); }
+.factor-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; color: #fff; }
+.score-badge { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; font-size: 12px; font-weight: 700; color: #fff; }
+.delta-indicator { font-size: 11px; font-weight: 600; }
+.delta-indicator.positive { color: var(--accent-green); }
+.delta-indicator.negative { color: var(--accent-red); }
+.diag-section { margin-bottom: 16px; }
+.diag-section summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--text-primary); margin-bottom: 10px; }
+.diag-tooltip { position: absolute; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; font-size: 11px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; min-width: 200px; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -2458,6 +2480,203 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       )}
     </div>
   );
+}
+
+// ========================== DIAGNOSTICS ENGINE ==========================
+
+// Decompose an SLA miss period into weighted contributing factors
+// Returns { factors: [{name, weight, detail, raw, color}], slaPct, totalVisits, totalMisses }
+function decomposeSLAMiss({ hourActuals, scheduledShifts, roster, baselineArrivals, cm, hourIndex }) {
+  const FACTOR_COLORS = {
+    staffing: '#3b82f6', volume: '#f59e0b', vph: '#ef4444',
+    coverage: '#8b5cf6', modality: '#14b8a6'
+  };
+
+  // Count visits and misses
+  const validRows = hourActuals.filter(r => !isCanceled(r, cm));
+  const totalVisits = validRows.length;
+  const missedRows = validRows.filter(r => isSlaMissed(r, cm));
+  const totalMisses = missedRows.length;
+  const slaPct = totalVisits > 0 ? ((totalVisits - totalMisses) / totalVisits * 100) : 100;
+
+  if (totalMisses === 0 || totalVisits === 0) {
+    return { factors: [], slaPct, totalVisits, totalMisses, met: true };
+  }
+
+  // Build clinician lookup from roster or TC_CLINICIANS
+  const clinMap = {};
+  if (roster && roster.length > 0) {
+    roster.forEach(c => { clinMap[normalizeName(c.name)] = c; });
+  } else {
+    TC_CLINICIANS.forEach(c => { clinMap[normalizeName(c[0])] = { name: c[0], credential: c[1], vph: c[4], stateFlags: c[5] }; });
+  }
+
+  // 1. STAFFING GAP — were there enough clinicians?
+  const actualHC = scheduledShifts ? scheduledShifts.length : 0;
+  const rosterVPHs = Object.values(clinMap).map(c => c.vph || 1.5).filter(v => v > 0);
+  const avgExpectedVPH = rosterVPHs.length > 0 ? rosterVPHs.reduce((a, b) => a + b, 0) / rosterVPHs.length : 1.5;
+  const expectedHC = Math.ceil(totalVisits / Math.max(avgExpectedVPH, 0.5));
+  const deltaStaff = expectedHC > 0 ? Math.max(0, expectedHC - actualHC) / expectedHC : 0;
+
+  // 2. VOLUME SPIKE — did volume exceed baseline?
+  const hIdx = hourIndex !== undefined && hourIndex < TC_ARRIVALS.length ? hourIndex : -1;
+  const baseline = hIdx >= 0 ? TC_ARRIVALS[hIdx][24] : totalVisits;
+  const deltaVol = baseline > 0 ? Math.max(0, totalVisits - baseline) / baseline : 0;
+
+  // 3. VPH DECLINE — did clinicians underperform?
+  let deltaVph = 0;
+  if (scheduledShifts && scheduledShifts.length > 0) {
+    const scheduledNames = scheduledShifts.map(s => normalizeName(s.clinician || s.Name || s.name || ''));
+    const expectedVPHs = scheduledNames.map(n => clinMap[n]?.vph || avgExpectedVPH);
+    const expectedAvg = expectedVPHs.reduce((a, b) => a + b, 0) / expectedVPHs.length;
+    // Observed VPH = total visits / total clinician-hours
+    const totalShiftHours = scheduledShifts.reduce((s, sh) => s + (sh.hours || 1), 0);
+    const observedAvg = totalShiftHours > 0 ? totalVisits / totalShiftHours : 0;
+    deltaVph = expectedAvg > 0 ? Math.max(0, expectedAvg - observedAvg) / expectedAvg : 0;
+  }
+
+  // 4. COVERAGE GAP — states with demand but no eligible clinician
+  let deltaCov = 0;
+  if (hIdx >= 0 && scheduledShifts && scheduledShifts.length > 0) {
+    let uncovered = 0;
+    let totalStateArrivals = 0;
+    const stateElig = {};
+    TC_STATES.forEach(st => { stateElig[st] = 0; });
+
+    // Count state eligibility from scheduled clinicians
+    scheduledShifts.forEach(s => {
+      const n = normalizeName(s.clinician || s.Name || s.name || '');
+      const c = clinMap[n];
+      if (c && c.stateFlags) {
+        TC_STATES.forEach((st, i) => { stateElig[st] += (c.stateFlags[i] || 0); });
+      }
+    });
+
+    TC_STATES.forEach((st, si) => {
+      const stArrivals = TC_ARRIVALS[hIdx][si];
+      if (stArrivals > 0.01) {
+        totalStateArrivals += stArrivals;
+        if (stateElig[st] === 0) uncovered += stArrivals;
+      }
+    });
+    deltaCov = totalStateArrivals > 0 ? uncovered / totalStateArrivals : 0;
+  }
+
+  // 5. MODALITY MIX — sync vs async ratio shift
+  let deltaMod = 0;
+  const modalityCol = cm.modality || cm.visitType;
+  if (modalityCol) {
+    let syncCount = 0, asyncCount = 0;
+    validRows.forEach(r => {
+      const mod = (r[modalityCol] || '').toLowerCase();
+      if (mod.includes('sync') && !mod.includes('async')) syncCount++;
+      else asyncCount++;
+    });
+    const totalMod = syncCount + asyncCount;
+    // Baseline assumption: ~40% sync. If actual sync share is higher, it's harder to meet SLA
+    const baselineSyncRatio = 0.4;
+    const actualSyncRatio = totalMod > 0 ? syncCount / totalMod : 0;
+    deltaMod = Math.max(0, actualSyncRatio - baselineSyncRatio);
+  }
+
+  // Normalize to 100%
+  const rawDeltas = [
+    { name: 'Staffing Gap', key: 'staffing', raw: deltaStaff, color: FACTOR_COLORS.staffing,
+      detail: `Need ~${expectedHC} HC, had ${actualHC}` },
+    { name: 'Volume Spike', key: 'volume', raw: deltaVol, color: FACTOR_COLORS.volume,
+      detail: `${totalVisits} visits vs ${baseline.toFixed(1)} baseline` },
+    { name: 'VPH Decline', key: 'vph', raw: deltaVph, color: FACTOR_COLORS.vph,
+      detail: `Clinicians underperforming expected VPH` },
+    { name: 'Coverage Gap', key: 'coverage', raw: deltaCov, color: FACTOR_COLORS.coverage,
+      detail: `${(deltaCov * 100).toFixed(0)}% of demand in uncovered states` },
+    { name: 'Modality Mix', key: 'modality', raw: deltaMod, color: FACTOR_COLORS.modality,
+      detail: `Higher sync share increases difficulty` },
+  ];
+
+  const totalRaw = rawDeltas.reduce((s, d) => s + d.raw, 0);
+  const factors = rawDeltas.map(d => ({
+    ...d,
+    weight: totalRaw > 0 ? Math.round(d.raw / totalRaw * 100) : 0,
+  })).sort((a, b) => b.weight - a.weight);
+
+  return { factors, slaPct, totalVisits, totalMisses, met: false };
+}
+
+// Compute per-hour alignment score (0–100) between shift coverage and expected demand
+function computeAlignmentScore({ hourIndex, scheduledShifts, roster, volumeMultiplier = 1.0 }) {
+  if (hourIndex < 0 || hourIndex >= TC_ARRIVALS.length) return { score: 0, sub: {}, detail: {} };
+
+  const expectedDemand = TC_ARRIVALS[hourIndex][24] * volumeMultiplier;
+  if (expectedDemand < 0.1) return { score: 100, sub: { capacity: 40, coverage: 30, vph: 20, modality: 10 }, detail: { demand: 0, capacity: 0 }, noDemand: true };
+
+  // Build clinician lookup
+  const clinMap = {};
+  if (roster && roster.length > 0) {
+    roster.forEach(c => { clinMap[normalizeName(c.name)] = c; });
+  } else {
+    TC_CLINICIANS.forEach(c => { clinMap[normalizeName(c[0])] = { name: c[0], credential: c[1], vph: c[4], stateFlags: c[5] }; });
+  }
+
+  // Sub-score 1: CAPACITY (40% weight) — scheduled capacity vs demand
+  let capacitySum = 0;
+  let vphSum = 0;
+  let mdDoCount = 0;
+  let totalClinicians = 0;
+  const stateElig = {};
+  TC_STATES.forEach(st => { stateElig[st] = 0; });
+
+  if (scheduledShifts && scheduledShifts.length > 0) {
+    scheduledShifts.forEach(s => {
+      const n = normalizeName(s.clinician || s.Name || s.name || '');
+      const c = clinMap[n];
+      const vph = c?.vph || 1.5;
+      capacitySum += vph;
+      vphSum += vph;
+      totalClinicians++;
+      const cred = (c?.credential || s.credential || s.credClass || '').toUpperCase();
+      if (cred.includes('MD') || cred.includes('DO')) mdDoCount++;
+      if (c && c.stateFlags) {
+        TC_STATES.forEach((st, i) => { stateElig[st] += (c.stateFlags[i] || 0); });
+      }
+    });
+  }
+
+  const capacityScore = Math.min(1, capacitySum / Math.max(expectedDemand, 0.1)) * 40;
+
+  // Sub-score 2: COVERAGE (30% weight) — state coverage overlap
+  let uncoveredArrivals = 0;
+  let totalStateArrivals = 0;
+  TC_STATES.forEach((st, si) => {
+    const stArrivals = TC_ARRIVALS[hourIndex][si] * volumeMultiplier;
+    if (stArrivals > 0.01) {
+      totalStateArrivals += stArrivals;
+      if (stateElig[st] === 0) uncoveredArrivals += stArrivals;
+    }
+  });
+  const coverageScore = totalStateArrivals > 0 ? (1 - uncoveredArrivals / totalStateArrivals) * 30 : 30;
+
+  // Sub-score 3: VPH QUALITY (20% weight) — avg VPH vs target
+  const targetVPH = 1.64; // median from TC_CLINICIANS
+  const avgVPH = totalClinicians > 0 ? vphSum / totalClinicians : 0;
+  const vphScore = Math.min(1, avgVPH / targetVPH) * 20;
+
+  // Sub-score 4: MODALITY FIT (10% weight) — MD/DO fraction for sync capability
+  const modalityScore = totalClinicians > 0 ? (mdDoCount / totalClinicians) * 10 : 0;
+
+  const score = Math.round(capacityScore + coverageScore + vphScore + modalityScore);
+  const uncoveredStates = [];
+  TC_STATES.forEach((st, si) => {
+    const stArr = TC_ARRIVALS[hourIndex][si] * volumeMultiplier;
+    if (stArr > 0.01 && stateElig[st] === 0) uncoveredStates.push({ state: st, arrivals: stArr });
+  });
+  uncoveredStates.sort((a, b) => b.arrivals - a.arrivals);
+
+  return {
+    score,
+    sub: { capacity: Math.round(capacityScore), coverage: Math.round(coverageScore), vph: Math.round(vphScore), modality: Math.round(modalityScore) },
+    detail: { demand: expectedDemand, capacity: capacitySum, hc: totalClinicians, avgVPH, uncoveredStates },
+    overstaffed: capacitySum > expectedDemand * 1.5
+  };
 }
 
 // ========================== FORECAST ENGINE ==========================
@@ -5050,6 +5269,557 @@ function InsightsTab({ actualsData, forecast, history, masterRoster, shiftSchedu
           </details>
         );
       })()}
+    </div>
+  );
+}
+
+// ========================== TAB: DIAGNOSTICS ==========================
+function DiagnosticsTab({ actualsData, forecast, shiftScheduleData, masterRoster, calloutData, showToast }) {
+  const [serviceLine, setServiceLine] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [expandedRow, setExpandedRow] = useState(null);
+  const [hcDelta, setHcDelta] = useState(0);
+  const [vphMultiplier, setVphMultiplier] = useState(1.0);
+  const [volumeMultiplier, setVolumeMultiplier] = useState(1.0);
+  const [hoveredHour, setHoveredHour] = useState(null);
+
+  // Column map for actuals
+  const cm = useMemo(() => actualsData && actualsData.length > 0 ? buildColMap(actualsData[0]) : {}, [actualsData]);
+
+  // Filter actuals by SL and date range
+  const filteredActuals = useMemo(() => {
+    if (!actualsData) return [];
+    let rows = actualsData;
+    if (serviceLine !== 'ALL') {
+      rows = rows.filter(r => {
+        const partnerVal = cm.partner ? (r[cm.partner] || '') : '';
+        const entityVal = cm.entityName ? (r[cm.entityName] || '') : '';
+        if (serviceLine === 'TC') {
+          return (partnerVal + ' ' + entityVal).toLowerCase().includes('transcarent') || r._detectedSL === 'TC';
+        }
+        const sl = mapPartnerToSL(partnerVal) || mapEntityToSL(entityVal);
+        return sl === serviceLine || r._detectedSL === serviceLine;
+      });
+    }
+    if (dateFrom || dateTo) {
+      const from = dateFrom ? new Date(dateFrom) : null;
+      const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+      rows = rows.filter(r => {
+        const dt = parseDate(cm.date ? r[cm.date] : '');
+        if (!dt) return false;
+        if (from && dt < from) return false;
+        if (to && dt > to) return false;
+        return true;
+      });
+    }
+    return rows;
+  }, [actualsData, serviceLine, dateFrom, dateTo, cm]);
+
+  // Filter shifts by SL
+  const filteredShifts = useMemo(() => {
+    if (!shiftScheduleData) return [];
+    if (serviceLine === 'ALL') return shiftScheduleData;
+    return shiftScheduleData.filter(s => s.sl === serviceLine);
+  }, [shiftScheduleData, serviceLine]);
+
+  // ============================
+  // SECTION A: SLA DECOMPOSITION
+  // ============================
+  const decomposition = useMemo(() => {
+    if (!filteredActuals || filteredActuals.length < 5) return null;
+
+    // Group actuals by date + hour
+    const hourBuckets = {};
+    filteredActuals.forEach(r => {
+      const dt = parseDate(cm.date ? r[cm.date] : '');
+      if (!dt) return;
+      const dateStr = dt.toISOString().slice(0, 10);
+      const hour = dt.getHours();
+      const key = `${dateStr}_${hour}`;
+      if (!hourBuckets[key]) hourBuckets[key] = { rows: [], date: dateStr, hour, dt };
+      hourBuckets[key].rows.push(r);
+    });
+
+    // For each hour-bucket, compute decomposition
+    const results = [];
+    Object.entries(hourBuckets).forEach(([key, bucket]) => {
+      const { rows, date, hour } = bucket;
+      // Find shifts overlapping this hour
+      const hourStart = new Date(date + 'T' + String(hour).padStart(2, '0') + ':00:00');
+      const hourEnd = new Date(hourStart.getTime() + 3600000);
+      const overlappingShifts = filteredShifts.filter(s => {
+        const sStart = parseDate(s['Start Time'] || s['Start'] || s.start);
+        const sEnd = parseDate(s['End Time'] || s['End'] || s.end);
+        return sStart && sEnd && sStart < hourEnd && sEnd > hourStart;
+      });
+
+      const result = decomposeSLAMiss({
+        hourActuals: rows, scheduledShifts: overlappingShifts,
+        roster: masterRoster, baselineArrivals: null, cm, hourIndex: hour
+      });
+
+      if (!result.met && result.totalMisses > 0) {
+        results.push({ key, date, hour, label: `${date} ${hour}:00`, ...result });
+      }
+    });
+
+    results.sort((a, b) => b.totalMisses - a.totalMisses);
+
+    // Aggregate: which factor is most frequently the top driver?
+    const driverCounts = {};
+    results.forEach(r => {
+      if (r.factors.length > 0) {
+        const top = r.factors[0];
+        driverCounts[top.name] = (driverCounts[top.name] || 0) + 1;
+      }
+    });
+    const primaryDriver = Object.entries(driverCounts).sort((a, b) => b[1] - a[1])[0];
+    const worstHour = results[0] || null;
+
+    return { results, primaryDriver: primaryDriver ? primaryDriver[0] : 'N/A', worstHour, totalPeriods: results.length };
+  }, [filteredActuals, filteredShifts, masterRoster, cm]);
+
+  // ============================
+  // SECTION B: ALIGNMENT SCORES
+  // ============================
+  const alignmentData = useMemo(() => {
+    const scores = [];
+    for (let h = 0; h < 24; h++) {
+      // Find shifts overlapping hour h (using today as reference)
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const hourStart = new Date(today.getTime() + h * 3600000);
+      const hourEnd = new Date(hourStart.getTime() + 3600000);
+
+      const overlapping = filteredShifts.filter(s => {
+        const sStart = parseDate(s['Start Time'] || s['Start'] || s.start);
+        const sEnd = parseDate(s['End Time'] || s['End'] || s.end);
+        if (!sStart || !sEnd) return false;
+        // Match by hour-of-day regardless of date
+        const sH0 = sStart.getHours() + (sStart.getMinutes() > 0 ? sStart.getMinutes() / 60 : 0);
+        const sH1 = sEnd.getHours() + (sEnd.getMinutes() > 0 ? sEnd.getMinutes() / 60 : 0);
+        const endH = sH1 <= sH0 ? sH1 + 24 : sH1; // handle overnight
+        return h >= sH0 && h < endH;
+      });
+
+      const result = computeAlignmentScore({ hourIndex: h, scheduledShifts: overlapping, roster: masterRoster });
+      scores.push({ hour: h, label: `${h === 0 ? '12' : h > 12 ? h - 12 : h}${h < 12 ? 'a' : 'p'}`, ...result });
+    }
+
+    const active = scores.filter(s => !s.noDemand);
+    const avgScore = active.length > 0 ? Math.round(active.reduce((s, a) => s + a.score, 0) / active.length) : 0;
+    const understaffed = active.filter(s => s.score < 50).length;
+    const overstaffed = active.filter(s => s.overstaffed).length;
+    const worstGap = active.reduce((w, s) => (!w || s.score < w.score) ? s : w, null);
+
+    return { scores, avgScore, understaffed, overstaffed, worstGap };
+  }, [filteredShifts, masterRoster]);
+
+  // ============================
+  // SECTION C: WHAT-IF SIMULATOR
+  // ============================
+  const whatIf = useMemo(() => {
+    if (!shiftScheduleData || shiftScheduleData.length === 0) return null;
+
+    // Baseline forecast
+    const baselineResult = runForecast(shiftScheduleData, { volumeMultiplier: 1.0 }, masterRoster);
+
+    // Build modified shifts
+    let modifiedShifts = [...shiftScheduleData];
+
+    if (hcDelta !== 0) {
+      // Sort by VPH (from roster lookup)
+      const clinMap = {};
+      if (masterRoster && masterRoster.length > 0) {
+        masterRoster.forEach(c => { clinMap[normalizeName(c.name)] = c; });
+      } else {
+        TC_CLINICIANS.forEach(c => { clinMap[normalizeName(c[0])] = { name: c[0], vph: c[4] }; });
+      }
+
+      const withVPH = modifiedShifts.map(s => {
+        const n = normalizeName(s.Name || s.name || s['Clinician Name'] || '');
+        const c = clinMap[n];
+        return { ...s, _vph: c?.vph || 1.5 };
+      }).sort((a, b) => b._vph - a._vph);
+
+      if (hcDelta > 0) {
+        // Add synthetic shifts by duplicating top-VPH clinicians
+        for (let i = 0; i < hcDelta && withVPH.length > 0; i++) {
+          const template = withVPH[i % withVPH.length];
+          modifiedShifts.push({ ...template, _synthetic: true });
+        }
+      } else {
+        // Remove lowest-VPH clinicians
+        const sorted = [...withVPH].sort((a, b) => a._vph - b._vph);
+        modifiedShifts = sorted.slice(Math.abs(hcDelta));
+      }
+    }
+
+    // Build modified roster with VPH multiplier
+    let modifiedRoster = masterRoster;
+    if (vphMultiplier !== 1.0 && masterRoster && masterRoster.length > 0) {
+      modifiedRoster = masterRoster.map(c => ({ ...c, vph: c.vph * vphMultiplier }));
+    } else if (vphMultiplier !== 1.0) {
+      // No custom roster — create modified TC_CLINICIANS-based roster
+      modifiedRoster = TC_CLINICIANS.map(c => ({
+        name: c[0], credential: c[1], stateCount: c[2], restricted: c[3],
+        vph: c[4] * vphMultiplier, stateFlags: c[5]
+      }));
+    }
+
+    const projectedResult = runForecast(modifiedShifts, { volumeMultiplier }, modifiedRoster);
+
+    const slaDelta = projectedResult.slaRate - baselineResult.slaRate;
+    const missDelta = projectedResult.totalMisses - baselineResult.totalMisses;
+    // Cost estimate: ~$75/hr per clinician, 8 hour shift average
+    const costImpact = hcDelta * 8 * 75;
+
+    return {
+      baseline: baselineResult,
+      projected: projectedResult,
+      slaDelta,
+      missDelta,
+      costImpact,
+      matchedBaseline: baselineResult.matched,
+      matchedProjected: projectedResult.matched,
+    };
+  }, [shiftScheduleData, masterRoster, hcDelta, vphMultiplier, volumeMultiplier]);
+
+  // ============ RENDER ============
+
+  if (!actualsData && !shiftScheduleData) {
+    return (
+      <div className="empty-state">
+        <div className="icon">&#128300;</div>
+        <p>Upload actuals and/or shift data to unlock diagnostics</p>
+        <div className="hint">The Diagnostics tab decomposes SLA misses, scores shift-demand alignment, and simulates staffing scenarios</div>
+      </div>
+    );
+  }
+
+  const fmtHour = (h) => `${h === 0 ? '12' : h > 12 ? h - 12 : h}:00 ${h < 12 ? 'AM' : 'PM'}`;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+        <SLFilter value={serviceLine} onChange={setServiceLine} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+          <label>From</label>
+          <input type="date" className="form-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ fontSize: 11, padding: '4px 8px' }} />
+          <label>To</label>
+          <input type="date" className="form-input" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ fontSize: 11, padding: '4px 8px' }} />
+        </div>
+      </div>
+
+      {/* ===== SECTION A: SLA DECOMPOSITION ENGINE ===== */}
+      <details open className="diag-section">
+        <summary>🔬 SLA Decomposition Engine — "The Why Machine"</summary>
+
+        {!decomposition || decomposition.totalPeriods === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: 24 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+            <div style={{ fontWeight: 600 }}>No SLA misses detected in this period</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>All hours are meeting SLA targets</div>
+          </div>
+        ) : (
+          <div>
+            <div className="grid-4" style={{ marginBottom: 12 }}>
+              <KpiCard label="Miss Periods" value={decomposition.totalPeriods} sub="Hours with SLA < 100%" />
+              <KpiCard label="Primary Driver" value={decomposition.primaryDriver} sub="Most frequent top factor" />
+              <KpiCard label="Worst Hour" value={decomposition.worstHour ? fmtHour(decomposition.worstHour.hour) : '—'} sub={decomposition.worstHour ? `${decomposition.worstHour.totalMisses} misses` : ''} />
+              <KpiCard label="Worst SLA" value={decomposition.worstHour ? decomposition.worstHour.slaPct.toFixed(1) + '%' : '—'} sub={decomposition.worstHour ? decomposition.worstHour.date : ''} />
+            </div>
+
+            <div className="card">
+              <div className="card-title">Decomposition by Hour</div>
+              <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date/Hour</th>
+                      <th style={{ textAlign: 'right' }}>Visits</th>
+                      <th style={{ textAlign: 'right' }}>Misses</th>
+                      <th style={{ textAlign: 'right' }}>SLA %</th>
+                      <th style={{ width: '40%' }}>Attribution</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {decomposition.results.slice(0, 50).map((r, idx) => (
+                      <React.Fragment key={r.key}>
+                        <tr className={`decomp-row ${expandedRow === idx ? 'expanded' : ''}`} onClick={() => setExpandedRow(expandedRow === idx ? null : idx)}>
+                          <td style={{ fontWeight: 600, fontSize: 12 }}>{r.date} {fmtHour(r.hour)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.totalVisits}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--accent-red)' }}>{r.totalMisses}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: r.slaPct < 80 ? 'var(--accent-red)' : r.slaPct < 90 ? 'var(--accent-orange)' : undefined }}>{r.slaPct.toFixed(1)}%</td>
+                          <td>
+                            <div style={{ display: 'flex', height: 22, borderRadius: 4, overflow: 'hidden' }}>
+                              {r.factors.filter(f => f.weight > 0).map(f => (
+                                <div key={f.key} style={{ width: `${f.weight}%`, background: f.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 600 }} title={`${f.name}: ${f.weight}%`}>
+                                  {f.weight > 12 ? `${f.weight}%` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                        {expandedRow === idx && (
+                          <tr>
+                            <td colSpan={5} style={{ background: 'var(--bg-primary)', padding: 12 }}>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {r.factors.map(f => (
+                                  <div key={f.key} style={{ flex: '1 1 180px', padding: 8, background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                      <span className="factor-chip" style={{ background: f.color }}>{f.weight}%</span>
+                                      <span style={{ fontWeight: 600, fontSize: 11 }}>{f.name}</span>
+                                    </div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{f.detail}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Legend */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                {[{ key: 'staffing', label: 'Staffing', color: '#3b82f6' }, { key: 'volume', label: 'Volume', color: '#f59e0b' }, { key: 'vph', label: 'VPH', color: '#ef4444' }, { key: 'coverage', label: 'Coverage', color: '#8b5cf6' }, { key: 'modality', label: 'Modality', color: '#14b8a6' }].map(f => (
+                  <span key={f.key}><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: f.color, marginRight: 4, verticalAlign: 'middle' }}></span>{f.label}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </details>
+
+      {/* ===== SECTION B: SHIFT-DEMAND ALIGNMENT ===== */}
+      <details open className="diag-section">
+        <summary>📊 Shift-Demand Alignment — "The Gap Detector"</summary>
+
+        {!shiftScheduleData || shiftScheduleData.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: 24 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+            <div style={{ fontWeight: 600 }}>Upload shift data to see alignment scores</div>
+          </div>
+        ) : (
+          <div>
+            <div className="grid-4" style={{ marginBottom: 12 }}>
+              <KpiCard label="Avg Score" value={alignmentData.avgScore + '/100'} sub="Across active hours" className={alignmentData.avgScore < 50 ? 'kpi-red' : alignmentData.avgScore < 80 ? 'kpi-orange' : ''} />
+              <KpiCard label="Understaffed" value={alignmentData.understaffed} sub="Hours scoring < 50" />
+              <KpiCard label="Overstaffed" value={alignmentData.overstaffed} sub="Hours with excess capacity" />
+              <KpiCard label="Worst Gap" value={alignmentData.worstGap ? fmtHour(alignmentData.worstGap.hour) : '—'} sub={alignmentData.worstGap ? `Score: ${alignmentData.worstGap.score}` : ''} />
+            </div>
+
+            <div className="card">
+              <div className="card-title">24-Hour Alignment Timeline</div>
+              <div style={{ position: 'relative' }}>
+                <div className="alignment-timeline">
+                  {alignmentData.scores.map((s, i) => {
+                    const color = s.noDemand ? '#e2e6eb' : s.overstaffed ? '#3b82f6' : s.score >= 80 ? '#22c55e' : s.score >= 50 ? '#f59e0b' : '#ef4444';
+                    const height = s.noDemand ? 20 : Math.max(20, (s.score / 100) * 100);
+                    return (
+                      <div key={i} className="alignment-bar"
+                        style={{ height: `${height}%`, background: color }}
+                        onMouseEnter={() => setHoveredHour(i)}
+                        onMouseLeave={() => setHoveredHour(null)}>
+                        <div className="bar-label">{s.label}</div>
+                        {!s.noDemand && <div className="bar-value" style={{ color }}>{s.score}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Hover tooltip */}
+                {hoveredHour !== null && !alignmentData.scores[hoveredHour].noDemand && (
+                  <div className="diag-tooltip" style={{ left: Math.min(hoveredHour * 4.16, 75) + '%', top: -10 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{fmtHour(hoveredHour)} — Score: {alignmentData.scores[hoveredHour].score}/100</div>
+                    <div style={{ fontSize: 10 }}>
+                      <div>Demand: {alignmentData.scores[hoveredHour].detail.demand.toFixed(1)} visits</div>
+                      <div>Capacity: {alignmentData.scores[hoveredHour].detail.capacity.toFixed(1)} VPH</div>
+                      <div>HC: {alignmentData.scores[hoveredHour].detail.hc} clinicians</div>
+                      <div style={{ marginTop: 4 }}>
+                        Capacity: {alignmentData.scores[hoveredHour].sub.capacity}/40 |
+                        Coverage: {alignmentData.scores[hoveredHour].sub.coverage}/30 |
+                        VPH: {alignmentData.scores[hoveredHour].sub.vph}/20 |
+                        Modality: {alignmentData.scores[hoveredHour].sub.modality}/10
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Legend */}
+              <div style={{ display: 'flex', gap: 16, fontSize: 11, marginTop: 24, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                {[{ color: '#22c55e', label: 'Well Aligned (80–100)' }, { color: '#f59e0b', label: 'Gap (50–79)' }, { color: '#ef4444', label: 'Severe Gap (0–49)' }, { color: '#3b82f6', label: 'Overstaffed' }, { color: '#e2e6eb', label: 'No Demand' }].map(l => (
+                  <span key={l.label}><span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 2, background: l.color, marginRight: 4, verticalAlign: 'middle' }}></span>{l.label}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* State coverage gaps for worst hours */}
+            {(() => {
+              const worstHours = alignmentData.scores
+                .filter(s => !s.noDemand && s.detail.uncoveredStates && s.detail.uncoveredStates.length > 0)
+                .sort((a, b) => a.score - b.score)
+                .slice(0, 5);
+              if (worstHours.length === 0) return null;
+              return (
+                <div className="card" style={{ marginTop: 12 }}>
+                  <div className="card-title">State Coverage Gaps — Worst Hours</div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr><th>Hour</th><th style={{ textAlign: 'right' }}>Score</th><th>Uncovered States</th><th style={{ textAlign: 'right' }}>Uncovered Arrivals</th></tr>
+                      </thead>
+                      <tbody>
+                        {worstHours.map((h, i) => (
+                          <tr key={i}>
+                            <td style={{ fontWeight: 600 }}>{fmtHour(h.hour)}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span className="score-badge" style={{ background: h.score >= 80 ? '#22c55e' : h.score >= 50 ? '#f59e0b' : '#ef4444', width: 28, height: 28, fontSize: 10 }}>{h.score}</span>
+                            </td>
+                            <td>{h.detail.uncoveredStates.map(s => s.state).join(', ')}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{h.detail.uncoveredStates.reduce((s, st) => s + st.arrivals, 0).toFixed(1)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </details>
+
+      {/* ===== SECTION C: WHAT-IF SIMULATOR ===== */}
+      <details open className="diag-section">
+        <summary>🔮 What-If Simulator — "The Crystal Ball"</summary>
+
+        {!shiftScheduleData || shiftScheduleData.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: 24 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🔮</div>
+            <div style={{ fontWeight: 600 }}>Upload shift data to enable scenario simulation</div>
+          </div>
+        ) : (
+          <div>
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="card-title">Scenario Parameters</div>
+              <div className="slider-group">
+                <label>Headcount Δ</label>
+                <input type="range" min={-10} max={10} step={1} value={hcDelta} onChange={e => setHcDelta(parseInt(e.target.value))} />
+                <span className="slider-value" style={{ color: hcDelta > 0 ? 'var(--accent-green)' : hcDelta < 0 ? 'var(--accent-red)' : undefined }}>
+                  {hcDelta > 0 ? '+' : ''}{hcDelta}
+                </span>
+              </div>
+              <div className="slider-group">
+                <label>VPH Multiplier</label>
+                <input type="range" min={0.5} max={2.0} step={0.1} value={vphMultiplier} onChange={e => setVphMultiplier(parseFloat(e.target.value))} />
+                <span className="slider-value">{vphMultiplier.toFixed(1)}x</span>
+              </div>
+              <div className="slider-group">
+                <label>Volume Multiplier</label>
+                <input type="range" min={0.5} max={2.0} step={0.1} value={volumeMultiplier} onChange={e => setVolumeMultiplier(parseFloat(e.target.value))} />
+                <span className="slider-value">{volumeMultiplier.toFixed(1)}x</span>
+              </div>
+              <div style={{ textAlign: 'right', marginTop: 8 }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => { setHcDelta(0); setVphMultiplier(1.0); setVolumeMultiplier(1.0); }}>Reset to Baseline</button>
+              </div>
+            </div>
+
+            {whatIf && (
+              <div>
+                <div className="grid-4" style={{ marginBottom: 12 }}>
+                  <KpiCard
+                    label="Projected SLA %"
+                    value={whatIf.projected.slaRate.toFixed(1) + '%'}
+                    sub={<span className={`delta-indicator ${whatIf.slaDelta >= 0 ? 'positive' : 'negative'}`}>
+                      {whatIf.slaDelta >= 0 ? '▲' : '▼'} {Math.abs(whatIf.slaDelta).toFixed(1)}pp vs baseline
+                    </span>}
+                  />
+                  <KpiCard
+                    label="Projected Misses"
+                    value={whatIf.projected.totalMisses.toFixed(1)}
+                    sub={<span className={`delta-indicator ${whatIf.missDelta <= 0 ? 'positive' : 'negative'}`}>
+                      {whatIf.missDelta <= 0 ? '▼' : '▲'} {Math.abs(whatIf.missDelta).toFixed(1)} vs baseline
+                    </span>}
+                  />
+                  <KpiCard
+                    label="Risk Level"
+                    value={whatIf.projected.riskLevel}
+                    sub={`Baseline: ${whatIf.baseline.riskLevel}`}
+                    className={whatIf.projected.riskLevel === 'HIGH' ? 'kpi-red' : whatIf.projected.riskLevel === 'MEDIUM' ? 'kpi-orange' : ''}
+                  />
+                  <KpiCard
+                    label="Cost Impact"
+                    value={whatIf.costImpact !== 0 ? `${whatIf.costImpact > 0 ? '+' : ''}$${Math.abs(whatIf.costImpact).toLocaleString()}/day` : '$0'}
+                    sub={hcDelta !== 0 ? `${Math.abs(hcDelta)} clinician${Math.abs(hcDelta) > 1 ? 's' : ''} × 8h × $75/hr` : 'No HC change'}
+                  />
+                </div>
+
+                {/* Comparison table */}
+                <div className="card">
+                  <div className="card-title">Baseline vs Projected Comparison</div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr><th>Metric</th><th style={{ textAlign: 'right' }}>Baseline</th><th style={{ textAlign: 'right' }}>Projected</th><th style={{ textAlign: 'right' }}>Delta</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ fontWeight: 600 }}>SLA Rate</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.baseline.slaRate.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.projected.slaRate.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right' }}><span className={`delta-indicator ${whatIf.slaDelta >= 0 ? 'positive' : 'negative'}`}>{whatIf.slaDelta >= 0 ? '+' : ''}{whatIf.slaDelta.toFixed(1)}pp</span></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 600 }}>Expected Misses</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.baseline.totalMisses.toFixed(1)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.projected.totalMisses.toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}><span className={`delta-indicator ${whatIf.missDelta <= 0 ? 'positive' : 'negative'}`}>{whatIf.missDelta > 0 ? '+' : ''}{whatIf.missDelta.toFixed(1)}</span></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 600 }}>Over 30min</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.baseline.totalOver30.toFixed(1)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.projected.totalOver30.toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}><span className={`delta-indicator ${whatIf.projected.totalOver30 <= whatIf.baseline.totalOver30 ? 'positive' : 'negative'}`}>{(whatIf.projected.totalOver30 - whatIf.baseline.totalOver30) > 0 ? '+' : ''}{(whatIf.projected.totalOver30 - whatIf.baseline.totalOver30).toFixed(1)}</span></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 600 }}>Over 60min</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.baseline.totalOver60.toFixed(1)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.projected.totalOver60.toFixed(1)}</td>
+                          <td style={{ textAlign: 'right' }}><span className={`delta-indicator ${whatIf.projected.totalOver60 <= whatIf.baseline.totalOver60 ? 'positive' : 'negative'}`}>{(whatIf.projected.totalOver60 - whatIf.baseline.totalOver60) > 0 ? '+' : ''}{(whatIf.projected.totalOver60 - whatIf.baseline.totalOver60).toFixed(1)}</span></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 600 }}>Total Arrivals</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.baseline.totalArrivals.toFixed(0)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{whatIf.projected.totalArrivals.toFixed(0)}</td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{(whatIf.projected.totalArrivals - whatIf.baseline.totalArrivals).toFixed(0)}</td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 600 }}>Worst Hour</td>
+                          <td style={{ textAlign: 'right' }}>{whatIf.baseline.worstHour}</td>
+                          <td style={{ textAlign: 'right' }}>{whatIf.projected.worstHour}</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td style={{ fontWeight: 600 }}>Risk Level</td>
+                          <td style={{ textAlign: 'right' }}><span style={{ color: whatIf.baseline.riskLevel === 'HIGH' ? 'var(--accent-red)' : whatIf.baseline.riskLevel === 'MEDIUM' ? 'var(--accent-orange)' : 'var(--accent-green)' }}>{whatIf.baseline.riskLevel}</span></td>
+                          <td style={{ textAlign: 'right' }}><span style={{ color: whatIf.projected.riskLevel === 'HIGH' ? 'var(--accent-red)' : whatIf.projected.riskLevel === 'MEDIUM' ? 'var(--accent-orange)' : 'var(--accent-green)' }}>{whatIf.projected.riskLevel}</span></td>
+                          <td></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </details>
     </div>
   );
 }
@@ -8984,6 +9754,7 @@ function App() {
     { id: 'staffing', label: 'Staffing' },
     { id: 'performance', label: 'Performance' },
     { id: 'insights', label: 'Insights & Analysis' },
+    { id: 'diagnostics', label: '🔬 Diagnostics' },
     { id: 'review', label: 'Review & Escalation' },
     { id: 'coverage', label: 'State Coverage' },
     { id: 'clinicians', label: 'Clinicians' },
@@ -9118,6 +9889,9 @@ function App() {
         )}
         {activeTab === 'insights' && (
           <InsightsTab actualsData={actualsData} forecast={forecast} history={history} masterRoster={masterRoster} shiftScheduleData={shiftScheduleData} calloutData={calloutData} />
+        )}
+        {activeTab === 'diagnostics' && (
+          <DiagnosticsTab actualsData={actualsData} forecast={forecast} shiftScheduleData={shiftScheduleData} masterRoster={masterRoster} calloutData={calloutData} showToast={showToast} />
         )}
         {activeTab === 'review' && (
           <ReviewTab shiftScheduleData={shiftScheduleData} actualsData={actualsData} masterRoster={masterRoster} showToast={showToast} />
