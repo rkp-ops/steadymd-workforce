@@ -50,11 +50,13 @@ body { font-family: var(--font-sans); background: var(--bg-primary); color: var(
 .header-title .logo { color: var(--accent-teal); font-weight: 700; }
 .header-controls { display: flex; align-items: center; gap: 12px; }
 
-/* Service Line Pills */
-.sl-pills { display: flex; gap: 4px; background: var(--bg-primary); border-radius: var(--radius); padding: 3px; }
-.sl-pill { padding: 5px 14px; border-radius: 4px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; font-family: var(--font-sans); background: transparent; color: var(--text-muted); transition: all 0.15s; }
-.sl-pill.active { background: var(--accent-teal); color: #fff; }
+/* Service Line Pills (inline per-tab filter) */
+.sl-pills { display: inline-flex; gap: 2px; }
+.sl-pill { padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; font-size: 11px; font-weight: 600; font-family: var(--font-sans); background: transparent; color: var(--text-muted); transition: all 0.15s; line-height: 1.4; }
+.sl-pill.active { background: var(--accent-teal); color: #fff; border-color: var(--accent-teal); }
 .sl-pill:hover:not(.active) { color: var(--text-primary); background: var(--bg-card-hover); }
+.tab-sl-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 11px; color: var(--text-muted); }
+.tab-sl-filter label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
 
 /* Lookback Banner */
 .lookback-banner { background: var(--accent-teal-soft); border-bottom: 1px solid #c5e8ec; padding: 6px 24px; font-size: 12px; color: var(--accent-teal-dark); display: flex; align-items: center; gap: 8px; }
@@ -67,13 +69,13 @@ body { font-family: var(--font-sans); background: var(--bg-primary); color: var(
 .status-complete { background: var(--accent-green-soft); color: var(--accent-green); }
 
 /* Tabs */
-.tab-bar { display: flex; background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 0 24px; gap: 0; overflow-x: auto; }
-.tab-btn { padding: 12px 18px; border: none; background: none; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-muted); font-family: var(--font-sans); border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+.tab-bar { display: flex; flex-wrap: wrap; background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 0 16px; gap: 0; }
+.tab-btn { padding: 8px 12px; border: none; background: none; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-muted); font-family: var(--font-sans); border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
 .tab-btn:hover { color: var(--text-primary); }
 .tab-btn.active { color: var(--accent-teal); border-bottom-color: var(--accent-teal); font-weight: 600; }
 
 /* Content */
-.content { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+.content { padding: 16px 20px; max-width: 100%; margin: 0 auto; box-sizing: border-box; }
 
 /* Cards */
 .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-sm); }
@@ -133,7 +135,7 @@ textarea.form-input { min-height: 120px; font-family: var(--font-mono); font-siz
 @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 
 /* Sidebar Layout */
-.layout-with-sidebar { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+.layout-with-sidebar { display: grid; grid-template-columns: 260px 1fr; gap: 16px; }
 .sidebar { position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; }
 @media (max-width: 1100px) { .layout-with-sidebar { grid-template-columns: 1fr; } .sidebar { position: static; max-height: none; } }
 
@@ -1871,8 +1873,25 @@ function normalizeVphRecord(row, vcm) {
   };
 }
 
+// ========================== INLINE SL FILTER ==========================
+function SLFilter({ value, onChange, options }) {
+  const opts = options || ['TC', 'CSL', 'WSL', 'ALL'];
+  return (
+    <div className="tab-sl-filter">
+      <label>Service Line:</label>
+      <div className="sl-pills">
+        {opts.map(sl => (
+          <button key={sl} className={`sl-pill ${value === sl ? 'active' : ''}`}
+            onClick={() => onChange(sl)}>{sl}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ========================== TAB: EXECUTIVE OVERVIEW ==========================
-function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, masterRoster, serviceLine }) {
+function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, masterRoster }) {
+  const [serviceLine, setServiceLine] = useState('ALL');
   const cm = useMemo(() => actualsData ? buildColMap(actualsData) : {}, [actualsData]);
   const icm = useMemo(() => incentiveData ? buildColMap(incentiveData) : {}, [incentiveData]);
 
@@ -2169,6 +2188,7 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
 
   return (
     <div>
+      <SLFilter value={serviceLine} onChange={setServiceLine} />
       {/* Insights Banner */}
       {insights.length > 0 && (
         <div style={{ marginBottom: 16 }}>
@@ -2319,16 +2339,32 @@ function runForecast(shifts, settings, dynamicRoster) {
     TC_CLINICIANS.forEach(c => { clinMap[normalizeName(c[0])] = c; });
   }
 
-  // Parse shifts and match
+  // Parse shifts and match — separate unfilled (Not Assigned) from unmatched
   const matched = [];
   const unmatched = [];
+  const unfilled = [];
   shifts.forEach(s => {
-    const norm = normalizeName(s.Name || s.name);
-    const clin = clinMap[norm];
-    if (clin) {
-      matched.push({ ...s, clinician: clin });
+    const rawName = (s.Name || s.name || s['Clinician Name'] || '').trim();
+    const norm = normalizeName(rawName);
+    const isUnfilled = UNFILLED_NAMES.includes(norm.toLowerCase().trim());
+    if (isUnfilled) {
+      // Parse tags for incentive info
+      const tagsRaw = (s.Tags || s.tags || s['Shift Tags'] || '').trim();
+      const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+      const incentiveTag = tags.find(t => /incentiv|bonus|1\.5x|2x|2\.0x|1\.25x|3x/i.test(t));
+      let incentiveMultiplier = null;
+      if (incentiveTag) {
+        const mMatch = incentiveTag.match(/([\d.]+)x/i);
+        incentiveMultiplier = mMatch ? parseFloat(mMatch[1]) : 1.5; // default 1.5x if tagged but no multiplier
+      }
+      unfilled.push({ ...s, _unfilled: true, _tags: tags, _incentiveTag: incentiveTag || null, _incentiveMultiplier: incentiveMultiplier });
     } else {
-      unmatched.push(s);
+      const clin = clinMap[norm];
+      if (clin) {
+        matched.push({ ...s, clinician: clin });
+      } else {
+        unmatched.push(s);
+      }
     }
   });
 
@@ -2346,6 +2382,8 @@ function runForecast(shifts, settings, dynamicRoster) {
     let headcount = 0;
     let oncallCount = 0;
     let vphSum = 0;
+    let openShifts = 0;
+    let openIncentivized = 0;
     const stateElig = {};
     const oncallElig = {};
     TC_STATES.forEach(st => { stateElig[st] = 0; oncallElig[st] = 0; });
@@ -2367,6 +2405,17 @@ function runForecast(shifts, settings, dynamicRoster) {
           vphSum += clin[4];
           TC_STATES.forEach((st, i) => { stateElig[st] += clin[5][i]; });
         }
+      }
+    });
+
+    // Count unfilled (Not Assigned) shifts overlapping this hour
+    unfilled.forEach(s => {
+      const sStart = parseDate(s['Start Time'] || s['Start']);
+      const sEnd = parseDate(s['End Time'] || s['End']);
+      if (!sStart || !sEnd) return;
+      if (sStart < hourEnd && sEnd > hourStart) {
+        openShifts++;
+        if (s._incentiveMultiplier) openIncentivized++;
       }
     });
 
@@ -2413,6 +2462,7 @@ function runForecast(shifts, settings, dynamicRoster) {
       relHour: h, label: hourLabel(h), time: hourStart,
       headcount, oncallCount, avgVph, arrivals, bucket,
       totalMiss, totalOver30, totalOver60,
+      openShifts, openIncentivized,
       stateElig, oncallElig, stateResults
     });
   }
@@ -2424,12 +2474,28 @@ function runForecast(shifts, settings, dynamicRoster) {
   const slaRate = totalArrivals > 0 ? ((totalArrivals - totalMisses) / totalArrivals * 100) : 0;
   const worstHour = hours.reduce((w, h) => h.totalMiss > w.totalMiss ? h : w, hours[0]);
 
+  // Unfilled shift summary
+  const totalOpenShifts = unfilled.length;
+  const totalIncentivized = unfilled.filter(u => u._incentiveMultiplier).length;
+  const incentiveBreakdown = {};
+  unfilled.forEach(u => {
+    if (u._incentiveMultiplier) {
+      const key = u._incentiveMultiplier + 'x';
+      incentiveBreakdown[key] = (incentiveBreakdown[key] || 0) + 1;
+    }
+  });
+  const peakOpenHour = hours.reduce((w, h) => h.openShifts > (w?.openShifts || 0) ? h : w, null);
+
   return {
     hours, matched: matched.length, unmatched: unmatched.length,
     unmatchedNames: unmatched.map(u => u.Name || u.name),
     totalArrivals, totalMisses, totalOver30, totalOver60, slaRate,
     worstHour: worstHour ? worstHour.label : '',
-    riskLevel: totalOver60 > 0 ? 'HIGH' : totalMisses > 5 ? 'MEDIUM' : 'LOW'
+    riskLevel: totalOver60 > 0 ? 'HIGH' : totalMisses > 5 ? 'MEDIUM' : 'LOW',
+    // Unfilled shift data
+    totalOpenShifts, totalIncentivized, incentiveBreakdown,
+    unfilledShifts: unfilled,
+    peakOpenHour: peakOpenHour ? peakOpenHour.label : ''
   };
 }
 
@@ -2580,7 +2646,8 @@ function MultiSelect({ label, options, selected, onChange, placeholder = 'All', 
 }
 
 // ========================== TAB: FORECAST ==========================
-function ForecastTab({ serviceLine, rosterData, onForecastComplete, masterRoster }) {
+function ForecastTab({ rosterData, onForecastComplete, masterRoster }) {
+  const [serviceLine, setServiceLine] = useState('TC');
   const [settings, setSettings] = useState({
     forecastStart: new Date(), volumeMultiplier: 1.0, oncallEngaged: false,
     demandLow: 19, demandMid: 28, timezone: 'CT'
@@ -2651,6 +2718,15 @@ function ForecastTab({ serviceLine, rosterData, onForecastComplete, masterRoster
           {showSettings && (
             <div style={{ marginTop: 12 }}>
               <div className="form-group">
+                <label className="form-label">Service Line</label>
+                <div className="sl-pills">
+                  {['TC', 'CSL', 'WSL', 'ALL'].map(sl => (
+                    <button key={sl} className={`sl-pill ${serviceLine === sl ? 'active' : ''}`}
+                      onClick={() => setServiceLine(sl)}>{sl}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group">
                 <label className="form-label">Volume Multiplier</label>
                 <input type="number" className="form-input" value={settings.volumeMultiplier} step="0.1" min="0.1" max="5"
                   onChange={e => setSettings(s => ({ ...s, volumeMultiplier: parseFloat(e.target.value) || 1 }))} />
@@ -2714,6 +2790,61 @@ function ForecastTab({ serviceLine, rosterData, onForecastComplete, masterRoster
               <KpiCard label="Risk Level" value={forecast.riskLevel} className={forecast.riskLevel === 'HIGH' ? 'alert' : forecast.riskLevel === 'MEDIUM' ? 'warn' : 'good'} sub={`Worst: ${forecast.worstHour}`} />
             </div>
 
+            {/* Open (Unfilled) Shifts Panel */}
+            {forecast.totalOpenShifts > 0 && (
+              <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid var(--accent-orange)' }}>
+                <div className="card-title" style={{ color: 'var(--accent-orange)' }}>
+                  ⚠ Open Shifts (Not Assigned) — {forecast.totalOpenShifts} shift{forecast.totalOpenShifts !== 1 ? 's' : ''}
+                </div>
+                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12 }}>
+                  <div><strong>{forecast.totalOpenShifts}</strong> unclaimed shift{forecast.totalOpenShifts !== 1 ? 's' : ''}</div>
+                  {forecast.totalIncentivized > 0 && (
+                    <div style={{ color: 'var(--accent-teal)' }}>
+                      <strong>{forecast.totalIncentivized}</strong> incentivized
+                      {Object.keys(forecast.incentiveBreakdown).length > 0 && (
+                        <span style={{ marginLeft: 4 }}>
+                          ({Object.entries(forecast.incentiveBreakdown).map(([k, v]) => `${v} @ ${k}`).join(', ')})
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {forecast.peakOpenHour && <div>Peak gap: <strong>{forecast.peakOpenHour}</strong></div>}
+                </div>
+                {forecast.unfilledShifts.length > 0 && (
+                  <details style={{ marginTop: 8 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)' }}>View open shift detail</summary>
+                    <div className="table-wrap" style={{ maxHeight: 200, overflowY: 'auto', marginTop: 6 }}>
+                      <table style={{ fontSize: 11 }}>
+                        <thead><tr><th>Entity</th><th>Date</th><th>Start</th><th>End</th><th>Hours</th><th>Tags</th><th>Incentive</th></tr></thead>
+                        <tbody>
+                          {forecast.unfilledShifts.map((s, i) => {
+                            const st = parseDate(s['Start Time'] || s['Start']);
+                            const en = parseDate(s['End Time'] || s['End']);
+                            const hrs = st && en ? ((en - st) / 3600000).toFixed(1) : '—';
+                            return (
+                              <tr key={i}>
+                                <td>{s['Entity Name'] || '—'}</td>
+                                <td>{st ? st.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'}</td>
+                                <td>{st ? st.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}</td>
+                                <td>{en ? en.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{hrs}</td>
+                                <td>{(s._tags || []).join(', ') || '—'}</td>
+                                <td style={{ fontWeight: s._incentiveMultiplier ? 700 : 400, color: s._incentiveMultiplier ? 'var(--accent-teal)' : undefined }}>
+                                  {s._incentiveMultiplier ? s._incentiveMultiplier + 'x' : '—'}
+                                  {s._incentiveTag && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>({s._incentiveTag})</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
+            {/* Unmatched (not unfilled, just unknown names) */}
             {forecast.unmatched > 0 && (
               <div className="gap-alert" style={{ marginBottom: 16 }}>
                 <span className="alert-icon">!</span> {forecast.unmatched} shift(s) could not be matched to clinician lookup: {forecast.unmatchedNames.slice(0, 5).join(', ')}{forecast.unmatchedNames.length > 5 ? '...' : ''}
@@ -2731,7 +2862,7 @@ function ForecastTab({ serviceLine, rosterData, onForecastComplete, masterRoster
                 <table>
                   <thead>
                     <tr>
-                      <th>Hour</th><th>Arrivals</th><th>HC</th><th>Avg VPH</th><th>Bucket</th><th>Exp Miss</th><th>Exp &gt;30m</th><th>Exp &gt;60m</th>
+                      <th>Hour</th><th>Arrivals</th><th>HC</th><th style={{ color: 'var(--accent-orange)' }} title="Unfilled/Not Assigned shifts">Open</th><th>Avg VPH</th><th>Bucket</th><th>Exp Miss</th><th>Exp &gt;30m</th><th>Exp &gt;60m</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2740,6 +2871,10 @@ function ForecastTab({ serviceLine, rosterData, onForecastComplete, masterRoster
                         <td style={{ fontWeight: 600 }}>{h.label}</td>
                         <td>{h.arrivals.toFixed(1)}</td>
                         <td>{h.headcount}</td>
+                        <td style={{ color: h.openShifts > 0 ? 'var(--accent-orange)' : 'var(--text-muted)', fontWeight: h.openShifts > 0 ? 700 : 400 }}>
+                          {h.openShifts > 0 ? h.openShifts : '—'}
+                          {h.openIncentivized > 0 && <span style={{ fontSize: 9, marginLeft: 2 }} title="Incentivized">💰</span>}
+                        </td>
                         <td>{h.avgVph.toFixed(2)}</td>
                         <td><span style={{ padding: '2px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600,
                           background: h.bucket === 'high' ? 'var(--accent-red-soft)' : h.bucket === 'mid' ? 'var(--accent-orange-soft)' : 'var(--accent-green-soft)',
@@ -2948,7 +3083,7 @@ function StateCoverageHeatmap({ hours, showAllStates = false }) {
 }
 
 // ========================== TAB: STAFFING & COVERAGE (Module 1) ==========================
-function StaffingTab({ shiftScheduleData, setShiftScheduleData, masterRoster, serviceLine, showToast, onShiftUpload }) {
+function StaffingTab({ shiftScheduleData, setShiftScheduleData, masterRoster, showToast, onShiftUpload }) {
   const [selSLs, setSelSLs] = useState([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -3444,7 +3579,8 @@ function StaffingTab({ shiftScheduleData, setShiftScheduleData, masterRoster, se
 }
 
 // ========================== TAB: PERFORMANCE ==========================
-function PerformanceTab({ serviceLine, actualsData, lookbackWeeks }) {
+function PerformanceTab({ actualsData, lookbackWeeks }) {
+  const [serviceLine, setServiceLine] = useState('ALL');
   // Multi-select filter state — empty array = "all"
   const [selPartners, setSelPartners] = useState([]);
   const [selPrograms, setSelPrograms] = useState([]);
@@ -3770,6 +3906,7 @@ function PerformanceTab({ serviceLine, actualsData, lookbackWeeks }) {
 
   return (
     <div>
+      <SLFilter value={serviceLine} onChange={setServiceLine} />
       {/* Date range + cascading multi-select filters */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <label style={{fontSize:12, display:'flex', flexDirection:'column', gap:2}}>From
@@ -4135,7 +4272,8 @@ function PerformanceTab({ serviceLine, actualsData, lookbackWeeks }) {
 }
 
 // ========================== TAB: INSIGHTS & ANALYSIS ==========================
-function InsightsTab({ actualsData, serviceLine, forecast, history, masterRoster, shiftScheduleData, calloutData }) {
+function InsightsTab({ actualsData, forecast, history, masterRoster, shiftScheduleData, calloutData }) {
+  const [serviceLine, setServiceLine] = useState('ALL');
   const cm = useMemo(() => buildColMap(actualsData), [actualsData]);
   const rowState = useCallback(r => cm.state ? (r[cm.state] || '') : '', [cm]);
   const rowClinician = useCallback(r => cm.clinician ? (r[cm.clinician] || '') : '', [cm]);
@@ -4373,6 +4511,7 @@ function InsightsTab({ actualsData, serviceLine, forecast, history, masterRoster
 
   return (
     <div>
+      <SLFilter value={serviceLine} onChange={setServiceLine} />
       {/* Root Cause Engine (Module 6) */}
       {causalChain && (
         <details open style={{ marginBottom: 16 }}>
@@ -4913,7 +5052,7 @@ function HistoricalTab({ history, setHistory }) {
 }
 
 // ========================== TAB: STATE COVERAGE ==========================
-function StateCoverageTab({ serviceLine, forecast }) {
+function StateCoverageTab({ forecast }) {
   if (!forecast) {
     return (
       <div className="empty-state">
@@ -4987,7 +5126,7 @@ function StateCoverageTab({ serviceLine, forecast }) {
 }
 
 // ========================== TAB: CLINICIAN DETAIL ==========================
-function ClinicianTab({ serviceLine, actualsData, masterRoster, setMasterRoster, rosterChangelog, setRosterChangelog, showToast, incidentData, setIncidentData, calloutData }) {
+function ClinicianTab({ actualsData, masterRoster, setMasterRoster, rosterChangelog, setRosterChangelog, showToast, incidentData, setIncidentData, calloutData }) {
   const [showChangelog, setShowChangelog] = useState(false);
   const [rosterFilter, setRosterFilter] = useState('all'); // 'all' | 'unmatched' | 'lowvph'
 
@@ -5355,7 +5494,7 @@ function ClinicianTab({ serviceLine, actualsData, masterRoster, setMasterRoster,
 }
 
 // ========================== TAB: REVIEW & ESCALATION ==========================
-function ReviewTab({ shiftScheduleData, actualsData, masterRoster, serviceLine, showToast }) {
+function ReviewTab({ shiftScheduleData, actualsData, masterRoster, showToast }) {
   const { user, profile } = useAuth();
   const [flags, setFlags] = useState([]);
   const [generated, setGenerated] = useState(false);
@@ -5728,7 +5867,7 @@ function ReviewTab({ shiftScheduleData, actualsData, masterRoster, serviceLine, 
 }
 
 // ========================== TAB: ATTENDANCE & RELIABILITY (Module 5) ==========================
-function AttendanceTab({ calloutData, setCalloutData, actualsData, masterRoster, serviceLine, showToast }) {
+function AttendanceTab({ calloutData, setCalloutData, actualsData, masterRoster, showToast }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selSLs, setSelSLs] = useState([]);
@@ -8351,7 +8490,7 @@ function WeeklyPerfTab({ weeklyPerfData, setWeeklyPerfData, showToast }) {
 function App() {
   const { user, profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const [serviceLine, setServiceLine] = useState('TC');
+  // serviceLine removed from global — each tab manages its own SL filter now
   const [lookbackValue, setLookbackValue] = useState('6w');
   const [status, setStatus] = useState('ready');
 
@@ -8658,12 +8797,6 @@ function App() {
           <span className="logo">SteadyMD</span> Workforce Intelligence
         </div>
         <div className="header-controls">
-          <div className="sl-pills">
-            {['TC', 'CSL', 'WSL', 'ALL'].map(sl => (
-              <button key={sl} className={`sl-pill ${serviceLine === sl ? 'active' : ''}`}
-                onClick={() => setServiceLine(sl)}>{sl}</button>
-            ))}
-          </div>
           <button className="btn btn-primary btn-sm" onClick={handleRefresh} title="Recalculate all metrics and predictions">&#8635; Refresh</button>
           <button className="btn btn-secondary btn-sm" onClick={handleClearAll} title="Clear all uploaded data (history preserved)" style={{ fontSize: 11 }}>Clear Data</button>
           <span className={`status-badge status-${status}`}>
@@ -8766,31 +8899,31 @@ function App() {
       <div className="content">
         {restoring && <div className="card" style={{ textAlign: 'center', padding: 40 }}>Restoring your data...</div>}
         {activeTab === 'overview' && (
-          <OverviewTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} vphData={vphData} masterRoster={masterRoster} serviceLine={serviceLine} />
+          <OverviewTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} vphData={vphData} masterRoster={masterRoster} />
         )}
         {activeTab === 'forecast' && (
-          <ForecastTab serviceLine={serviceLine} rosterData={rosterData} onForecastComplete={setForecast} masterRoster={masterRoster} />
+          <ForecastTab rosterData={rosterData} onForecastComplete={setForecast} masterRoster={masterRoster} />
         )}
         {activeTab === 'staffing' && (
-          <StaffingTab shiftScheduleData={shiftScheduleData} setShiftScheduleData={setShiftScheduleData} masterRoster={masterRoster} serviceLine={serviceLine} showToast={showToast} onShiftUpload={handleShiftUpload} />
+          <StaffingTab shiftScheduleData={shiftScheduleData} setShiftScheduleData={setShiftScheduleData} masterRoster={masterRoster} showToast={showToast} onShiftUpload={handleShiftUpload} />
         )}
         {activeTab === 'performance' && (
-          <PerformanceTab key={refreshTick} serviceLine={serviceLine} actualsData={actualsData} lookbackWeeks={lookbackDays} />
+          <PerformanceTab key={refreshTick} actualsData={actualsData} lookbackWeeks={lookbackDays} />
         )}
         {activeTab === 'insights' && (
-          <InsightsTab actualsData={actualsData} serviceLine={serviceLine} forecast={forecast} history={history} masterRoster={masterRoster} shiftScheduleData={shiftScheduleData} calloutData={calloutData} />
+          <InsightsTab actualsData={actualsData} forecast={forecast} history={history} masterRoster={masterRoster} shiftScheduleData={shiftScheduleData} calloutData={calloutData} />
         )}
         {activeTab === 'review' && (
-          <ReviewTab shiftScheduleData={shiftScheduleData} actualsData={actualsData} masterRoster={masterRoster} serviceLine={serviceLine} showToast={showToast} />
+          <ReviewTab shiftScheduleData={shiftScheduleData} actualsData={actualsData} masterRoster={masterRoster} showToast={showToast} />
         )}
         {activeTab === 'history' && (
           <HistoricalTab history={history} setHistory={setHistory} />
         )}
         {activeTab === 'coverage' && (
-          <StateCoverageTab serviceLine={serviceLine} forecast={forecast} />
+          <StateCoverageTab forecast={forecast} />
         )}
         {activeTab === 'clinicians' && (
-          <ClinicianTab serviceLine={serviceLine} actualsData={actualsData} masterRoster={masterRoster} setMasterRoster={setMasterRoster} rosterChangelog={rosterChangelog} setRosterChangelog={setRosterChangelog} showToast={showToast} incidentData={incidentData} setIncidentData={setIncidentData} calloutData={calloutData} />
+          <ClinicianTab actualsData={actualsData} masterRoster={masterRoster} setMasterRoster={setMasterRoster} rosterChangelog={rosterChangelog} setRosterChangelog={setRosterChangelog} showToast={showToast} incidentData={incidentData} setIncidentData={setIncidentData} calloutData={calloutData} />
         )}
         {activeTab === 'vph' && (
           <VphTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} masterRoster={masterRoster} showToast={showToast} />
