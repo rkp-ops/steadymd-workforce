@@ -69,8 +69,10 @@ body { font-family: var(--font-sans); background: var(--bg-primary); color: var(
 .status-complete { background: var(--accent-green-soft); color: var(--accent-green); }
 
 /* Tabs */
-.tab-bar { display: flex; flex-wrap: wrap; background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 0 16px; gap: 0; }
-.tab-btn { padding: 8px 12px; border: none; background: none; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-muted); font-family: var(--font-sans); border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+.tab-bar { display: flex; flex-wrap: nowrap; background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 0 16px; gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.tab-bar::-webkit-scrollbar { height: 3px; }
+.tab-bar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.tab-btn { padding: 6px 10px; border: none; background: none; cursor: pointer; font-size: 11px; font-weight: 500; color: var(--text-muted); font-family: var(--font-sans); border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
 .tab-btn:hover { color: var(--text-primary); }
 .tab-btn.active { color: var(--accent-teal); border-bottom-color: var(--accent-teal); font-weight: 600; }
 
@@ -135,7 +137,8 @@ textarea.form-input { min-height: 120px; font-family: var(--font-mono); font-siz
 @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 
 /* Sidebar Layout */
-.layout-with-sidebar { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; }
+.layout-with-sidebar { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 12px; overflow: hidden; }
+.layout-with-sidebar > * { min-width: 0; }
 .sidebar { position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; }
 @media (max-width: 1100px) { .layout-with-sidebar { grid-template-columns: 1fr; } .sidebar { position: static; max-height: none; } }
 
@@ -2874,7 +2877,7 @@ function ForecastTab({ rosterData, onForecastComplete, masterRoster }) {
         </div>
       </div>
 
-      <div>
+      <div style={{ minWidth: 0, overflow: 'hidden' }}>
         {!forecast ? (
           <div className="empty-state">
             <div className="icon">&#128202;</div>
@@ -2953,14 +2956,18 @@ function ForecastTab({ rosterData, onForecastComplete, masterRoster }) {
               </div>
             )}
 
-            <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card" style={{ marginBottom: 16, overflow: 'hidden' }}>
               <div className="card-title">Hourly Performance Forecast</div>
-              <ChartWrapper config={hourlyChartConfig} height={300} />
+              <div style={{ overflowX: 'auto', minHeight: 280 }}>
+                <div style={{ minWidth: Math.max(700, forecast.hours.length * 14) }}>
+                  <ChartWrapper config={hourlyChartConfig} height={300} />
+                </div>
+              </div>
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="card-title">Hourly Detail</div>
-              <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+              <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto', overflowX: 'auto' }}>
                 <table>
                   <thead>
                     <tr>
