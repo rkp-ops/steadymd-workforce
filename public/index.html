@@ -1390,6 +1390,11 @@ function buildColMap(data) {
     claimedTime: resolveCol(s, 'Claimed Time', 'claimed_time'),
     reasonForVisit: resolveCol(s, 'Reason For Visit', 'reason_for_visit'),
     consultGuid: resolveCol(s, 'Consult GUID', 'Consult Guid', ' Consult  GUID', 'consult_guid'),
+    // Manual incentive-specific
+    submittedBy: resolveCol(s, 'Submitted for payment by:', 'Submitted for payment by', 'submitted_by'),
+    incentiveReason: resolveCol(s, 'Select the reason for launching this incentive', 'Reason', 'reason'),
+    programWideNotes: resolveCol(s, 'If a program-wide incentive was launched, please provide:\n\nStart Time and End Time\nProgram Name\nIncentive Pricing\n\nExample: \nStart Time: 10:00am CST\nEnd Time: 5pm CST\nProgram: KeyCare\nIncentive: $105 per visit'),
+    additionalNotes: resolveCol(s, 'Any other relevant information for ops-management regarding this incentive launch\n\nPlease list the clinician\'s name and incentive pricing here if it\'s not already included in the fields above\n\nIf already selected above, please enter "N/A"'),
     // Shift/staffing columns (Module 1)
     shiftStart: resolveCol(s, 'Shift Start', 'Start Time', 'shift_start', 'Clock In', 'Schedule Start'),
     shiftEnd: resolveCol(s, 'Shift End', 'End Time', 'shift_end', 'Clock Out', 'Schedule End'),
@@ -1421,6 +1426,20 @@ function classifyModality(modalityStr) {
   if (lower.includes('scheduled')) return 'Scheduled';
   if (lower.includes('sync') || lower.includes('video') || lower.includes('phone')) return 'Sync';
   return 'Other';
+}
+
+// Detect if an incentive CSV is the manual/audit format vs Looker export
+function isManualIncentiveFormat(data) {
+  if (!data || data.length === 0) return false;
+  const keys = Object.keys(data[0] || {}).map(k => k.toLowerCase().trim());
+  // Manual format has "submitted for payment by:" and "select the reason" columns
+  const hasSubmittedBy = keys.some(k => k.includes('submitted for payment by'));
+  const hasReason = keys.some(k => k.includes('select the reason') || k.includes('reason for launching'));
+  const hasTimestamp = keys.some(k => k === 'timestamp');
+  // Looker format has "launched time", "claimed time", "time in board", "dollars_claimed" etc.
+  const hasLookerCols = keys.some(k => k.includes('launched time') || k.includes('claimed time') || k.includes('time in board') || k.includes('dollars_claimed') || k.includes('dollars_launched'));
+  if (hasSubmittedBy || hasReason || (hasTimestamp && !hasLookerCols)) return true;
+  return false;
 }
 
 function detectServiceLineFromData(data) {
@@ -6701,7 +6720,7 @@ function VphTab({ actualsData, shiftScheduleData, masterRoster, showToast }) {
 }
 
 // ========================== TAB: INCENTIVE SPEND ==========================
-function IncentiveTab({ incentiveData }) {
+function IncentiveTab({ incentiveData, manualIncentiveData }) {
   // Multi-select filter state — empty array = "all"
   const [selPartners, setSelPartners] = useState([]);
   const [selPrograms, setSelPrograms] = useState([]);
@@ -6709,8 +6728,22 @@ function IncentiveTab({ incentiveData }) {
   const [selClinicians, setSelClinicians] = useState([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('all'); // 'all' | 'looker' | 'manual'
 
-  const cm = useMemo(() => buildColMap(incentiveData), [incentiveData]);
+  // Combine both sources into one array with _incentiveSource tags
+  const combinedData = useMemo(() => {
+    const looker = (incentiveData || []).map(r => ({ ...r, _incentiveSource: r._incentiveSource || 'looker' }));
+    const manual = (manualIncentiveData || []).map(r => ({ ...r, _incentiveSource: 'manual' }));
+    return [...looker, ...manual];
+  }, [incentiveData, manualIncentiveData]);
+
+  // Apply source filter
+  const sourceFilteredData = useMemo(() => {
+    if (sourceFilter === 'all') return combinedData;
+    return combinedData.filter(r => r._incentiveSource === sourceFilter);
+  }, [combinedData, sourceFilter]);
+
+  const cm = useMemo(() => buildColMap(sourceFilteredData.length > 0 ? sourceFilteredData : (incentiveData || [])), [sourceFilteredData, incentiveData]);
 
   // Parse amount — handles "$45", "45", "45.00", commas
   const parseAmount = useCallback((r) => {
@@ -6728,8 +6761,8 @@ function IncentiveTab({ incentiveData }) {
 
   // Step 1: filter data by current selections (cascading) + date range
   const filtered = useMemo(() => {
-    if (!incentiveData || incentiveData.length === 0) return [];
-    return incentiveData.filter(r => {
+    if (!sourceFilteredData || sourceFilteredData.length === 0) return [];
+    return sourceFilteredData.filter(r => {
       if (selPartners.length > 0 && !selPartners.includes(rowPartner(r))) return false;
       if (selPrograms.length > 0 && !selPrograms.includes(rowProgram(r))) return false;
       if (selStates.length > 0 && !selStates.includes(rowState(r))) return false;
@@ -6744,12 +6777,12 @@ function IncentiveTab({ incentiveData }) {
       }
       return true;
     });
-  }, [incentiveData, selPartners, selPrograms, selStates, selClinicians, rowPartner, rowProgram, rowState, rowClinician, dateFrom, dateTo, cm]);
+  }, [sourceFilteredData, selPartners, selPrograms, selStates, selClinicians, rowPartner, rowProgram, rowState, rowClinician, dateFrom, dateTo, cm]);
 
   // Step 2: compute available options for each filter GIVEN the other filters
   // For each filter, we compute which values are possible if we ignore THAT filter but apply all others
   const cascadeOptions = useMemo(() => {
-    if (!incentiveData || incentiveData.length === 0) return { partners: [], programs: [], states: [], clinicians: [] };
+    if (!sourceFilteredData || sourceFilteredData.length === 0) return { partners: [], programs: [], states: [], clinicians: [] };
 
     const passesExcept = (r, skip) => {
       if (skip !== 'partner' && selPartners.length > 0 && !selPartners.includes(rowPartner(r))) return false;
@@ -6762,7 +6795,7 @@ function IncentiveTab({ incentiveData }) {
     const pSet = new Set(), prSet = new Set(), sSet = new Set(), cSet = new Set();
     const pCount = {}, prCount = {}, sCount = {}, cCount = {};
 
-    incentiveData.forEach(r => {
+    sourceFilteredData.forEach(r => {
       const p = rowPartner(r), pr = rowProgram(r), st = rowState(r), cl = rowClinician(r);
       if (passesExcept(r, 'partner') && p) { pSet.add(p); pCount[p] = (pCount[p] || 0) + 1; }
       if (passesExcept(r, 'program') && pr) { prSet.add(pr); prCount[pr] = (prCount[pr] || 0) + 1; }
@@ -6774,17 +6807,20 @@ function IncentiveTab({ incentiveData }) {
       partners: [...pSet].sort(), programs: [...prSet].sort(), states: [...sSet].sort(), clinicians: [...cSet].sort(),
       pCount, prCount, sCount, cCount
     };
-  }, [incentiveData, selPartners, selPrograms, selStates, selClinicians, rowPartner, rowProgram, rowState, rowClinician]);
+  }, [sourceFilteredData, selPartners, selPrograms, selStates, selClinicians, rowPartner, rowProgram, rowState, rowClinician]);
 
-  if (!incentiveData || incentiveData.length === 0) {
+  if (combinedData.length === 0) {
     return (
       <div className="empty-state">
         <div className="icon">&#128176;</div>
         <p>Upload incentive data to see spend analysis</p>
-        <div className="hint">Accepts any raw CSV export — column names are auto-detected</div>
+        <div className="hint">Accepts Looker exports and manual incentive tracking CSVs — format is auto-detected</div>
       </div>
     );
   }
+
+  const lookerCount = combinedData.filter(r => r._incentiveSource === 'looker').length;
+  const manualCount = combinedData.filter(r => r._incentiveSource === 'manual').length;
 
   const totalSpend = filtered.reduce((s, r) => s + parseAmount(r), 0);
   const uniqueClinicians = new Set(filtered.map(rowClinician).filter(Boolean)).size;
@@ -6819,6 +6855,27 @@ function IncentiveTab({ incentiveData }) {
 
   return (
     <div>
+      {/* Source toggle + filters */}
+      {(lookerCount > 0 && manualCount > 0) && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 10, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginRight: 6 }}>SOURCE:</span>
+          {[
+            { key: 'all', label: `All (${combinedData.length})` },
+            { key: 'looker', label: `Looker (${lookerCount})` },
+            { key: 'manual', label: `📋 Manual (${manualCount})` },
+          ].map(s => (
+            <button key={s.key} className={`sl-pill ${sourceFilter === s.key ? 'active' : ''}`}
+              onClick={() => setSourceFilter(s.key)} style={{ fontSize: 11 }}>{s.label}</button>
+          ))}
+        </div>
+      )}
+      {manualCount > 0 && sourceFilter !== 'looker' && (
+        <div style={{ background: '#FFF8E1', border: '1px solid #FFD54F', borderRadius: 'var(--radius)', padding: '8px 12px', marginBottom: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16 }}>📋</span>
+          <span><strong>{manualCount} manual incentive records</strong> included — these are team-audited, submitted for payroll. {lookerCount > 0 ? `Combined with ${lookerCount} Looker records.` : ''}</span>
+        </div>
+      )}
+
       {/* Cascading multi-select filters + date range */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
@@ -8625,7 +8682,8 @@ function App() {
   // Data stores
   const [rosterData, setRosterData] = useState(null);
   const [actualsData, setActualsData] = useState(null);
-  const [incentiveData, setIncentiveData] = useState(null);
+  const [incentiveData, setIncentiveData] = useState(null); // Looker incentives
+  const [manualIncentiveData, setManualIncentiveData] = useState(null); // Manual/audit incentives
   const [vphData, setVphData] = useState([]);
   const [incidentData, setIncidentData] = useState(null);
   const [calloutData, setCalloutData] = useState(() => {
@@ -8711,6 +8769,7 @@ function App() {
       if (stored.shifts_raw?.data?.length) { setRosterData(stored.shifts_raw.data); restored.push(`${stored.shifts_raw.data.length} shifts`); }
       if (stored.shifts_parsed?.data?.length) { setShiftScheduleData(stored.shifts_parsed.data.map(r => ({ ...r, start: r.start ? new Date(r.start) : null, end: r.end ? new Date(r.end) : null }))); }
       if (stored.incentives?.data?.length) { setIncentiveData(stored.incentives.data); restored.push(`${stored.incentives.data.length} incentives`); }
+      if (stored.manual_incentives?.data?.length) { setManualIncentiveData(stored.manual_incentives.data); restored.push(`${stored.manual_incentives.data.length} manual incentives`); }
       if (stored.incidents?.data?.length) { setIncidentData(stored.incidents.data); restored.push(`${stored.incidents.data.length} incidents`); }
       if (stored.callouts?.data?.length) { setCalloutData(stored.callouts.data); restored.push(`${stored.callouts.data.length} callouts`); }
       if (restored.length > 0) showToast(`Restored: ${restored.join(', ')}`);
@@ -8801,6 +8860,7 @@ function App() {
       setRosterData(null);
       setActualsData(null);
       setIncentiveData(null);
+      setManualIncentiveData(null);
       setVphData([]);
       setForecast(null);
       setIncidentData(null);
@@ -8857,10 +8917,23 @@ function App() {
       const persistSL = slsInAccumulated.length === 1 ? slsInAccumulated[0] : 'Mixed';
       saveUploadData('actuals', accumulated, filename, persistSL);
     } else if (type === 'incentives') {
-      const accIncentives = incentiveData ? [...incentiveData, ...data] : data;
-      setIncentiveData(accIncentives);
-      showToast(`Loaded ${data.length} incentive records from ${filename}`);
-      saveUploadData('incentives', accIncentives, filename);
+      // Detect manual vs Looker format
+      const isManual = isManualIncentiveFormat(data);
+      if (isManual) {
+        // Tag each row as manual source
+        data.forEach(r => { r._incentiveSource = 'manual'; r._sourceFile = filename; });
+        const accManual = manualIncentiveData ? [...manualIncentiveData, ...data] : data;
+        setManualIncentiveData(accManual);
+        showToast(`📋 ${data.length} manual incentive records loaded from ${filename}`);
+        saveUploadData('manual_incentives', accManual, filename);
+      } else {
+        // Looker format
+        data.forEach(r => { r._incentiveSource = 'looker'; r._sourceFile = filename; });
+        const accIncentives = incentiveData ? [...incentiveData, ...data] : data;
+        setIncentiveData(accIncentives);
+        showToast(`${data.length} Looker incentive records loaded from ${filename}`);
+        saveUploadData('incentives', accIncentives, filename);
+      }
     } else if (type === 'shifts') {
       setRosterData(data);
       const parsed = parseShiftCSV(data, masterRoster);
@@ -8963,10 +9036,11 @@ function App() {
           ) : (
             <span style={{ opacity: 0.5 }}>No actuals</span>
           )}
-          {incentiveData ? (
+          {(incentiveData || manualIncentiveData) ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-green)', display: 'inline-block' }} />
-              {incentiveData.length.toLocaleString()} incentive records
+              {((incentiveData?.length || 0) + (manualIncentiveData?.length || 0)).toLocaleString()} incentive records
+              {manualIncentiveData && <span style={{ fontSize: 10, color: 'var(--accent-orange)', fontWeight: 600 }}>({manualIncentiveData.length} manual)</span>}
             </span>
           ) : (
             <span style={{ opacity: 0.5 }}>No incentives</span>
@@ -8988,7 +9062,7 @@ function App() {
           // Badge counts
           let badge = null;
           if (t.id === 'performance' && actualsData) badge = actualsData.length;
-          if (t.id === 'incentives' && incentiveData) badge = incentiveData.length;
+          if (t.id === 'incentives' && (incentiveData || manualIncentiveData)) badge = (incentiveData?.length || 0) + (manualIncentiveData?.length || 0);
           if (t.id === 'vph' && vphData && vphData.length > 0) badge = vphData.length;
           if (t.id === 'history' && history.length > 0) badge = history.length;
           if (t.id === 'forecast' && forecast) badge = '✓';
@@ -9031,7 +9105,7 @@ function App() {
       <div className="content">
         {restoring && <div className="card" style={{ textAlign: 'center', padding: 40 }}>Restoring your data...</div>}
         {activeTab === 'overview' && (
-          <OverviewTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} vphData={vphData} masterRoster={masterRoster} />
+          <OverviewTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData ? (manualIncentiveData ? [...incentiveData, ...manualIncentiveData] : incentiveData) : manualIncentiveData} vphData={vphData} masterRoster={masterRoster} />
         )}
         {activeTab === 'forecast' && (
           <ForecastTab rosterData={rosterData} onForecastComplete={setForecast} masterRoster={masterRoster} />
@@ -9061,7 +9135,7 @@ function App() {
           <VphTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} masterRoster={masterRoster} showToast={showToast} />
         )}
         {activeTab === 'incentives' && (
-          <IncentiveTab key={refreshTick} incentiveData={incentiveData} />
+          <IncentiveTab key={refreshTick} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} />
         )}
         {activeTab === 'weeklyPerf' && (
           <WeeklyPerfTab weeklyPerfData={weeklyPerfData} setWeeklyPerfData={setWeeklyPerfData} showToast={showToast} />
