@@ -7764,6 +7764,74 @@ function IncentiveTab({ incentiveData, manualIncentiveData }) {
         </div>
       )}
 
+      {/* Per-Record Detail Table — the granular drill-down */}
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Incentive Detail — All Records ({filtered.length})</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => {
+            const el = document.getElementById('incentive-detail-table');
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+          }}>Toggle Table</button>
+        </div>
+        <div id="incentive-detail-table" style={{ maxHeight: 600, overflowY: 'auto', overflowX: 'auto' }}>
+          <table style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+            <thead><tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Clinician</th>
+              <th>Credential</th>
+              <th>Partner</th>
+              <th>State</th>
+              <th>Rate</th>
+              <th>Launched</th>
+              <th>Claimed</th>
+              <th>Time on Board</th>
+              <th>Reason</th>
+              <th>Source</th>
+              {cm.submittedBy && <th>Submitted By</th>}
+              {cm.incentiveReason && <th>Incentive Reason</th>}
+            </tr></thead>
+            <tbody>
+              {filtered.slice(0, 500).map((r, i) => {
+                const dateVal = cm.date ? (r[cm.date] || '') : '';
+                const clinician = rowClinician(r);
+                const credential = cm.licenseType ? (r[cm.licenseType] || '') : '';
+                const partner = rowPartner(r);
+                const state = rowState(r);
+                const amount = parseAmount(r);
+                const launched = cm.launchedTime ? (r[cm.launchedTime] || '') : '';
+                const claimed = cm.claimedTime ? (r[cm.claimedTime] || '') : '';
+                const timeOnBoard = cm.timeInBoard ? (r[cm.timeInBoard] || '') : '';
+                const reason = cm.reasonForVisit ? (r[cm.reasonForVisit] || '') : '';
+                const source = r._incentiveSource || 'unknown';
+                const submittedBy = cm.submittedBy ? (r[cm.submittedBy] || '') : '';
+                const incReason = cm.incentiveReason ? (r[cm.incentiveReason] || '') : '';
+
+                return (
+                  <tr key={i} style={{ background: source === 'manual' ? '#FFF8E1' : 'transparent' }}>
+                    <td style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                    <td style={{ fontWeight: 500 }}>{dateVal}</td>
+                    <td style={{ fontWeight: 600 }}>{clinician}</td>
+                    <td>{credential || '—'}</td>
+                    <td>{partner || '—'}</td>
+                    <td>{state || '—'}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: amount >= 100 ? '#dc2626' : amount >= 50 ? '#d97706' : 'var(--text-primary)' }}>{amount > 0 ? fmt$(amount) : '—'}</td>
+                    <td style={{ fontSize: 10 }}>{launched || '—'}</td>
+                    <td style={{ fontSize: 10 }}>{claimed || '—'}</td>
+                    <td style={{ fontSize: 10 }}>{timeOnBoard || '—'}</td>
+                    <td style={{ fontSize: 10, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }} title={reason}>{reason || '—'}</td>
+                    <td><span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: source === 'manual' ? '#FFD54F' : '#dbeafe', fontWeight: 600 }}>{source}</span></td>
+                    {cm.submittedBy && <td style={{ fontSize: 10 }}>{submittedBy}</td>}
+                    {cm.incentiveReason && <td style={{ fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }} title={incReason}>{incReason}</td>}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filtered.length > 500 && <div style={{ padding: 8, fontSize: 11, color: 'var(--text-muted)' }}>Showing 500 of {filtered.length} records. Export CSV for full dataset.</div>}
+        </div>
+      </div>
+
       {/* Column diagnostics */}
       <details style={{ marginTop: 16, fontSize: 11, color: 'var(--text-muted)' }}>
         <summary style={{ cursor: 'pointer' }}>Detected Columns</summary>
@@ -7771,6 +7839,406 @@ function IncentiveTab({ incentiveData, manualIncentiveData }) {
           {Object.entries(cm).filter(([k,v]) => v).map(([k,v], i) => <div key={i}>{k}: "{v}"</div>)}
         </div>
       </details>
+    </div>
+  );
+}
+
+// ========================== TAB: COMPARE (PERIOD vs PERIOD) ==========================
+function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncentiveData }) {
+  const [slFilter, setSlFilter] = useState('ALL');
+  const [periodAStart, setPeriodAStart] = useState('');
+  const [periodAEnd, setPeriodAEnd] = useState('');
+  const [periodBStart, setPeriodBStart] = useState('');
+  const [periodBEnd, setPeriodBEnd] = useState('');
+
+  // Quick-set helpers
+  const setLastWeek = () => {
+    const now = new Date();
+    const dow = now.getDay();
+    const lastMonEnd = new Date(now); lastMonEnd.setDate(now.getDate() - dow - 1); // last Sunday
+    const lastMonStart = new Date(lastMonEnd); lastMonStart.setDate(lastMonEnd.getDate() - 6); // last Monday
+    const prevMonEnd = new Date(lastMonStart); prevMonEnd.setDate(lastMonStart.getDate() - 1);
+    const prevMonStart = new Date(prevMonEnd); prevMonStart.setDate(prevMonEnd.getDate() - 6);
+    setPeriodAStart(prevMonStart.toISOString().slice(0,10));
+    setPeriodAEnd(prevMonEnd.toISOString().slice(0,10));
+    setPeriodBStart(lastMonStart.toISOString().slice(0,10));
+    setPeriodBEnd(lastMonEnd.toISOString().slice(0,10));
+  };
+
+  const setLastWeekend = () => {
+    const now = new Date();
+    const dow = now.getDay();
+    const lastSun = new Date(now); lastSun.setDate(now.getDate() - dow); if (dow === 0) lastSun.setDate(lastSun.getDate() - 7);
+    const lastSat = new Date(lastSun); lastSat.setDate(lastSun.getDate() - 1);
+    const prevSun = new Date(lastSat); prevSun.setDate(lastSat.getDate() - 1);
+    const prevSat = new Date(prevSun); prevSat.setDate(prevSun.getDate() - 1);
+    setPeriodAStart(prevSat.toISOString().slice(0,10));
+    setPeriodAEnd(prevSun.toISOString().slice(0,10));
+    setPeriodBStart(lastSat.toISOString().slice(0,10));
+    setPeriodBEnd(lastSun.toISOString().slice(0,10));
+  };
+
+  const setLast2Weeks = () => {
+    const now = new Date();
+    const dow = now.getDay();
+    const thisMonday = new Date(now); thisMonday.setDate(now.getDate() - ((dow + 6) % 7));
+    const w2End = new Date(thisMonday); w2End.setDate(thisMonday.getDate() - 1);
+    const w2Start = new Date(w2End); w2Start.setDate(w2End.getDate() - 6);
+    const w1End = new Date(w2Start); w1End.setDate(w2Start.getDate() - 1);
+    const w1Start = new Date(w1End); w1Start.setDate(w1End.getDate() - 6);
+    setPeriodAStart(w1Start.toISOString().slice(0,10));
+    setPeriodAEnd(w1End.toISOString().slice(0,10));
+    setPeriodBStart(w2Start.toISOString().slice(0,10));
+    setPeriodBEnd(w2End.toISOString().slice(0,10));
+  };
+
+  const cm = useMemo(() => buildColMap(actualsData || []), [actualsData]);
+  const incCm = useMemo(() => buildColMap(incentiveData || manualIncentiveData || []), [incentiveData, manualIncentiveData]);
+
+  // Combine incentive sources
+  const allIncentives = useMemo(() => {
+    const l = (incentiveData || []).map(r => ({ ...r, _src: 'looker' }));
+    const m = (manualIncentiveData || []).map(r => ({ ...r, _src: 'manual' }));
+    return [...l, ...m];
+  }, [incentiveData, manualIncentiveData]);
+
+  // SL options
+  const availableSLs = useMemo(() => {
+    if (!actualsData) return [];
+    const sls = new Set();
+    actualsData.forEach(r => { if (r._detectedSL) sls.add(r._detectedSL); });
+    return ['ALL', ...sls];
+  }, [actualsData]);
+
+  // Filter function for a date range + SL
+  const filterByRange = useCallback((data, start, end, dateFn) => {
+    if (!data || !start || !end) return [];
+    const from = new Date(start);
+    const to = new Date(end + 'T23:59:59');
+    return data.filter(r => {
+      if (slFilter !== 'ALL') {
+        const sl = r._detectedSL || mapPartnerToSL(cm.partner ? (r[cm.partner] || '') : '') || mapEntityToSL(cm.entityName ? (r[cm.entityName] || '') : '');
+        if (sl && sl !== slFilter) return false;
+      }
+      const dt = dateFn(r);
+      if (!dt) return false;
+      return dt >= from && dt <= to;
+    });
+  }, [slFilter, cm]);
+
+  const actualDateFn = useCallback(r => parseDate(cm.date ? r[cm.date] : ''), [cm]);
+  const shiftDateFn = useCallback(r => parseDate(r._shiftStart || (cm.shiftStart ? r[cm.shiftStart] : '')), [cm]);
+  const incDateFn = useCallback(r => parseDate(incCm.date ? r[incCm.date] : (incCm.launchedTime ? r[incCm.launchedTime] : '')), [incCm]);
+
+  // Compute metrics for a period
+  const computePeriod = useCallback((actuals, shifts, incentives) => {
+    const result = {
+      // Volume
+      totalVisits: actuals.length,
+      // SLA
+      slaMet: 0, slaMissed: 0, slaPct: 0,
+      // Response time
+      avgResponseMin: 0,
+      // Headcount (unique clinicians in actuals)
+      headcount: 0,
+      // Credential breakdown
+      npCount: 0, mdCount: 0, unknownCredCount: 0,
+      // Shifts
+      totalShifts: 0, filledShifts: 0, unfilledShifts: 0,
+      totalShiftHours: 0, filledShiftHours: 0, unfilledShiftHours: 0,
+      fillRate: 0,
+      // Incentives
+      incentiveShifts: 0, incentiveSpend: 0,
+      incentiveFilled: 0, incentiveUnfilled: 0,
+      incentiveRates: {},
+      // State distribution
+      stateBreakdown: {},
+      // Clinician-level detail
+      clinicianHours: {},
+    };
+
+    // Actuals metrics
+    const clinicians = new Set();
+    actuals.forEach(r => {
+      const cl = cm.clinician ? (r[cm.clinician] || '') : '';
+      if (cl) clinicians.add(cl.toLowerCase().trim());
+
+      const sla = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
+      if (sla.includes('met') || sla.includes('within')) result.slaMet++;
+      else if (sla.includes('miss') || sla.includes('breach') || sla.includes('over')) result.slaMissed++;
+
+      const rt = cm.responseTime ? parseFloat(r[cm.responseTime]) : NaN;
+      if (!isNaN(rt)) result.avgResponseMin += rt;
+
+      const state = cm.state ? (r[cm.state] || '') : '';
+      if (state) result.stateBreakdown[state] = (result.stateBreakdown[state] || 0) + 1;
+
+      // Credential from license type or name suffix
+      const cred = cm.licenseType ? (r[cm.licenseType] || '').toUpperCase() : '';
+      if (cred.includes('NP') || cred.includes('NURSE') || cred.includes('PA') || cred.includes('FNP') || cred.includes('DNP')) result.npCount++;
+      else if (cred.includes('MD') || cred.includes('DO') || cred.includes('PHYSICIAN') || cred.includes('DR')) result.mdCount++;
+      else result.unknownCredCount++;
+    });
+
+    result.headcount = clinicians.size;
+    const slaTotal = result.slaMet + result.slaMissed;
+    result.slaPct = slaTotal > 0 ? (result.slaMet / slaTotal * 100) : 0;
+    result.avgResponseMin = actuals.length > 0 ? result.avgResponseMin / actuals.length : 0;
+
+    // Shift metrics
+    shifts.forEach(r => {
+      result.totalShifts++;
+      const unfilled = r._unfilled || (r[cm.clinician] || '').toLowerCase().includes('not assigned') || (r[cm.clinician] || '').trim() === '';
+      if (unfilled) result.unfilledShifts++;
+      else result.filledShifts++;
+
+      const hrs = r._hours || parseFloat(r[cm.scheduledHrs] || '0') || 0;
+      result.totalShiftHours += hrs;
+      if (unfilled) result.unfilledShiftHours += hrs;
+      else result.filledShiftHours += hrs;
+
+      // Clinician hours tracking
+      const cl = cm.clinician ? (r[cm.clinician] || '').trim() : '';
+      if (cl && !unfilled) {
+        const key = cl.toLowerCase();
+        result.clinicianHours[key] = (result.clinicianHours[key] || 0) + hrs;
+      }
+    });
+    result.fillRate = result.totalShifts > 0 ? (result.filledShifts / result.totalShifts * 100) : 0;
+
+    // Incentive metrics
+    incentives.forEach(r => {
+      result.incentiveShifts++;
+      const amt = parseFloat(String(incCm.amount ? (r[incCm.amount] || '0') : '0').replace(/[^0-9.\-]/g, '')) || 0;
+      result.incentiveSpend += amt;
+
+      const claimed = incCm.claimedTime ? !!r[incCm.claimedTime] : false;
+      if (claimed) result.incentiveFilled++;
+      else result.incentiveUnfilled++;
+
+      // Rate bucketing
+      let rateBucket = 'unknown';
+      if (amt >= 175) rateBucket = '2x+';
+      else if (amt >= 100) rateBucket = '1.5x';
+      else if (amt >= 50) rateBucket = '1x';
+      else if (amt > 0) rateBucket = '<1x';
+      result.incentiveRates[rateBucket] = (result.incentiveRates[rateBucket] || 0) + 1;
+    });
+
+    return result;
+  }, [cm, incCm]);
+
+  // Filter data for both periods
+  const periodA = useMemo(() => {
+    const a = filterByRange(actualsData, periodAStart, periodAEnd, actualDateFn);
+    const s = filterByRange(shiftScheduleData, periodAStart, periodAEnd, shiftDateFn);
+    const inc = filterByRange(allIncentives, periodAStart, periodAEnd, incDateFn);
+    return computePeriod(a, s, inc);
+  }, [actualsData, shiftScheduleData, allIncentives, periodAStart, periodAEnd, slFilter, filterByRange, computePeriod, actualDateFn, shiftDateFn, incDateFn]);
+
+  const periodB = useMemo(() => {
+    const a = filterByRange(actualsData, periodBStart, periodBEnd, actualDateFn);
+    const s = filterByRange(shiftScheduleData, periodBStart, periodBEnd, shiftDateFn);
+    const inc = filterByRange(allIncentives, periodBStart, periodBEnd, incDateFn);
+    return computePeriod(a, s, inc);
+  }, [actualsData, shiftScheduleData, allIncentives, periodBStart, periodBEnd, slFilter, filterByRange, computePeriod, actualDateFn, shiftDateFn, incDateFn]);
+
+  const fmt$ = v => '$' + Math.round(v).toLocaleString();
+  const fmtPct = v => v.toFixed(1) + '%';
+  const fmtDelta = (a, b, type) => {
+    if (a === 0 && b === 0) return { text: '—', color: 'var(--text-muted)' };
+    const delta = b - a;
+    const pctChange = a !== 0 ? ((b - a) / a * 100) : (b > 0 ? 100 : 0);
+    const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '—';
+    let color = 'var(--text-muted)';
+    if (type === 'higher-better') color = delta > 0 ? '#059669' : delta < 0 ? '#dc2626' : 'var(--text-muted)';
+    else if (type === 'lower-better') color = delta < 0 ? '#059669' : delta > 0 ? '#dc2626' : 'var(--text-muted)';
+    else color = delta !== 0 ? '#1d4ed8' : 'var(--text-muted)';
+    return { text: `${arrow} ${delta > 0 ? '+' : ''}${type === 'pct' ? delta.toFixed(1) + 'pp' : type === 'dollar' ? fmt$(Math.abs(delta)) : Math.round(delta).toLocaleString()} (${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(0)}%)`, color };
+  };
+
+  const compRow = (label, a, b, format, deltaType) => {
+    const fmtVal = format === '$' ? fmt$ : format === '%' ? fmtPct : v => Math.round(v).toLocaleString();
+    const d = fmtDelta(a, b, deltaType || 'neutral');
+    return (
+      <tr key={label}>
+        <td style={{ fontWeight: 600, fontSize: 12 }}>{label}</td>
+        <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{fmtVal(a)}</td>
+        <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{fmtVal(b)}</td>
+        <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right', color: d.color, fontSize: 11 }}>{d.text}</td>
+      </tr>
+    );
+  };
+
+  const hasData = periodAStart && periodAEnd && periodBStart && periodBEnd;
+
+  if (!actualsData && !shiftScheduleData) {
+    return (
+      <div className="empty-state">
+        <div className="icon">&#128200;</div>
+        <p>Upload actuals and/or shift data to use the comparison tool</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title">Period Comparison Setup</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', alignSelf: 'center' }}>QUICK SET:</span>
+          <button className="btn btn-secondary btn-sm" onClick={setLastWeek}>Last Week vs Prior Week</button>
+          <button className="btn btn-secondary btn-sm" onClick={setLastWeekend}>Last Weekend vs Prior Weekend</button>
+          <button className="btn btn-secondary btn-sm" onClick={setLast2Weeks}>2 Weeks Ago vs Last Week</button>
+        </div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ border: '2px solid #93c5fd', borderRadius: 'var(--radius)', padding: 12, flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>PERIOD A (Baseline)</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="date" value={periodAStart} onChange={e => setPeriodAStart(e.target.value)} style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }} />
+              <span style={{ fontSize: 11 }}>to</span>
+              <input type="date" value={periodAEnd} onChange={e => setPeriodAEnd(e.target.value)} style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }} />
+            </div>
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)', alignSelf: 'center' }}>vs</div>
+          <div style={{ border: '2px solid #86efac', borderRadius: 'var(--radius)', padding: 12, flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', marginBottom: 6 }}>PERIOD B (Current)</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="date" value={periodBStart} onChange={e => setPeriodBStart(e.target.value)} style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }} />
+              <span style={{ fontSize: 11 }}>to</span>
+              <input type="date" value={periodBEnd} onChange={e => setPeriodBEnd(e.target.value)} style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }} />
+            </div>
+          </div>
+          <SLFilter value={slFilter} onChange={setSlFilter} options={availableSLs} />
+        </div>
+      </div>
+
+      {hasData && (
+        <div>
+          {/* Volume & SLA */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-title">Volume & Service Level</div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Metric</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
+                <tbody>
+                  {compRow('Total Visits', periodA.totalVisits, periodB.totalVisits, '#', 'neutral')}
+                  {compRow('SLA Met', periodA.slaMet, periodB.slaMet, '#', 'higher-better')}
+                  {compRow('SLA Missed', periodA.slaMissed, periodB.slaMissed, '#', 'lower-better')}
+                  {compRow('SLA %', periodA.slaPct, periodB.slaPct, '%', 'higher-better')}
+                  {compRow('Avg Response (min)', periodA.avgResponseMin, periodB.avgResponseMin, '#', 'lower-better')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Staffing & Shifts */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-title">Staffing & Shifts</div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Metric</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
+                <tbody>
+                  {compRow('Headcount (unique clinicians)', periodA.headcount, periodB.headcount, '#', 'neutral')}
+                  {compRow('NPs / PAs', periodA.npCount, periodB.npCount, '#', 'neutral')}
+                  {compRow('MDs / DOs', periodA.mdCount, periodB.mdCount, '#', 'neutral')}
+                  {compRow('Total Shifts', periodA.totalShifts, periodB.totalShifts, '#', 'neutral')}
+                  {compRow('Filled Shifts', periodA.filledShifts, periodB.filledShifts, '#', 'higher-better')}
+                  {compRow('Unfilled Shifts', periodA.unfilledShifts, periodB.unfilledShifts, '#', 'lower-better')}
+                  {compRow('Fill Rate', periodA.fillRate, periodB.fillRate, '%', 'higher-better')}
+                  {compRow('Total Shift Hours', periodA.totalShiftHours, periodB.totalShiftHours, '#', 'neutral')}
+                  {compRow('Filled Hours', periodA.filledShiftHours, periodB.filledShiftHours, '#', 'higher-better')}
+                  {compRow('Unfilled Hours', periodA.unfilledShiftHours, periodB.unfilledShiftHours, '#', 'lower-better')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Incentives */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-title">Incentives</div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Metric</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
+                <tbody>
+                  {compRow('Incentive Shifts', periodA.incentiveShifts, periodB.incentiveShifts, '#', 'neutral')}
+                  {compRow('Total Incentive Spend', periodA.incentiveSpend, periodB.incentiveSpend, '$', 'lower-better')}
+                  {compRow('Incentives Filled/Claimed', periodA.incentiveFilled, periodB.incentiveFilled, '#', 'higher-better')}
+                  {compRow('Incentives Unfilled', periodA.incentiveUnfilled, periodB.incentiveUnfilled, '#', 'lower-better')}
+                  {compRow('Avg per Incentive', periodA.incentiveShifts > 0 ? periodA.incentiveSpend / periodA.incentiveShifts : 0, periodB.incentiveShifts > 0 ? periodB.incentiveSpend / periodB.incentiveShifts : 0, '$', 'lower-better')}
+                </tbody>
+              </table>
+            </div>
+            {/* Rate breakdown */}
+            {(Object.keys(periodA.incentiveRates).length > 0 || Object.keys(periodB.incentiveRates).length > 0) && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Incentive Rate Breakdown</div>
+                <table style={{ fontSize: 12 }}>
+                  <thead><tr><th>Rate</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th></tr></thead>
+                  <tbody>
+                    {['<1x', '1x', '1.5x', '2x+', 'unknown'].map(rate => {
+                      const a = periodA.incentiveRates[rate] || 0;
+                      const b = periodB.incentiveRates[rate] || 0;
+                      if (a === 0 && b === 0) return null;
+                      return <tr key={rate}><td>{rate}</td><td style={{ textAlign: 'right' }}>{a}</td><td style={{ textAlign: 'right' }}>{b}</td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* State Distribution */}
+          {(Object.keys(periodA.stateBreakdown).length > 0 || Object.keys(periodB.stateBreakdown).length > 0) && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-title">State Distribution</div>
+              <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                <table style={{ fontSize: 12 }}>
+                  <thead><tr><th>State</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
+                  <tbody>
+                    {[...new Set([...Object.keys(periodA.stateBreakdown), ...Object.keys(periodB.stateBreakdown)])].sort().map(st => {
+                      const a = periodA.stateBreakdown[st] || 0;
+                      const b = periodB.stateBreakdown[st] || 0;
+                      const d = fmtDelta(a, b, 'neutral');
+                      return <tr key={st}><td style={{ fontWeight: 600 }}>{st}</td><td style={{ textAlign: 'right' }}>{a}</td><td style={{ textAlign: 'right' }}>{b}</td><td style={{ textAlign: 'right', color: d.color, fontSize: 11 }}>{d.text}</td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Clinician Hours */}
+          {(Object.keys(periodA.clinicianHours).length > 0 || Object.keys(periodB.clinicianHours).length > 0) && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-title">Clinician Hours</div>
+              <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                <table style={{ fontSize: 12 }}>
+                  <thead><tr><th>Clinician</th><th style={{ textAlign: 'right' }}>Period A Hrs</th><th style={{ textAlign: 'right' }}>Period B Hrs</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
+                  <tbody>
+                    {[...new Set([...Object.keys(periodA.clinicianHours), ...Object.keys(periodB.clinicianHours)])].sort((a, b) => {
+                      return ((periodB.clinicianHours[b] || 0) + (periodA.clinicianHours[b] || 0)) - ((periodB.clinicianHours[a] || 0) + (periodA.clinicianHours[a] || 0));
+                    }).map(cl => {
+                      const a = periodA.clinicianHours[cl] || 0;
+                      const b = periodB.clinicianHours[cl] || 0;
+                      const d = fmtDelta(a, b, 'neutral');
+                      return <tr key={cl}><td style={{ fontWeight: 500, textTransform: 'capitalize' }}>{cl}</td><td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{a.toFixed(1)}</td><td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{b.toFixed(1)}</td><td style={{ textAlign: 'right', color: d.color, fontSize: 11 }}>{d.text}</td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!hasData && (
+        <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>&#8596;</div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Select two date ranges to compare</div>
+          <div style={{ fontSize: 12, marginTop: 4 }}>Use the quick-set buttons above or enter custom dates</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -9760,6 +10228,7 @@ function App() {
     { id: 'clinicians', label: 'Clinicians' },
     { id: 'vph', label: 'VPH / VPCH' },
     { id: 'incentives', label: 'Incentive Spend' },
+    { id: 'compare', label: '⚖️ Compare' },
     { id: 'weeklyPerf', label: '📋 Weekly Report' },
     { id: 'history', label: 'Historical Log' },
     { id: 'help', label: 'Help & Formulas' },
@@ -9790,14 +10259,9 @@ function App() {
         </div>
       </div>
 
-      {/* Lookback Banner */}
+      {/* Data Status Banner */}
       <div className="lookback-banner">
-        <span>Lookback:</span>
-        <select value={lookbackValue} onChange={e => setLookbackValue(e.target.value)}
-          style={{ border: 'none', background: 'transparent', color: 'var(--accent-teal-dark)', fontWeight: 700, fontSize: 12, cursor: 'pointer', marginLeft: 2 }}>
-          {LOOKBACK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <span style={{ margin: '0 6px', opacity: 0.4 }}>|</span>
+        <span style={{ fontWeight: 700 }}>Data Loaded:</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
           {actualsData ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -9910,6 +10374,9 @@ function App() {
         )}
         {activeTab === 'incentives' && (
           <IncentiveTab key={refreshTick} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} />
+        )}
+        {activeTab === 'compare' && (
+          <CompareTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} />
         )}
         {activeTab === 'weeklyPerf' && (
           <WeeklyPerfTab weeklyPerfData={weeklyPerfData} setWeeklyPerfData={setWeeklyPerfData} showToast={showToast} />
