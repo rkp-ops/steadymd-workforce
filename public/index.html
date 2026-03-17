@@ -2712,6 +2712,15 @@ function runForecast(shifts, settings, dynamicRoster) {
         const mMatch = incentiveTag.match(/([\d.]+)x/i);
         incentiveMultiplier = mMatch ? parseFloat(mMatch[1]) : 1.5; // default 1.5x if tagged but no multiplier
       }
+      // Also check Bonus column if no incentive tag found
+      if (!incentiveMultiplier) {
+        const bonusVal = (s.Bonus || s.bonus || '').toString().trim();
+        if (bonusVal) {
+          const bMatch = bonusVal.match(/([\d.]+)x/i);
+          if (bMatch) incentiveMultiplier = parseFloat(bMatch[1]);
+          else if (parseFloat(bonusVal) > 0) incentiveMultiplier = parseFloat(bonusVal);
+        }
+      }
       unfilled.push({ ...s, _unfilled: true, _tags: tags, _incentiveTag: incentiveTag || null, _incentiveMultiplier: incentiveMultiplier });
     } else {
       const clin = clinMap[norm];
@@ -2724,8 +2733,13 @@ function runForecast(shifts, settings, dynamicRoster) {
   });
 
   // Determine forecast hours from shift times
-  const startDate = settings.forecastStart || new Date();
-  startDate.setHours(0, 0, 0, 0);
+  const startDate = settings.forecastStart ? new Date(settings.forecastStart) : new Date();
+  // Start from current hour (not midnight) so we don't show already-past hours
+  if (!settings.forecastStart) {
+    startDate.setMinutes(0, 0, 0); // round down to current hour
+  } else {
+    startDate.setHours(0, 0, 0, 0);
+  }
 
   // Build hourly aggregates for 57 hours
   const hours = [];
@@ -3215,10 +3229,8 @@ function ForecastTab({ rosterData, onForecastComplete, masterRoster }) {
 
             <div className="card" style={{ marginBottom: 16, overflow: 'hidden' }}>
               <div className="card-title">Hourly Performance Forecast</div>
-              <div style={{ overflowX: 'auto', minHeight: 280 }}>
-                <div style={{ minWidth: Math.max(700, forecast.hours.length * 14) }}>
-                  <ChartWrapper config={hourlyChartConfig} height={300} />
-                </div>
+              <div style={{ minHeight: 280, width: '100%' }}>
+                <ChartWrapper config={hourlyChartConfig} height={300} />
               </div>
             </div>
 
@@ -7844,7 +7856,7 @@ function IncentiveTab({ incentiveData, manualIncentiveData }) {
 }
 
 // ========================== TAB: COMPARE (PERIOD vs PERIOD) ==========================
-function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncentiveData }) {
+function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncentiveData, forecast }) {
   const [slFilter, setSlFilter] = useState('ALL');
   const [periodAStart, setPeriodAStart] = useState('');
   const [periodAEnd, setPeriodAEnd] = useState('');
@@ -8239,6 +8251,157 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
           <div style={{ fontSize: 12, marginTop: 4 }}>Use the quick-set buttons above or enter custom dates</div>
         </div>
       )}
+
+      {/* Forecast vs Actual Section */}
+      {forecast && actualsData && (
+        <ForecastVsActual forecast={forecast} actualsData={actualsData} shiftScheduleData={shiftScheduleData} cm={cm} />
+      )}
+    </div>
+  );
+}
+
+// ========================== FORECAST vs ACTUAL COMPONENT ==========================
+function ForecastVsActual({ forecast, actualsData, shiftScheduleData, cm }) {
+  // Match forecast hours to actual performance
+  const comparison = useMemo(() => {
+    if (!forecast || !forecast.hours || !actualsData) return null;
+
+    // Group actuals by date+hour
+    const actualsByHour = {};
+    actualsData.forEach(r => {
+      const dt = parseDate(cm.date ? r[cm.date] : '');
+      if (!dt) return;
+      const key = dt.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+      if (!actualsByHour[key]) actualsByHour[key] = { total: 0, met: 0, missed: 0, times: [] };
+      actualsByHour[key].total++;
+      const sla = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
+      if (sla.includes('met') || sla.includes('within')) actualsByHour[key].met++;
+      else if (sla.includes('miss') || sla.includes('breach') || sla.includes('over')) actualsByHour[key].missed++;
+      const rt = cm.responseTime ? parseFloat(r[cm.responseTime]) : NaN;
+      if (!isNaN(rt)) actualsByHour[key].times.push(rt);
+    });
+
+    // Match forecast hours to actuals
+    const rows = [];
+    let totalForecastVol = 0, totalActualVol = 0;
+    let totalForecastMiss = 0, totalActualMiss = 0;
+    let forecastedSLASum = 0, actualSLASum = 0, matchedCount = 0;
+
+    forecast.hours.forEach(h => {
+      const hourStart = h.time || null;
+      let key = null;
+      if (hourStart) {
+        key = new Date(hourStart).toISOString().slice(0, 13);
+      }
+      const actual = key ? actualsByHour[key] : null;
+
+      const forecastVol = h.arrivals;
+      const forecastMiss = h.totalMiss;
+      const forecastHC = h.headcount;
+      const forecastSLA = forecastVol > 0 ? ((forecastVol - forecastMiss) / forecastVol * 100) : 100;
+
+      const actualVol = actual ? actual.total : null;
+      const actualMiss = actual ? actual.missed : null;
+      const actualSLA = actual && (actual.met + actual.missed) > 0 ? (actual.met / (actual.met + actual.missed) * 100) : null;
+
+      totalForecastVol += forecastVol;
+      totalForecastMiss += forecastMiss;
+      if (actual) {
+        totalActualVol += actual.total;
+        totalActualMiss += actual.missed;
+        forecastedSLASum += forecastSLA;
+        actualSLASum += actualSLA || 0;
+        matchedCount++;
+      }
+
+      rows.push({
+        label: h.label,
+        forecastVol: forecastVol.toFixed(1),
+        forecastHC: forecastHC,
+        forecastMiss: forecastMiss.toFixed(2),
+        forecastSLA: forecastSLA.toFixed(1),
+        actualVol: actualVol !== null ? actualVol : '—',
+        actualMiss: actualMiss !== null ? actualMiss : '—',
+        actualSLA: actualSLA !== null ? actualSLA.toFixed(1) : '—',
+        hasActual: actual !== null,
+        slaDelta: actualSLA !== null ? (actualSLA - forecastSLA).toFixed(1) : null,
+        volDelta: actualVol !== null ? (actualVol - forecastVol).toFixed(1) : null,
+      });
+    });
+
+    const overallForecastSLA = totalForecastVol > 0 ? ((totalForecastVol - totalForecastMiss) / totalForecastVol * 100) : 0;
+    const overallActualSLA = totalActualVol > 0 ? ((totalActualVol - totalActualMiss) / totalActualVol * 100) : 0;
+
+    return {
+      rows,
+      summary: {
+        forecastVol: totalForecastVol,
+        actualVol: totalActualVol,
+        forecastMiss: totalForecastMiss,
+        actualMiss: totalActualMiss,
+        forecastSLA: overallForecastSLA,
+        actualSLA: overallActualSLA,
+        matchedHours: matchedCount,
+        accuracy: matchedCount > 0 ? (100 - Math.abs(overallForecastSLA - overallActualSLA)).toFixed(1) : null
+      }
+    };
+  }, [forecast, actualsData, cm]);
+
+  if (!comparison) return null;
+
+  const s = comparison.summary;
+
+  return (
+    <div className="card" style={{ marginTop: 20, borderTop: '3px solid var(--accent-teal)' }}>
+      <div className="card-title" style={{ fontSize: 14 }}>🎯 Forecast vs Actual</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+        Comparing model predictions to actual performance. {s.matchedHours} hours matched.
+      </div>
+
+      {/* Summary KPIs */}
+      <div className="kpi-grid" style={{ marginBottom: 16 }}>
+        <KpiCard label="Forecasted Volume" value={s.forecastVol.toFixed(0)} />
+        <KpiCard label="Actual Volume" value={s.actualVol > 0 ? s.actualVol.toLocaleString() : 'No data'} />
+        <KpiCard label="Forecasted SLA" value={s.forecastSLA.toFixed(1) + '%'} className={s.forecastSLA < 80 ? 'alert' : s.forecastSLA < 90 ? 'warn' : 'good'} />
+        <KpiCard label="Actual SLA" value={s.actualVol > 0 ? s.actualSLA.toFixed(1) + '%' : '—'} className={s.actualSLA < 80 ? 'alert' : s.actualSLA < 90 ? 'warn' : 'good'} />
+        {s.accuracy && <KpiCard label="Forecast Accuracy" value={s.accuracy + '%'} sub="SLA prediction accuracy" className={parseFloat(s.accuracy) > 90 ? 'good' : parseFloat(s.accuracy) > 80 ? 'warn' : 'alert'} />}
+      </div>
+
+      {/* Hourly comparison table */}
+      <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+        <table style={{ fontSize: 11 }}>
+          <thead>
+            <tr>
+              <th>Hour</th>
+              <th style={{ borderRight: '2px solid var(--border)' }}>FC HC</th>
+              <th>FC Volume</th>
+              <th>Act Volume</th>
+              <th style={{ borderRight: '2px solid var(--border)' }}>Vol Δ</th>
+              <th>FC SLA%</th>
+              <th>Act SLA%</th>
+              <th>SLA Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {comparison.rows.map((r, i) => (
+              <tr key={i} style={{ background: r.hasActual ? 'transparent' : '#f9fafb' }}>
+                <td style={{ fontWeight: 600 }}>{r.label}</td>
+                <td style={{ borderRight: '2px solid var(--border)' }}>{r.forecastHC}</td>
+                <td>{r.forecastVol}</td>
+                <td style={{ fontWeight: r.hasActual ? 600 : 400 }}>{r.actualVol}</td>
+                <td style={{ borderRight: '2px solid var(--border)', color: r.volDelta !== null ? (parseFloat(r.volDelta) > 5 ? '#dc2626' : parseFloat(r.volDelta) < -5 ? '#059669' : 'var(--text-muted)') : 'var(--text-muted)', fontSize: 10 }}>
+                  {r.volDelta !== null ? (parseFloat(r.volDelta) > 0 ? '+' : '') + r.volDelta : '—'}
+                </td>
+                <td>{r.forecastSLA}%</td>
+                <td style={{ fontWeight: r.hasActual ? 600 : 400 }}>{r.actualSLA !== '—' ? r.actualSLA + '%' : '—'}</td>
+                <td style={{ color: r.slaDelta !== null ? (parseFloat(r.slaDelta) >= 0 ? '#059669' : '#dc2626') : 'var(--text-muted)', fontWeight: r.slaDelta !== null ? 600 : 400, fontSize: 10 }}>
+                  {r.slaDelta !== null ? (parseFloat(r.slaDelta) > 0 ? '+' : '') + r.slaDelta + 'pp' : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -10376,7 +10539,7 @@ function App() {
           <IncentiveTab key={refreshTick} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} />
         )}
         {activeTab === 'compare' && (
-          <CompareTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} />
+          <CompareTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} forecast={forecast} />
         )}
         {activeTab === 'weeklyPerf' && (
           <WeeklyPerfTab weeklyPerfData={weeklyPerfData} setWeeklyPerfData={setWeeklyPerfData} showToast={showToast} />
