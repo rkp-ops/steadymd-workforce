@@ -7858,10 +7858,16 @@ function IncentiveTab({ incentiveData, manualIncentiveData }) {
 // ========================== TAB: COMPARE (PERIOD vs PERIOD) ==========================
 function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncentiveData, forecast }) {
   const [slFilter, setSlFilter] = useState('ALL');
+  const [partnerFilter, setPartnerFilter] = useState('ALL');
+  const [programFilter, setProgramFilter] = useState('ALL');
+  const [modalityFilter, setModalityFilter] = useState('ALL');
   const [periodAStart, setPeriodAStart] = useState('');
   const [periodAEnd, setPeriodAEnd] = useState('');
   const [periodBStart, setPeriodBStart] = useState('');
   const [periodBEnd, setPeriodBEnd] = useState('');
+  const [showPartnerBreakdown, setShowPartnerBreakdown] = useState(false);
+  const [showProgramBreakdown, setShowProgramBreakdown] = useState(false);
+  const [showModalityBreakdown, setShowModalityBreakdown] = useState(false);
 
   // Quick-set helpers
   const setLastWeek = () => {
@@ -7922,22 +7928,55 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     return ['ALL', ...sls];
   }, [actualsData]);
 
-  // Filter function for a date range + SL
+  // Extract unique partners, programs, modalities from actuals
+  const availablePartners = useMemo(() => {
+    if (!actualsData || !cm.partner) return [];
+    const set = new Set();
+    actualsData.forEach(r => { const v = (r[cm.partner] || '').trim(); if (v) set.add(v); });
+    return ['ALL', ...[...set].sort()];
+  }, [actualsData, cm]);
+
+  const availablePrograms = useMemo(() => {
+    if (!actualsData || !cm.program) return [];
+    const set = new Set();
+    actualsData.forEach(r => { const v = (r[cm.program] || '').trim(); if (v) set.add(v); });
+    return ['ALL', ...[...set].sort()];
+  }, [actualsData, cm]);
+
+  const availableModalities = useMemo(() => {
+    if (!actualsData || !cm.modality) return [];
+    const set = new Set();
+    actualsData.forEach(r => { const v = (r[cm.modality] || '').trim(); if (v) set.add(v); });
+    return ['ALL', ...[...set].sort()];
+  }, [actualsData, cm]);
+
+  // Filter function for a date range + SL + partner/program/modality
   const filterByRange = useCallback((data, start, end, dateFn) => {
     if (!data || !start || !end) return [];
     const from = new Date(start);
     const to = new Date(end + 'T23:59:59');
     return data.filter(r => {
       if (slFilter !== 'ALL') {
-        // Handle both parsed shift objects (.sl) and raw CSV rows
         const sl = r.sl || r._detectedSL || mapPartnerToSL(cm.partner ? (r[cm.partner] || '') : '') || mapEntityToSL(cm.entityName ? (r[cm.entityName] || '') : '');
         if (sl && sl !== slFilter) return false;
+      }
+      if (partnerFilter !== 'ALL' && cm.partner) {
+        const p = (r[cm.partner] || '').trim();
+        if (p !== partnerFilter) return false;
+      }
+      if (programFilter !== 'ALL' && cm.program) {
+        const p = (r[cm.program] || '').trim();
+        if (p !== programFilter) return false;
+      }
+      if (modalityFilter !== 'ALL' && cm.modality) {
+        const m = (r[cm.modality] || '').trim();
+        if (m !== modalityFilter) return false;
       }
       const dt = dateFn(r);
       if (!dt) return false;
       return dt >= from && dt <= to;
     });
-  }, [slFilter, cm]);
+  }, [slFilter, partnerFilter, programFilter, modalityFilter, cm]);
 
   const actualDateFn = useCallback(r => parseDate(cm.date ? r[cm.date] : ''), [cm]);
   // Parsed shifts have .start as Date already; raw shifts have column name
@@ -7972,6 +8011,14 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       stateBreakdown: {},
       // Clinician-level detail
       clinicianHours: {},
+      // Dimensional breakdowns
+      partnerBreakdown: {},
+      programBreakdown: {},
+      modalityBreakdown: {},
+      // Incentive types
+      rtIncentiveCount: 0, rtIncentiveSpend: 0,  // Real-time: dollar amounts
+      hourlyIncentiveCount: 0, hourlyIncentiveSpend: 0, // Hourly: multipliers
+      hourlyMultipliers: {},
     };
 
     // Actuals metrics
@@ -7991,12 +8038,49 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       if (state) result.stateBreakdown[state] = (result.stateBreakdown[state] || 0) + 1;
 
       // Credential counting moved to shifts section (parsed shifts have reliable credential data)
+
+      // Partner breakdown
+      const partner = cm.partner ? (r[cm.partner] || '').trim() : '';
+      if (partner) {
+        if (!result.partnerBreakdown[partner]) result.partnerBreakdown[partner] = { visits: 0, slaMet: 0, slaMissed: 0, avgRT: 0, rtSum: 0 };
+        const pb = result.partnerBreakdown[partner];
+        pb.visits++;
+        const sla2 = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
+        if (sla2.includes('met') || sla2.includes('within')) pb.slaMet++;
+        else if (sla2.includes('miss') || sla2.includes('breach') || sla2.includes('over')) pb.slaMissed++;
+        const rt2 = cm.responseTime ? parseFloat(r[cm.responseTime]) : NaN;
+        if (!isNaN(rt2)) pb.rtSum += rt2;
+      }
+
+      // Program breakdown
+      const program = cm.program ? (r[cm.program] || '').trim() : '';
+      if (program) {
+        if (!result.programBreakdown[program]) result.programBreakdown[program] = { visits: 0, slaMet: 0, slaMissed: 0 };
+        const prb = result.programBreakdown[program];
+        prb.visits++;
+        const sla3 = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
+        if (sla3.includes('met') || sla3.includes('within')) prb.slaMet++;
+        else if (sla3.includes('miss') || sla3.includes('breach') || sla3.includes('over')) prb.slaMissed++;
+      }
+
+      // Modality breakdown
+      const modality = cm.modality ? (r[cm.modality] || '').trim() : '';
+      if (modality) {
+        if (!result.modalityBreakdown[modality]) result.modalityBreakdown[modality] = { visits: 0, slaMet: 0, slaMissed: 0 };
+        const mb = result.modalityBreakdown[modality];
+        mb.visits++;
+        const sla4 = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
+        if (sla4.includes('met') || sla4.includes('within')) mb.slaMet++;
+        else if (sla4.includes('miss') || sla4.includes('breach') || sla4.includes('over')) mb.slaMissed++;
+      }
     });
 
     result.headcount = clinicians.size;
     const slaTotal = result.slaMet + result.slaMissed;
     result.slaPct = slaTotal > 0 ? (result.slaMet / slaTotal * 100) : 0;
     result.avgResponseMin = actuals.length > 0 ? result.avgResponseMin / actuals.length : 0;
+    // Finalize partner avg RT
+    Object.values(result.partnerBreakdown).forEach(pb => { pb.avgRT = pb.visits > 0 ? pb.rtSum / pb.visits : 0; });
 
     // Shift metrics — handles both parsed shift objects ({clinician, hours, unfilled}) and raw CSV rows
     shifts.forEach(r => {
@@ -8026,22 +8110,49 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     });
     result.fillRate = result.totalShifts > 0 ? (result.filledShifts / result.totalShifts * 100) : 0;
 
-    // Incentive metrics
+    // Incentive metrics — differentiate real-time (dollar amounts) from hourly (multipliers)
     incentives.forEach(r => {
       result.incentiveShifts++;
-      const amt = parseFloat(String(incCm.amount ? (r[incCm.amount] || '0') : '0').replace(/[^0-9.\-]/g, '')) || 0;
+      const amtRaw = String(incCm.amount ? (r[incCm.amount] || '0') : '0').trim();
+      const amt = parseFloat(amtRaw.replace(/[^0-9.\-]/g, '')) || 0;
       result.incentiveSpend += amt;
 
       const claimed = incCm.claimedTime ? !!r[incCm.claimedTime] : false;
       if (claimed) result.incentiveFilled++;
       else result.incentiveUnfilled++;
 
-      // Rate bucketing
+      // Detect if this is a multiplier-based (hourly) incentive or a real-time (dollar) incentive
+      // Hourly multipliers look like "1.5x", "2x", "2.0x" or a Bonus column with multiplier
+      const bonusVal = (r.Bonus || r.bonus || r['Bonus'] || '').toString().trim();
+      const isMultiplier = /^\d+\.?\d*x$/i.test(amtRaw) || /^\d+\.?\d*x$/i.test(bonusVal);
+      const hasHighDollar = amt >= 30; // Real-time incentives are per-visit dollar amounts ($45, $75, $105+)
+
+      if (isMultiplier || (!hasHighDollar && bonusVal && !amtRaw.includes('$'))) {
+        // Hourly/multiplier incentive
+        result.hourlyIncentiveCount++;
+        const mult = bonusVal.match(/([\d.]+)x/i)?.[1] || amtRaw.match(/([\d.]+)x/i)?.[1] || '';
+        const multLabel = mult ? mult + 'x' : (amt > 0 ? '$' + amt : 'unknown');
+        result.hourlyMultipliers[multLabel] = (result.hourlyMultipliers[multLabel] || 0) + 1;
+      } else if (amt > 0) {
+        // Real-time dollar incentive
+        result.rtIncentiveCount++;
+        result.rtIncentiveSpend += amt;
+      }
+
+      // Rate bucketing (legacy — keep for overall view)
       let rateBucket = 'unknown';
-      if (amt >= 175) rateBucket = '2x+';
-      else if (amt >= 100) rateBucket = '1.5x';
-      else if (amt >= 50) rateBucket = '1x';
-      else if (amt > 0) rateBucket = '<1x';
+      if (isMultiplier) {
+        const mVal = parseFloat((bonusVal.match(/([\d.]+)x/i) || amtRaw.match(/([\d.]+)x/i) || [])[1] || '0');
+        if (mVal >= 2) rateBucket = '2x+';
+        else if (mVal >= 1.5) rateBucket = '1.5x';
+        else if (mVal >= 1) rateBucket = '1x';
+        else rateBucket = '<1x';
+      } else {
+        if (amt >= 105) rateBucket = '$105+';
+        else if (amt >= 75) rateBucket = '$75';
+        else if (amt >= 45) rateBucket = '$45';
+        else if (amt > 0) rateBucket = '<$45';
+      }
       result.incentiveRates[rateBucket] = (result.incentiveRates[rateBucket] || 0) + 1;
     });
 
@@ -8054,14 +8165,14 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     const s = filterByRange(shiftScheduleData, periodAStart, periodAEnd, shiftDateFn);
     const inc = filterByRange(allIncentives, periodAStart, periodAEnd, incDateFn);
     return computePeriod(a, s, inc);
-  }, [actualsData, shiftScheduleData, allIncentives, periodAStart, periodAEnd, slFilter, filterByRange, computePeriod, actualDateFn, shiftDateFn, incDateFn]);
+  }, [actualsData, shiftScheduleData, allIncentives, periodAStart, periodAEnd, slFilter, partnerFilter, programFilter, modalityFilter, filterByRange, computePeriod, actualDateFn, shiftDateFn, incDateFn]);
 
   const periodB = useMemo(() => {
     const a = filterByRange(actualsData, periodBStart, periodBEnd, actualDateFn);
     const s = filterByRange(shiftScheduleData, periodBStart, periodBEnd, shiftDateFn);
     const inc = filterByRange(allIncentives, periodBStart, periodBEnd, incDateFn);
     return computePeriod(a, s, inc);
-  }, [actualsData, shiftScheduleData, allIncentives, periodBStart, periodBEnd, slFilter, filterByRange, computePeriod, actualDateFn, shiftDateFn, incDateFn]);
+  }, [actualsData, shiftScheduleData, allIncentives, periodBStart, periodBEnd, slFilter, partnerFilter, programFilter, modalityFilter, filterByRange, computePeriod, actualDateFn, shiftDateFn, incDateFn]);
 
   const fmt$ = v => '$' + Math.round(v).toLocaleString();
   const fmtPct = v => v.toFixed(1) + '%';
@@ -8131,6 +8242,28 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
           </div>
           <SLFilter value={slFilter} onChange={setSlFilter} options={availableSLs} />
         </div>
+        {/* Dimensional filters */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>FILTER BY:</span>
+          {availablePartners.length > 1 && (
+            <select value={partnerFilter} onChange={e => setPartnerFilter(e.target.value)} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: partnerFilter !== 'ALL' ? '#fef3c7' : 'white' }}>
+              {availablePartners.map(p => <option key={p} value={p}>{p === 'ALL' ? '🏢 All Partners' : p}</option>)}
+            </select>
+          )}
+          {availablePrograms.length > 1 && (
+            <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: programFilter !== 'ALL' ? '#dbeafe' : 'white' }}>
+              {availablePrograms.map(p => <option key={p} value={p}>{p === 'ALL' ? '📋 All Programs' : p}</option>)}
+            </select>
+          )}
+          {availableModalities.length > 1 && (
+            <select value={modalityFilter} onChange={e => setModalityFilter(e.target.value)} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: modalityFilter !== 'ALL' ? '#d1fae5' : 'white' }}>
+              {availableModalities.map(m => <option key={m} value={m}>{m === 'ALL' ? '📡 All Modalities' : m}</option>)}
+            </select>
+          )}
+          {(partnerFilter !== 'ALL' || programFilter !== 'ALL' || modalityFilter !== 'ALL') && (
+            <button className="btn btn-secondary btn-sm" onClick={() => { setPartnerFilter('ALL'); setProgramFilter('ALL'); setModalityFilter('ALL'); }} style={{ fontSize: 10 }}>Clear filters</button>
+          )}
+        </div>
       </div>
 
       {hasData && (
@@ -8174,29 +8307,38 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
             </div>
           </div>
 
-          {/* Incentives */}
+          {/* Incentives — split into Real-Time and Hourly */}
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="card-title">Incentives</div>
             <div className="table-wrap">
               <table>
                 <thead><tr><th>Metric</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
                 <tbody>
-                  {compRow('Incentive Shifts', periodA.incentiveShifts, periodB.incentiveShifts, '#', 'neutral')}
-                  {compRow('Total Incentive Spend', periodA.incentiveSpend, periodB.incentiveSpend, '$', 'lower-better')}
-                  {compRow('Incentives Filled/Claimed', periodA.incentiveFilled, periodB.incentiveFilled, '#', 'higher-better')}
-                  {compRow('Incentives Unfilled', periodA.incentiveUnfilled, periodB.incentiveUnfilled, '#', 'lower-better')}
-                  {compRow('Avg per Incentive', periodA.incentiveShifts > 0 ? periodA.incentiveSpend / periodA.incentiveShifts : 0, periodB.incentiveShifts > 0 ? periodB.incentiveSpend / periodB.incentiveShifts : 0, '$', 'lower-better')}
+                  {compRow('Total Incentives', periodA.incentiveShifts, periodB.incentiveShifts, '#', 'neutral')}
+                  {compRow('Total Spend', periodA.incentiveSpend, periodB.incentiveSpend, '$', 'lower-better')}
+                  {compRow('Filled/Claimed', periodA.incentiveFilled, periodB.incentiveFilled, '#', 'higher-better')}
+                  {compRow('Unfilled', periodA.incentiveUnfilled, periodB.incentiveUnfilled, '#', 'lower-better')}
                 </tbody>
               </table>
             </div>
-            {/* Rate breakdown */}
-            {(Object.keys(periodA.incentiveRates).length > 0 || Object.keys(periodB.incentiveRates).length > 0) && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Incentive Rate Breakdown</div>
-                <table style={{ fontSize: 12 }}>
-                  <thead><tr><th>Rate</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th></tr></thead>
+
+            {/* Real-Time Incentives (dollar per visit) */}
+            <div style={{ marginTop: 16, padding: '12px', background: '#fef2f2', borderRadius: 'var(--radius)', border: '1px solid #fecaca' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', marginBottom: 8 }}>💰 Real-Time Incentives (per-visit $)</div>
+              <table style={{ fontSize: 12 }}>
+                <thead><tr><th>Metric</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
+                <tbody>
+                  {compRow('RT Incentive Count', periodA.rtIncentiveCount, periodB.rtIncentiveCount, '#', 'neutral')}
+                  {compRow('RT Incentive Spend', periodA.rtIncentiveSpend, periodB.rtIncentiveSpend, '$', 'lower-better')}
+                  {compRow('Avg $/Visit', periodA.rtIncentiveCount > 0 ? periodA.rtIncentiveSpend / periodA.rtIncentiveCount : 0, periodB.rtIncentiveCount > 0 ? periodB.rtIncentiveSpend / periodB.rtIncentiveCount : 0, '$', 'lower-better')}
+                </tbody>
+              </table>
+              {/* Dollar rate breakdown */}
+              <div style={{ marginTop: 8 }}>
+                <table style={{ fontSize: 11 }}>
+                  <thead><tr><th>Rate</th><th style={{ textAlign: 'right' }}>A</th><th style={{ textAlign: 'right' }}>B</th></tr></thead>
                   <tbody>
-                    {['<1x', '1x', '1.5x', '2x+', 'unknown'].map(rate => {
+                    {['<$45', '$45', '$75', '$105+'].map(rate => {
                       const a = periodA.incentiveRates[rate] || 0;
                       const b = periodB.incentiveRates[rate] || 0;
                       if (a === 0 && b === 0) return null;
@@ -8205,8 +8347,145 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
                   </tbody>
                 </table>
               </div>
-            )}
+            </div>
+
+            {/* Hourly Multiplier Incentives */}
+            <div style={{ marginTop: 12, padding: '12px', background: '#eff6ff', borderRadius: 'var(--radius)', border: '1px solid #bfdbfe' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 8 }}>⏱️ Hourly Incentivized Shifts (multipliers)</div>
+              <table style={{ fontSize: 12 }}>
+                <thead><tr><th>Metric</th><th style={{ textAlign: 'right' }}>Period A</th><th style={{ textAlign: 'right' }}>Period B</th><th style={{ textAlign: 'right' }}>Change</th></tr></thead>
+                <tbody>
+                  {compRow('Hourly Incentive Shifts', periodA.hourlyIncentiveCount, periodB.hourlyIncentiveCount, '#', 'neutral')}
+                </tbody>
+              </table>
+              {/* Multiplier breakdown */}
+              {(Object.keys(periodA.hourlyMultipliers).length > 0 || Object.keys(periodB.hourlyMultipliers).length > 0) && (
+                <div style={{ marginTop: 8 }}>
+                  <table style={{ fontSize: 11 }}>
+                    <thead><tr><th>Multiplier</th><th style={{ textAlign: 'right' }}>A</th><th style={{ textAlign: 'right' }}>B</th></tr></thead>
+                    <tbody>
+                      {[...new Set([...Object.keys(periodA.hourlyMultipliers), ...Object.keys(periodB.hourlyMultipliers)])].sort().map(m => {
+                        const a = periodA.hourlyMultipliers[m] || 0;
+                        const b = periodB.hourlyMultipliers[m] || 0;
+                        return <tr key={m}><td>{m}</td><td style={{ textAlign: 'right' }}>{a}</td><td style={{ textAlign: 'right' }}>{b}</td></tr>;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Partner Breakdown */}
+          {Object.keys(periodA.partnerBreakdown).length > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-title" style={{ cursor: 'pointer' }} onClick={() => setShowPartnerBreakdown(p => !p)}>
+                Partner Breakdown <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{showPartnerBreakdown ? '▼' : '▶'} Volume & SLA by partner</span>
+              </div>
+              {showPartnerBreakdown && (
+                <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                  <table style={{ fontSize: 12 }}>
+                    <thead><tr><th>Partner</th><th style={{ textAlign: 'right' }}>A Vol</th><th style={{ textAlign: 'right' }}>B Vol</th><th style={{ textAlign: 'right' }}>Δ Vol</th><th style={{ textAlign: 'right' }}>A SLA%</th><th style={{ textAlign: 'right' }}>B SLA%</th><th style={{ textAlign: 'right' }}>Δ SLA</th></tr></thead>
+                    <tbody>
+                      {[...new Set([...Object.keys(periodA.partnerBreakdown), ...Object.keys(periodB.partnerBreakdown)])].sort((x, y) => {
+                        return ((periodB.partnerBreakdown[y]?.visits || 0) + (periodA.partnerBreakdown[y]?.visits || 0)) - ((periodB.partnerBreakdown[x]?.visits || 0) + (periodA.partnerBreakdown[x]?.visits || 0));
+                      }).map(p => {
+                        const pa = periodA.partnerBreakdown[p] || { visits: 0, slaMet: 0, slaMissed: 0 };
+                        const pb = periodB.partnerBreakdown[p] || { visits: 0, slaMet: 0, slaMissed: 0 };
+                        const aSla = (pa.slaMet + pa.slaMissed) > 0 ? (pa.slaMet / (pa.slaMet + pa.slaMissed) * 100) : 0;
+                        const bSla = (pb.slaMet + pb.slaMissed) > 0 ? (pb.slaMet / (pb.slaMet + pb.slaMissed) * 100) : 0;
+                        const volD = fmtDelta(pa.visits, pb.visits, 'neutral');
+                        const slaD = fmtDelta(aSla, bSla, 'higher-better');
+                        return <tr key={p}>
+                          <td style={{ fontWeight: 600 }}>{p}</td>
+                          <td style={{ textAlign: 'right' }}>{pa.visits}</td>
+                          <td style={{ textAlign: 'right' }}>{pb.visits}</td>
+                          <td style={{ textAlign: 'right', color: volD.color, fontSize: 11 }}>{volD.text}</td>
+                          <td style={{ textAlign: 'right' }}>{aSla.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right' }}>{bSla.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right', color: slaD.color, fontSize: 11 }}>{slaD.text}</td>
+                        </tr>;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Program Breakdown */}
+          {Object.keys(periodA.programBreakdown).length > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-title" style={{ cursor: 'pointer' }} onClick={() => setShowProgramBreakdown(p => !p)}>
+                Program Breakdown <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{showProgramBreakdown ? '▼' : '▶'} Volume & SLA by program</span>
+              </div>
+              {showProgramBreakdown && (
+                <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                  <table style={{ fontSize: 12 }}>
+                    <thead><tr><th>Program</th><th style={{ textAlign: 'right' }}>A Vol</th><th style={{ textAlign: 'right' }}>B Vol</th><th style={{ textAlign: 'right' }}>Δ Vol</th><th style={{ textAlign: 'right' }}>A SLA%</th><th style={{ textAlign: 'right' }}>B SLA%</th><th style={{ textAlign: 'right' }}>Δ SLA</th></tr></thead>
+                    <tbody>
+                      {[...new Set([...Object.keys(periodA.programBreakdown), ...Object.keys(periodB.programBreakdown)])].sort((x, y) => {
+                        return ((periodB.programBreakdown[y]?.visits || 0) + (periodA.programBreakdown[y]?.visits || 0)) - ((periodB.programBreakdown[x]?.visits || 0) + (periodA.programBreakdown[x]?.visits || 0));
+                      }).map(p => {
+                        const pa = periodA.programBreakdown[p] || { visits: 0, slaMet: 0, slaMissed: 0 };
+                        const pb = periodB.programBreakdown[p] || { visits: 0, slaMet: 0, slaMissed: 0 };
+                        const aSla = (pa.slaMet + pa.slaMissed) > 0 ? (pa.slaMet / (pa.slaMet + pa.slaMissed) * 100) : 0;
+                        const bSla = (pb.slaMet + pb.slaMissed) > 0 ? (pb.slaMet / (pb.slaMet + pb.slaMissed) * 100) : 0;
+                        const volD = fmtDelta(pa.visits, pb.visits, 'neutral');
+                        const slaD = fmtDelta(aSla, bSla, 'higher-better');
+                        return <tr key={p}>
+                          <td style={{ fontWeight: 600 }}>{p}</td>
+                          <td style={{ textAlign: 'right' }}>{pa.visits}</td>
+                          <td style={{ textAlign: 'right' }}>{pb.visits}</td>
+                          <td style={{ textAlign: 'right', color: volD.color, fontSize: 11 }}>{volD.text}</td>
+                          <td style={{ textAlign: 'right' }}>{aSla.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right' }}>{bSla.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right', color: slaD.color, fontSize: 11 }}>{slaD.text}</td>
+                        </tr>;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Modality Breakdown */}
+          {Object.keys(periodA.modalityBreakdown).length > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-title" style={{ cursor: 'pointer' }} onClick={() => setShowModalityBreakdown(p => !p)}>
+                Modality / Visit Type Breakdown <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{showModalityBreakdown ? '▼' : '▶'} Volume & SLA by modality</span>
+              </div>
+              {showModalityBreakdown && (
+                <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                  <table style={{ fontSize: 12 }}>
+                    <thead><tr><th>Modality</th><th style={{ textAlign: 'right' }}>A Vol</th><th style={{ textAlign: 'right' }}>B Vol</th><th style={{ textAlign: 'right' }}>Δ Vol</th><th style={{ textAlign: 'right' }}>A SLA%</th><th style={{ textAlign: 'right' }}>B SLA%</th><th style={{ textAlign: 'right' }}>Δ SLA</th></tr></thead>
+                    <tbody>
+                      {[...new Set([...Object.keys(periodA.modalityBreakdown), ...Object.keys(periodB.modalityBreakdown)])].sort((x, y) => {
+                        return ((periodB.modalityBreakdown[y]?.visits || 0) + (periodA.modalityBreakdown[y]?.visits || 0)) - ((periodB.modalityBreakdown[x]?.visits || 0) + (periodA.modalityBreakdown[x]?.visits || 0));
+                      }).map(m => {
+                        const ma = periodA.modalityBreakdown[m] || { visits: 0, slaMet: 0, slaMissed: 0 };
+                        const mb = periodB.modalityBreakdown[m] || { visits: 0, slaMet: 0, slaMissed: 0 };
+                        const aSla = (ma.slaMet + ma.slaMissed) > 0 ? (ma.slaMet / (ma.slaMet + ma.slaMissed) * 100) : 0;
+                        const bSla = (mb.slaMet + mb.slaMissed) > 0 ? (mb.slaMet / (mb.slaMet + mb.slaMissed) * 100) : 0;
+                        const volD = fmtDelta(ma.visits, mb.visits, 'neutral');
+                        const slaD = fmtDelta(aSla, bSla, 'higher-better');
+                        return <tr key={m}>
+                          <td style={{ fontWeight: 600 }}>{m}</td>
+                          <td style={{ textAlign: 'right' }}>{ma.visits}</td>
+                          <td style={{ textAlign: 'right' }}>{mb.visits}</td>
+                          <td style={{ textAlign: 'right', color: volD.color, fontSize: 11 }}>{volD.text}</td>
+                          <td style={{ textAlign: 'right' }}>{aSla.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right' }}>{bSla.toFixed(1)}%</td>
+                          <td style={{ textAlign: 'right', color: slaD.color, fontSize: 11 }}>{slaD.text}</td>
+                        </tr>;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* State Distribution */}
           {(Object.keys(periodA.stateBreakdown).length > 0 || Object.keys(periodB.stateBreakdown).length > 0) && (
