@@ -7858,9 +7858,9 @@ function IncentiveTab({ incentiveData, manualIncentiveData }) {
 // ========================== TAB: COMPARE (PERIOD vs PERIOD) ==========================
 function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncentiveData, forecast }) {
   const [slFilter, setSlFilter] = useState('ALL');
-  const [partnerFilter, setPartnerFilter] = useState('ALL');
-  const [programFilter, setProgramFilter] = useState('ALL');
-  const [modalityFilter, setModalityFilter] = useState('ALL');
+  const [partnerFilter, setPartnerFilter] = useState([]);  // empty = ALL
+  const [programFilter, setProgramFilter] = useState([]);
+  const [modalityFilter, setModalityFilter] = useState([]);
   const [periodAStart, setPeriodAStart] = useState('');
   const [periodAEnd, setPeriodAEnd] = useState('');
   const [periodBStart, setPeriodBStart] = useState('');
@@ -7979,17 +7979,17 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
         const sl = r.sl || r._detectedSL || mapPartnerToSL(cm.partner ? (r[cm.partner] || '') : '') || mapEntityToSL(cm.entityName ? (r[cm.entityName] || '') : '');
         if (sl && sl !== slFilter) return false;
       }
-      if (partnerFilter !== 'ALL' && cm.partner) {
+      if (partnerFilter.length > 0 && cm.partner) {
         const p = (r[cm.partner] || '').trim();
-        if (p !== partnerFilter) return false;
+        if (!partnerFilter.includes(p)) return false;
       }
-      if (programFilter !== 'ALL' && cm.program) {
+      if (programFilter.length > 0 && cm.program) {
         const p = (r[cm.program] || '').trim();
-        if (p !== programFilter) return false;
+        if (!programFilter.includes(p)) return false;
       }
-      if (modalityFilter !== 'ALL' && cm.modality) {
+      if (modalityFilter.length > 0 && cm.modality) {
         const m = (r[cm.modality] || '').trim();
-        if (m !== modalityFilter) return false;
+        if (!modalityFilter.includes(m)) return false;
       }
       const dt = dateFn(r);
       if (!dt) return false;
@@ -8281,28 +8281,52 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
           </div>
           <SLFilter value={slFilter} onChange={setSlFilter} options={availableSLs} />
         </div>
-        {/* Dimensional filters */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>FILTER BY:</span>
-          {availablePartners.length > 1 && (
-            <select value={partnerFilter} onChange={e => setPartnerFilter(e.target.value)} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: partnerFilter !== 'ALL' ? '#fef3c7' : 'white' }}>
-              {availablePartners.map(p => <option key={p} value={p}>{p === 'ALL' ? '🏢 All Partners' : p}</option>)}
-            </select>
-          )}
-          {availablePrograms.length > 1 && (
-            <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: programFilter !== 'ALL' ? '#dbeafe' : 'white' }}>
-              {availablePrograms.map(p => <option key={p} value={p}>{p === 'ALL' ? '📋 All Programs' : p}</option>)}
-            </select>
-          )}
-          {availableModalities.length > 1 && (
-            <select value={modalityFilter} onChange={e => setModalityFilter(e.target.value)} style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: modalityFilter !== 'ALL' ? '#d1fae5' : 'white' }}>
-              {availableModalities.map(m => <option key={m} value={m}>{m === 'ALL' ? '📡 All Modalities' : m}</option>)}
-            </select>
-          )}
-          {(partnerFilter !== 'ALL' || programFilter !== 'ALL' || modalityFilter !== 'ALL') && (
-            <button className="btn btn-secondary btn-sm" onClick={() => { setPartnerFilter('ALL'); setProgramFilter('ALL'); setModalityFilter('ALL'); }} style={{ fontSize: 10 }}>Clear filters</button>
-          )}
-        </div>
+        {/* Dimensional multi-select filters */}
+        {(availablePartners.length > 1 || availablePrograms.length > 1 || availableModalities.length > 1) && (
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px', minWidth: 60 }}>PARTNER:</span>
+              {availablePartners.filter(p => p !== 'ALL').map(p => {
+                const active = partnerFilter.includes(p);
+                return <button key={p} onClick={() => setPartnerFilter(prev => active ? prev.filter(x => x !== p) : [...prev, p])}
+                  style={{ padding: '2px 8px', fontSize: 10, borderRadius: 12, border: active ? '1.5px solid #d97706' : '1px solid var(--border)',
+                    background: active ? '#fef3c7' : 'white', color: active ? '#92400e' : 'var(--text-muted)', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>{p}</button>;
+              })}
+              {partnerFilter.length > 0 && <button onClick={() => setPartnerFilter([])} style={{ fontSize: 9, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>clear</button>}
+            </div>
+            {availablePrograms.length > 1 && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px', minWidth: 60 }}>PROGRAM:</span>
+                {availablePrograms.filter(p => p !== 'ALL').map(p => {
+                  const active = programFilter.includes(p);
+                  return <button key={p} onClick={() => setProgramFilter(prev => active ? prev.filter(x => x !== p) : [...prev, p])}
+                    style={{ padding: '2px 8px', fontSize: 10, borderRadius: 12, border: active ? '1.5px solid #2563eb' : '1px solid var(--border)',
+                      background: active ? '#dbeafe' : 'white', color: active ? '#1e40af' : 'var(--text-muted)', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>{p}</button>;
+                })}
+                {programFilter.length > 0 && <button onClick={() => setProgramFilter([])} style={{ fontSize: 9, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>clear</button>}
+              </div>
+            )}
+            {availableModalities.length > 1 && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px', minWidth: 60 }}>MODALITY:</span>
+                {availableModalities.filter(m => m !== 'ALL').map(m => {
+                  const active = modalityFilter.includes(m);
+                  return <button key={m} onClick={() => setModalityFilter(prev => active ? prev.filter(x => x !== m) : [...prev, m])}
+                    style={{ padding: '2px 8px', fontSize: 10, borderRadius: 12, border: active ? '1.5px solid #059669' : '1px solid var(--border)',
+                      background: active ? '#d1fae5' : 'white', color: active ? '#065f46' : 'var(--text-muted)', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>{m}</button>;
+                })}
+                {modalityFilter.length > 0 && <button onClick={() => setModalityFilter([])} style={{ fontSize: 9, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>clear</button>}
+              </div>
+            )}
+            {(partnerFilter.length > 0 || programFilter.length > 0 || modalityFilter.length > 0) && (
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span>Active: {[...partnerFilter, ...programFilter, ...modalityFilter].length} filter(s)</span>
+                <button onClick={() => { setPartnerFilter([]); setProgramFilter([]); setModalityFilter([]); }}
+                  className="btn btn-secondary btn-sm" style={{ fontSize: 9, padding: '1px 6px' }}>Clear all</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {hasData && (
