@@ -530,10 +530,10 @@ function wprDurationSec(val) {
 function getWeekEnding(dateStr) {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return null;
-  const day = d.getDay();
+  const day = ctDow(d);
   const diff = day === 0 ? 0 : 7 - day;
   d.setDate(d.getDate() + diff);
-  return d.toISOString().split('T')[0];
+  return ctDateStr(d);
 }
 
 // Helper: resolve column from row using flexible matching
@@ -749,9 +749,9 @@ async function parseRawSlaEventsChunked(text, onProgress) {
       if (startAt) {
         const dt = new Date(startAt);
         if (!isNaN(dt.getTime())) {
-          hour = dt.getHours();
-          day = dt.toISOString().split('T')[0];
-          dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+          hour = ctHour(dt);
+          day = ctDateStr(dt);
+          dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][ctDow(dt)];
         }
       }
 
@@ -833,7 +833,7 @@ function parseRawResponseTime(rows) {
     if (rtMin !== null) totalRTMinutes += rtMin;
 
     let hour = -1;
-    if (startStr) { const dt = new Date(startStr); if (!isNaN(dt.getTime())) hour = dt.getHours(); }
+    if (startStr) { const dt = new Date(startStr); if (!isNaN(dt.getTime())) hour = ctHour(dt); }
 
     if (!byPartner[partner]) byPartner[partner] = { met: 0, missed: 0, total: 0, rtSum: 0, rtCount: 0 };
     byPartner[partner].total++;
@@ -1330,6 +1330,57 @@ function parseCSVLine(line) {
   return result;
 }
 
+// ====== CENTRAL TIME UTILITIES ======
+// ALL times in this app are Central Time (America/Chicago), regardless of browser locale.
+const CT_TZ = 'America/Chicago';
+
+// Get CT components from a Date object
+function ctParts(d) {
+  // Intl.DateTimeFormat gives us the date/time parts in CT
+  const parts = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: CT_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(d).forEach(p => { parts[p.type] = p.value; });
+  return {
+    year: parseInt(parts.year), month: parseInt(parts.month) - 1, day: parseInt(parts.day),
+    hour: parseInt(parts.hour === '24' ? '0' : parts.hour), minute: parseInt(parts.minute), second: parseInt(parts.second),
+    dow: new Intl.DateTimeFormat('en-US', { timeZone: CT_TZ, weekday: 'short' }).format(d),
+    dowIndex: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(
+      new Intl.DateTimeFormat('en-US', { timeZone: CT_TZ, weekday: 'short' }).format(d)
+    ),
+  };
+}
+
+// Get CT hour (0-23) from a Date
+function ctHour(d) { return ctParts(d).hour; }
+
+// Get CT day-of-week index (0=Sun) from a Date
+function ctDow(d) { return ctParts(d).dowIndex; }
+
+// Get CT date string YYYY-MM-DD from a Date
+function ctDateStr(d) {
+  const p = ctParts(d);
+  return `${p.year}-${String(p.month + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+}
+
+// Get CT hour key YYYY-MM-DDTHH from a Date
+function ctHourKey(d) {
+  const p = ctParts(d);
+  return `${p.year}-${String(p.month + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}T${String(p.hour).padStart(2, '0')}`;
+}
+
+// Format a Date in CT for display
+function ctFmtDate(d, opts) {
+  return d.toLocaleDateString('en-US', { timeZone: CT_TZ, ...opts });
+}
+function ctFmtTime(d, opts) {
+  return d.toLocaleTimeString('en-US', { timeZone: CT_TZ, hour: 'numeric', minute: '2-digit', ...opts });
+}
+function ctFmtDateTime(d) {
+  return d.toLocaleString('en-US', { timeZone: CT_TZ, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 function parseDate(str) {
   if (!str) return null;
   const d = new Date(str);
@@ -1347,7 +1398,7 @@ function parseResponseTime(str) {
 
 function formatDate(d) {
   if (!d) return '';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { timeZone: CT_TZ, month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function sigmoid(x) { return 1.0 / (1.0 + Math.exp(-x)); }
@@ -1665,7 +1716,7 @@ function parseShiftCSV(data, masterRoster) {
     return {
       clinician: clinName, start, end, sl, unfilled,
       credential: cred || (rosterEntry ? rosterEntry.credential || '' : ''),
-      hours: hrs, dow: start ? start.getDay() : -1, hour: start ? start.getHours() : -1,
+      hours: hrs, dow: start ? ctDow(start) : -1, hour: start ? ctHour(start) : -1,
       credClass: classifyCredential(cred || (rosterEntry ? rosterEntry.credential || '' : '')),
       weekKey: start ? (() => { const d = new Date(start); d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0,10); })() : ''
     };
@@ -1695,12 +1746,12 @@ function parseAryaRow(row, cm) {
     _sl: sl,
     _startDate: startDate,
     _endDate: endDate,
-    _dateStr: startDate ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
-    _startTimeStr: startDate ? startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
-    _endTimeStr: endDate ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+    _dateStr: startDate ? startDate.toLocaleDateString('en-US', { timeZone: CT_TZ, month: 'short', day: 'numeric' }) : '',
+    _startTimeStr: startDate ? startDate.toLocaleTimeString('en-US', { timeZone: CT_TZ, hour: 'numeric', minute: '2-digit' }) : '',
+    _endTimeStr: endDate ? endDate.toLocaleTimeString('en-US', { timeZone: CT_TZ, hour: 'numeric', minute: '2-digit' }) : '',
     _hours: Math.round(hours * 100) / 100,
     _tags: tags,
-    _dow: startDate ? startDate.getDay() : -1,
+    _dow: startDate ? ctDow(startDate) : -1,
     _unfilled: unfilled,
     _credential: cred || parsed.credential || '',
     _raw: row  // preserve original row for downstream use
@@ -3284,9 +3335,9 @@ function ForecastTab({ rosterData, onForecastComplete, masterRoster }) {
                             return (
                               <tr key={i}>
                                 <td>{s['Entity Name'] || '—'}</td>
-                                <td>{st ? st.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'}</td>
-                                <td>{st ? st.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}</td>
-                                <td>{en ? en.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}</td>
+                                <td>{st ? st.toLocaleDateString('en-US', { timeZone: CT_TZ, weekday: 'short', month: 'short', day: 'numeric' }) : '—'}</td>
+                                <td>{st ? st.toLocaleTimeString('en-US', { timeZone: CT_TZ, hour: 'numeric', minute: '2-digit' }) : '—'}</td>
+                                <td>{en ? en.toLocaleTimeString('en-US', { timeZone: CT_TZ, hour: 'numeric', minute: '2-digit' }) : '—'}</td>
                                 <td style={{ textAlign: 'right' }}>{hrs}</td>
                                 <td>{(s._tags || []).join(', ') || '—'}</td>
                                 <td style={{ fontWeight: s._incentiveMultiplier ? 700 : 400, color: s._incentiveMultiplier ? 'var(--accent-teal)' : undefined }}>
@@ -4440,8 +4491,8 @@ function PerformanceTab({ actualsData, lookbackWeeks }) {
       {/* Weekend Collapse & SLA Alerts (Module 2 Enhancement) */}
       {(() => {
         if (!filtered || filtered.length < 20) return null;
-        const weekday = filtered.filter(r => { const d = parseDate(cm.date ? r[cm.date] : ''); return d && d.getDay() >= 1 && d.getDay() <= 5; });
-        const weekend = filtered.filter(r => { const d = parseDate(cm.date ? r[cm.date] : ''); return d && (d.getDay() === 0 || d.getDay() === 6); });
+        const weekday = filtered.filter(r => { const d = parseDate(cm.date ? r[cm.date] : ''); return d && ctDow(d) >= 1 && ctDow(d) <= 5; });
+        const weekend = filtered.filter(r => { const d = parseDate(cm.date ? r[cm.date] : ''); return d && (ctDow(d) === 0 || ctDow(d) === 6); });
         const wdMet = weekday.filter(r => !isCanceled(r, cm) && isSlaMet(r, cm)).length;
         const wdTotal = weekday.filter(r => !isCanceled(r, cm)).length;
         const weMet = weekend.filter(r => !isCanceled(r, cm) && isSlaMet(r, cm)).length;
@@ -4602,8 +4653,8 @@ function PerformanceTab({ actualsData, lookbackWeeks }) {
           if (isCanceled(r, cm)) return;
           const d = parseDate(cm.date ? r[cm.date] : '');
           if (!d) return;
-          const dow = d.getDay();
-          const hr = d.getHours();
+          const dow = ctDow(d);
+          const hr = ctHour(d);
           const key = `${dow}-${hr}`;
           if (!heatGrid[key]) heatGrid[key] = { met: 0, total: 0 };
           heatGrid[key].total++;
@@ -4768,7 +4819,7 @@ function InsightsTab({ actualsData, forecast, history, masterRoster, shiftSchedu
     eligible.forEach(r => {
       const d = parseDate(cm.date ? r[cm.date] : '');
       if (!d) return;
-      const dow = d.getDay();
+      const dow = ctDow(d);
       buckets[dow].total++;
       if (isSlaMet(r, cm)) buckets[dow].met++;
       if (isSlaMissed(r, cm)) buckets[dow].missed++;
@@ -4930,7 +4981,7 @@ function InsightsTab({ actualsData, forecast, history, masterRoster, shiftSchedu
     steps.push({ label: '1. Staffing Gap', detail: hasStaffing ? (staffingFlag ? 'Gaps detected' : 'Coverage OK') : 'No data', flagged: staffingFlag });
     // Step 2: Volume anomaly?
     const hourly = Array(24).fill(0);
-    slData.forEach(r => { const d = parseDate(r[cm.date] || ''); if (d) hourly[d.getHours()]++; });
+    slData.forEach(r => { const d = parseDate(r[cm.date] || ''); if (d) hourly[ctHour(d)]++; });
     const days = new Set(slData.map(r => { const d = parseDate(r[cm.date] || ''); return d ? d.toDateString() : null; }).filter(Boolean)).size || 1;
     let volFlag = false;
     for (let h = 6; h < 22; h++) {
@@ -5196,7 +5247,7 @@ function InsightsTab({ actualsData, forecast, history, masterRoster, shiftSchedu
       {/* E. Arrival Curve Analysis (Module 3A) */}
       {slData.length > 0 && (() => {
         const hourly = Array(24).fill(0);
-        slData.forEach(r => { const d = parseDate(r[cm.date] || ''); if (d) hourly[d.getHours()]++; });
+        slData.forEach(r => { const d = parseDate(r[cm.date] || ''); if (d) hourly[ctHour(d)]++; });
         const uniqueDays = new Set(slData.map(r => { const d = parseDate(r[cm.date] || ''); return d ? d.toDateString() : null; }).filter(Boolean)).size || 1;
         const avgHourly = hourly.map(v => +(v / uniqueDays).toFixed(2));
         // Build TC baseline (average across week for simple comparison)
@@ -5316,7 +5367,7 @@ function InsightsTab({ actualsData, forecast, history, masterRoster, shiftSchedu
       {forecast && slData.length > 0 && (() => {
         const actualHourly = Array(24).fill(0);
         const actualDays = new Set();
-        slData.forEach(r => { const d = parseDate(r[cm.date] || ''); if (d) { actualHourly[d.getHours()]++; actualDays.add(d.toDateString()); } });
+        slData.forEach(r => { const d = parseDate(r[cm.date] || ''); if (d) { actualHourly[ctHour(d)]++; actualDays.add(d.toDateString()); } });
         const nDays = actualDays.size || 1;
         const avgActual = actualHourly.map(v => +(v / nDays).toFixed(2));
         const forecastHourly = Array(24).fill(0);
@@ -5430,8 +5481,8 @@ function DiagnosticsTab({ actualsData, forecast, shiftScheduleData, masterRoster
     filteredActuals.forEach(r => {
       const dt = parseDate(cm.date ? r[cm.date] : '');
       if (!dt) return;
-      const dateStr = dt.toISOString().slice(0, 10);
-      const hour = dt.getHours();
+      const dateStr = ctDateStr(dt);
+      const hour = ctHour(dt);
       const key = `${dateStr}_${hour}`;
       if (!hourBuckets[key]) hourBuckets[key] = { rows: [], date: dateStr, hour, dt };
       hourBuckets[key].rows.push(r);
@@ -5492,8 +5543,9 @@ function DiagnosticsTab({ actualsData, forecast, shiftScheduleData, masterRoster
         const sEnd = parseDate(s['End Time'] || s['End'] || s.end);
         if (!sStart || !sEnd) return false;
         // Match by hour-of-day regardless of date
-        const sH0 = sStart.getHours() + (sStart.getMinutes() > 0 ? sStart.getMinutes() / 60 : 0);
-        const sH1 = sEnd.getHours() + (sEnd.getMinutes() > 0 ? sEnd.getMinutes() / 60 : 0);
+        const sP0 = ctParts(sStart), sP1 = ctParts(sEnd);
+        const sH0 = sP0.hour + (sP0.minute > 0 ? sP0.minute / 60 : 0);
+        const sH1 = sP1.hour + (sP1.minute > 0 ? sP1.minute / 60 : 0);
         const endH = sH1 <= sH0 ? sH1 + 24 : sH1; // handle overnight
         return h >= sH0 && h < endH;
       });
@@ -6234,7 +6286,7 @@ function ClinicianTab({ actualsData, masterRoster, setMasterRoster, rosterChange
     <div>
       {/* Last Reconciled Banner */}
       <div style={{ background: 'var(--accent-teal-soft)', border: '1px solid #c5e8ec', borderRadius: 'var(--radius)', padding: '8px 14px', marginBottom: 16, fontSize: 12, color: 'var(--accent-teal-dark)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <span><strong>Master Roster</strong> — {clinicians.length} clinicians | Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString() : 'Seed data'}{unmatchedCount > 0 && <span style={{ color: 'var(--accent-orange)', fontWeight: 600 }}> | {unmatchedCount} unmatched</span>}</span>
+        <span><strong>Master Roster</strong> — {clinicians.length} clinicians | Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString('en-US', { timeZone: CT_TZ }) : 'Seed data'}{unmatchedCount > 0 && <span style={{ color: 'var(--accent-orange)', fontWeight: 600 }}> | {unmatchedCount} unmatched</span>}</span>
         <div style={{ display: 'flex', gap: 6 }}>
           <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', marginBottom: 0 }}
             title="CSV with clinician roster: Name, Credential, VPH (optional). Names are matched against existing roster — new names appear as 'Unmatched' for review.">
@@ -6258,7 +6310,7 @@ function ClinicianTab({ actualsData, masterRoster, setMasterRoster, rosterChange
               <tbody>
                 {[...rosterChangelog].reverse().slice(0, 50).map((c, i) => (
                   <tr key={i}>
-                    <td style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{new Date(c.timestamp).toLocaleString()}</td>
+                    <td style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{new Date(c.timestamp).toLocaleString('en-US', { timeZone: CT_TZ })}</td>
                     <td><span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: c.type === 'added' ? '#26AEBC22' : c.type === 'reset' ? '#ef444422' : '#F59E0B22', color: c.type === 'added' ? 'var(--accent-teal)' : c.type === 'reset' ? 'var(--accent-red)' : 'var(--accent-orange)' }}>{c.type}</span></td>
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
                     <td style={{ fontSize: 11 }}>{c.old ? `${c.old} → ${c.new}` : ''}{c.detail && <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 4 }}>({c.detail})</span>}</td>
@@ -6714,7 +6766,7 @@ function ReviewTab({ shiftScheduleData, actualsData, masterRoster, showToast }) 
       'Detail': f.detail,
       'Shift Window': f.shift_window_start && f.shift_window_end ? `${f.shift_window_start} to ${f.shift_window_end}` : '',
       'Approved By': f.reviewed_by_name || '',
-      'Approved At': f.reviewed_at ? new Date(f.reviewed_at).toLocaleString() : '',
+      'Approved At': f.reviewed_at ? new Date(f.reviewed_at).toLocaleString('en-US', { timeZone: CT_TZ }) : '',
       'Note': f.review_note || ''
     }));
     exportToCSV(rows, `wfm_escalation_flags_${new Date().toISOString().slice(0,10)}.csv`);
@@ -6838,7 +6890,7 @@ function ReviewTab({ shiftScheduleData, actualsData, masterRoster, showToast }) 
                     )}
                     {f.reviewed_by_name && (
                       <div style={{ fontSize: 10, color: f.status === 'kept' ? 'var(--accent-red)' : 'var(--accent-teal)', marginTop: 4, fontWeight: 600 }}>
-                        {f.status === 'kept' ? '✓ Kept' : '✗ Declined'} by {f.reviewed_by_name} at {new Date(f.reviewed_at).toLocaleString()}
+                        {f.status === 'kept' ? '✓ Kept' : '✗ Declined'} by {f.reviewed_by_name} at {new Date(f.reviewed_at).toLocaleString('en-US', { timeZone: CT_TZ })}
                         {f.review_note && <span style={{ fontWeight: 400, fontStyle: 'italic' }}> — "{f.review_note}"</span>}
                       </div>
                     )}
@@ -7292,7 +7344,7 @@ function VphTab({ actualsData, shiftScheduleData, masterRoster, showToast }) {
   const shiftStats = useMemo(() => {
     return filteredData.map(r => {
       const d = r.shift_date ? new Date(r.shift_date + 'T00:00:00') : null;
-      const dow = d ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] : '?';
+      const dow = d ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][ctDow(d)] : '?';
       const shift = r.shift_start && r.shift_end ? `${r.shift_start}–${r.shift_end}` : (r.rel_hour != null ? `Hour ${r.rel_hour}` : '—');
       return { ...r, dow, shift };
     }).sort((a, b) => (a.shift_date || '').localeCompare(b.shift_date || ''));
@@ -7953,8 +8005,8 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
   const [showProgramBreakdown, setShowProgramBreakdown] = useState(false);
   const [showModalityBreakdown, setShowModalityBreakdown] = useState(false);
 
-  const isoDate = d => d.toISOString().slice(0, 10);
-  const dayLabel = d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const isoDate = d => ctDateStr(d);
+  const dayLabel = d => d.toLocaleDateString('en-US', { timeZone: CT_TZ, weekday: 'short', month: 'short', day: 'numeric' });
 
   // Quick-set helpers — DAY-OVER-DAY
   const setYesterdayVsPrior = () => {
@@ -8137,7 +8189,7 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       const dtStr = cm.date ? r[cm.date] : '';
       const dt = dtStr ? parseDate(dtStr) : null;
       if (dt) {
-        const hr = dt.getHours();
+        const hr = ctHour(dt);
         if (hr >= 0 && hr < 24) result.hourlyArrivals[hr]++;
       }
 
@@ -8772,17 +8824,12 @@ function ForecastVsActual({ forecast, actualsData, shiftScheduleData, cm }) {
   const comparison = useMemo(() => {
     if (!forecast || !forecast.hours || !actualsData) return null;
 
-    // Group actuals by date+hour (LOCAL time, not UTC)
-    const localHourKey = (d) => {
-      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'),
-            day = String(d.getDate()).padStart(2, '0'), h = String(d.getHours()).padStart(2, '0');
-      return `${y}-${m}-${day}T${h}`;
-    };
+    // Group actuals by date+hour (Central Time)
     const actualsByHour = {};
     actualsData.forEach(r => {
       const dt = parseDate(cm.date ? r[cm.date] : '');
       if (!dt) return;
-      const key = localHourKey(dt); // YYYY-MM-DDTHH in local time
+      const key = ctHourKey(dt); // YYYY-MM-DDTHH in CT
       if (!actualsByHour[key]) actualsByHour[key] = { total: 0, met: 0, missed: 0, times: [] };
       actualsByHour[key].total++;
       const sla = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
@@ -8802,8 +8849,7 @@ function ForecastVsActual({ forecast, actualsData, shiftScheduleData, cm }) {
       const hourStart = h.time || null;
       let key = null;
       if (hourStart) {
-        const d = new Date(hourStart);
-        key = localHourKey(d);
+        key = ctHourKey(new Date(hourStart));
       }
       const actual = key ? actualsByHour[key] : null;
 
@@ -9309,7 +9355,7 @@ function SmartImportModal({ rawData, filename, fileSizeBytes, masterRoster, onCo
   // File metadata
   const fileSize = fileSizeBytes < 1024 ? fileSizeBytes + ' B' : fileSizeBytes < 1048576 ? (fileSizeBytes / 1024).toFixed(1) + ' KB' : (fileSizeBytes / 1048576).toFixed(1) + ' MB';
   const dateRangeStr = filterOptions.dateRange.min && filterOptions.dateRange.max
-    ? `${filterOptions.dateRange.min.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${filterOptions.dateRange.max.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    ? `${filterOptions.dateRange.min.toLocaleDateString('en-US', { timeZone: CT_TZ, month: 'short', day: 'numeric' })} — ${filterOptions.dateRange.max.toLocaleDateString('en-US', { timeZone: CT_TZ, month: 'short', day: 'numeric', year: 'numeric' })}`
     : '?';
 
   // Filter state
