@@ -1933,6 +1933,75 @@ function SLFilter({ value, onChange, options }) {
   );
 }
 
+function MultiSelectDropdown({ label, options, selected, onChange, color }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = React.useRef(null);
+
+  // Close on outside click
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const filtered = search ? options.filter(o => o.toLowerCase().includes(search.toLowerCase())) : options;
+  const colors = { amber: { bg: '#fef3c7', border: '#d97706', text: '#92400e' }, blue: { bg: '#dbeafe', border: '#2563eb', text: '#1e40af' }, green: { bg: '#d1fae5', border: '#059669', text: '#065f46' } };
+  const c = colors[color] || colors.blue;
+  const hasSelection = selected.length > 0;
+  const btnLabel = hasSelection ? `${label} (${selected.length})` : label;
+
+  const toggle = (val) => {
+    onChange(selected.includes(val) ? selected.filter(x => x !== val) : [...selected, val]);
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button onClick={() => { setOpen(!open); setSearch(''); }}
+        style={{ padding: '4px 10px', fontSize: 11, border: hasSelection ? `1.5px solid ${c.border}` : '1px solid var(--border)',
+          borderRadius: 4, background: hasSelection ? c.bg : 'white', color: hasSelection ? c.text : 'var(--text-secondary)',
+          cursor: 'pointer', fontWeight: hasSelection ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+        {btnLabel}
+        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, width: 260, maxHeight: 320,
+          background: 'white', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+          {/* Search */}
+          <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
+              autoFocus style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, outline: 'none' }} />
+          </div>
+          {/* Select all / Clear */}
+          <div style={{ display: 'flex', gap: 8, padding: '4px 8px', borderBottom: '1px solid var(--border)', fontSize: 10 }}>
+            <button onClick={() => onChange([...options])} style={{ background: 'none', border: 'none', color: c.border, cursor: 'pointer', fontWeight: 600, padding: 0 }}>Select all</button>
+            <button onClick={() => onChange([])} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 600, padding: 0 }}>Clear</button>
+          </div>
+          {/* Options */}
+          <div style={{ overflowY: 'auto', flex: 1, maxHeight: 240 }}>
+            {filtered.map(opt => {
+              const checked = selected.includes(opt);
+              return (
+                <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', cursor: 'pointer',
+                  fontSize: 11, background: checked ? c.bg : 'transparent', borderLeft: checked ? `3px solid ${c.border}` : '3px solid transparent' }}
+                  onMouseEnter={e => { if (!checked) e.currentTarget.style.background = '#f9fafb'; }}
+                  onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent'; }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(opt)}
+                    style={{ width: 14, height: 14, accentColor: c.border, cursor: 'pointer' }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt}</span>
+                </label>
+              );
+            })}
+            {filtered.length === 0 && <div style={{ padding: '12px 8px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No matches</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ========================== TAB: EXECUTIVE OVERVIEW ==========================
 function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, masterRoster }) {
   const [serviceLine, setServiceLine] = useState('ALL');
@@ -8282,51 +8351,21 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
           <SLFilter value={slFilter} onChange={setSlFilter} options={availableSLs} />
         </div>
         {/* Dimensional multi-select filters */}
-        {(availablePartners.length > 1 || availablePrograms.length > 1 || availableModalities.length > 1) && (
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px', minWidth: 60 }}>PARTNER:</span>
-              {availablePartners.filter(p => p !== 'ALL').map(p => {
-                const active = partnerFilter.includes(p);
-                return <button key={p} onClick={() => setPartnerFilter(prev => active ? prev.filter(x => x !== p) : [...prev, p])}
-                  style={{ padding: '2px 8px', fontSize: 10, borderRadius: 12, border: active ? '1.5px solid #d97706' : '1px solid var(--border)',
-                    background: active ? '#fef3c7' : 'white', color: active ? '#92400e' : 'var(--text-muted)', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>{p}</button>;
-              })}
-              {partnerFilter.length > 0 && <button onClick={() => setPartnerFilter([])} style={{ fontSize: 9, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>clear</button>}
-            </div>
-            {availablePrograms.length > 1 && (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px', minWidth: 60 }}>PROGRAM:</span>
-                {availablePrograms.filter(p => p !== 'ALL').map(p => {
-                  const active = programFilter.includes(p);
-                  return <button key={p} onClick={() => setProgramFilter(prev => active ? prev.filter(x => x !== p) : [...prev, p])}
-                    style={{ padding: '2px 8px', fontSize: 10, borderRadius: 12, border: active ? '1.5px solid #2563eb' : '1px solid var(--border)',
-                      background: active ? '#dbeafe' : 'white', color: active ? '#1e40af' : 'var(--text-muted)', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>{p}</button>;
-                })}
-                {programFilter.length > 0 && <button onClick={() => setProgramFilter([])} style={{ fontSize: 9, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>clear</button>}
-              </div>
-            )}
-            {availableModalities.length > 1 && (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px', minWidth: 60 }}>MODALITY:</span>
-                {availableModalities.filter(m => m !== 'ALL').map(m => {
-                  const active = modalityFilter.includes(m);
-                  return <button key={m} onClick={() => setModalityFilter(prev => active ? prev.filter(x => x !== m) : [...prev, m])}
-                    style={{ padding: '2px 8px', fontSize: 10, borderRadius: 12, border: active ? '1.5px solid #059669' : '1px solid var(--border)',
-                      background: active ? '#d1fae5' : 'white', color: active ? '#065f46' : 'var(--text-muted)', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>{m}</button>;
-                })}
-                {modalityFilter.length > 0 && <button onClick={() => setModalityFilter([])} style={{ fontSize: 9, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>clear</button>}
-              </div>
-            )}
-            {(partnerFilter.length > 0 || programFilter.length > 0 || modalityFilter.length > 0) && (
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span>Active: {[...partnerFilter, ...programFilter, ...modalityFilter].length} filter(s)</span>
-                <button onClick={() => { setPartnerFilter([]); setProgramFilter([]); setModalityFilter([]); }}
-                  className="btn btn-secondary btn-sm" style={{ fontSize: 9, padding: '1px 6px' }}>Clear all</button>
-              </div>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          {availablePartners.length > 1 && (
+            <MultiSelectDropdown label="Partner" options={availablePartners.filter(p => p !== 'ALL')} selected={partnerFilter} onChange={setPartnerFilter} color="amber" />
+          )}
+          {availablePrograms.length > 1 && (
+            <MultiSelectDropdown label="Program" options={availablePrograms.filter(p => p !== 'ALL')} selected={programFilter} onChange={setProgramFilter} color="blue" />
+          )}
+          {availableModalities.length > 1 && (
+            <MultiSelectDropdown label="Modality" options={availableModalities.filter(m => m !== 'ALL')} selected={modalityFilter} onChange={setModalityFilter} color="green" />
+          )}
+          {(partnerFilter.length > 0 || programFilter.length > 0 || modalityFilter.length > 0) && (
+            <button onClick={() => { setPartnerFilter([]); setProgramFilter([]); setModalityFilter([]); }}
+              style={{ fontSize: 10, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear all filters</button>
+          )}
+        </div>
       </div>
 
       {hasData && (
