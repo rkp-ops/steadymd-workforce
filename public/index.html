@@ -7929,7 +7929,8 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     const to = new Date(end + 'T23:59:59');
     return data.filter(r => {
       if (slFilter !== 'ALL') {
-        const sl = r._detectedSL || mapPartnerToSL(cm.partner ? (r[cm.partner] || '') : '') || mapEntityToSL(cm.entityName ? (r[cm.entityName] || '') : '');
+        // Handle both parsed shift objects (.sl) and raw CSV rows
+        const sl = r.sl || r._detectedSL || mapPartnerToSL(cm.partner ? (r[cm.partner] || '') : '') || mapEntityToSL(cm.entityName ? (r[cm.entityName] || '') : '');
         if (sl && sl !== slFilter) return false;
       }
       const dt = dateFn(r);
@@ -7939,7 +7940,11 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
   }, [slFilter, cm]);
 
   const actualDateFn = useCallback(r => parseDate(cm.date ? r[cm.date] : ''), [cm]);
-  const shiftDateFn = useCallback(r => parseDate(r._shiftStart || (cm.shiftStart ? r[cm.shiftStart] : '')), [cm]);
+  // Parsed shifts have .start as Date already; raw shifts have column name
+  const shiftDateFn = useCallback(r => {
+    if (r.start instanceof Date) return r.start;
+    return parseDate(r._shiftStart || (cm.shiftStart ? r[cm.shiftStart] : ''));
+  }, [cm]);
   const incDateFn = useCallback(r => parseDate(incCm.date ? r[incCm.date] : (incCm.launchedTime ? r[incCm.launchedTime] : '')), [incCm]);
 
   // Compute metrics for a period
@@ -7985,11 +7990,7 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       const state = cm.state ? (r[cm.state] || '') : '';
       if (state) result.stateBreakdown[state] = (result.stateBreakdown[state] || 0) + 1;
 
-      // Credential from license type or name suffix
-      const cred = cm.licenseType ? (r[cm.licenseType] || '').toUpperCase() : '';
-      if (cred.includes('NP') || cred.includes('NURSE') || cred.includes('PA') || cred.includes('FNP') || cred.includes('DNP')) result.npCount++;
-      else if (cred.includes('MD') || cred.includes('DO') || cred.includes('PHYSICIAN') || cred.includes('DR')) result.mdCount++;
-      else result.unknownCredCount++;
+      // Credential counting moved to shifts section (parsed shifts have reliable credential data)
     });
 
     result.headcount = clinicians.size;
@@ -7997,20 +7998,27 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     result.slaPct = slaTotal > 0 ? (result.slaMet / slaTotal * 100) : 0;
     result.avgResponseMin = actuals.length > 0 ? result.avgResponseMin / actuals.length : 0;
 
-    // Shift metrics
+    // Shift metrics — handles both parsed shift objects ({clinician, hours, unfilled}) and raw CSV rows
     shifts.forEach(r => {
       result.totalShifts++;
-      const unfilled = r._unfilled || (r[cm.clinician] || '').toLowerCase().includes('not assigned') || (r[cm.clinician] || '').trim() === '';
+      const isParsed = r.hasOwnProperty('unfilled');
+      const unfilled = isParsed ? r.unfilled : (r._unfilled || (r[cm.clinician] || '').toLowerCase().includes('not assigned') || (r[cm.clinician] || '').trim() === '');
       if (unfilled) result.unfilledShifts++;
       else result.filledShifts++;
 
-      const hrs = r._hours || parseFloat(r[cm.scheduledHrs] || '0') || 0;
+      const hrs = isParsed ? (r.hours || 0) : (r._hours || parseFloat(r[cm.scheduledHrs] || '0') || 0);
       result.totalShiftHours += hrs;
       if (unfilled) result.unfilledShiftHours += hrs;
       else result.filledShiftHours += hrs;
 
+      // Credential counting from shifts
+      const cred = isParsed ? (r.credClass || r.credential || '') : (cm.credential ? (r[cm.credential] || '') : '');
+      const credUpper = cred.toUpperCase();
+      if (credUpper.includes('NP') || credUpper.includes('PA') || credUpper.includes('FNP') || credUpper.includes('DNP')) result.npCount++;
+      else if (credUpper.includes('MD') || credUpper.includes('DO')) result.mdCount++;
+
       // Clinician hours tracking
-      const cl = cm.clinician ? (r[cm.clinician] || '').trim() : '';
+      const cl = isParsed ? (r.clinician || '') : (cm.clinician ? (r[cm.clinician] || '').trim() : '');
       if (cl && !unfilled) {
         const key = cl.toLowerCase();
         result.clinicianHours[key] = (result.clinicianHours[key] || 0) + hrs;
