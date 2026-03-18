@@ -8128,6 +8128,7 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
 
     // Actuals metrics
     const clinicians = new Set();
+    const credMap = {}; // clinician lowercase -> 'NP' or 'MD'
     actuals.forEach(r => {
       const cl = cm.clinician ? (r[cm.clinician] || '') : '';
       if (cl) clinicians.add(cl.toLowerCase().trim());
@@ -8150,7 +8151,13 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       const state = cm.state ? (r[cm.state] || '') : '';
       if (state) result.stateBreakdown[state] = (result.stateBreakdown[state] || 0) + 1;
 
-      // Credential counting moved to shifts section (parsed shifts have reliable credential data)
+      // Credential from actuals license type
+      const cred = cm.licenseType ? (r[cm.licenseType] || '').toUpperCase() : '';
+      if (cred && cl) {
+        const clKey = cl.toLowerCase().trim();
+        if (cred.includes('NP') || cred.includes('NURSE') || cred.includes('PA') || cred.includes('FNP') || cred.includes('DNP')) credMap[clKey] = 'NP';
+        else if (cred.includes('MD') || cred.includes('DO') || cred.includes('PHYSICIAN') || cred.includes('DR')) credMap[clKey] = 'MD';
+      }
 
       // Partner breakdown
       const partner = cm.partner ? (r[cm.partner] || '').trim() : '';
@@ -8208,11 +8215,16 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       if (unfilled) result.unfilledShiftHours += hrs;
       else result.filledShiftHours += hrs;
 
-      // Credential counting from shifts
-      const cred = isParsed ? (r.credClass || r.credential || '') : (cm.credential ? (r[cm.credential] || '') : '');
-      const credUpper = cred.toUpperCase();
-      if (credUpper.includes('NP') || credUpper.includes('PA') || credUpper.includes('FNP') || credUpper.includes('DNP')) result.npCount++;
-      else if (credUpper.includes('MD') || credUpper.includes('DO')) result.mdCount++;
+      // Credential from shifts (fills in credMap for clinicians not found in actuals)
+      const shiftCred = isParsed ? (r.credClass || r.credential || '') : (cm.credential ? (r[cm.credential] || '') : '');
+      if (shiftCred && cl && !unfilled) {
+        const clKey = cl.toLowerCase().trim();
+        if (!credMap[clKey]) {
+          const cu = shiftCred.toUpperCase();
+          if (cu.includes('NP') || cu.includes('PA') || cu.includes('FNP') || cu.includes('DNP')) credMap[clKey] = 'NP';
+          else if (cu.includes('MD') || cu.includes('DO')) credMap[clKey] = 'MD';
+        }
+      }
 
       // Clinician hours tracking
       const cl = isParsed ? (r.clinician || '') : (cm.clinician ? (r[cm.clinician] || '').trim() : '');
@@ -8222,6 +8234,12 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       }
     });
     result.fillRate = result.totalShifts > 0 ? (result.filledShifts / result.totalShifts * 100) : 0;
+
+    // Tally NP/MD from combined credMap (actuals + shifts)
+    Object.values(credMap).forEach(c => {
+      if (c === 'NP') result.npCount++;
+      else if (c === 'MD') result.mdCount++;
+    });
 
     // Incentive metrics — differentiate real-time (dollar amounts) from hourly (multipliers)
     incentives.forEach(r => {
@@ -8292,13 +8310,17 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
   const fmtDelta = (a, b, type) => {
     if (a === 0 && b === 0) return { text: '—', color: 'var(--text-muted)' };
     const delta = b - a;
-    const pctChange = a !== 0 ? ((b - a) / a * 100) : (b > 0 ? 100 : 0);
-    const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '—';
-    let color = 'var(--text-muted)';
-    if (type === 'higher-better') color = delta > 0 ? '#059669' : delta < 0 ? '#dc2626' : 'var(--text-muted)';
-    else if (type === 'lower-better') color = delta < 0 ? '#059669' : delta > 0 ? '#dc2626' : 'var(--text-muted)';
-    else color = delta !== 0 ? '#1d4ed8' : 'var(--text-muted)';
-    return { text: `${arrow} ${delta > 0 ? '+' : ''}${type === 'pct' ? delta.toFixed(1) + 'pp' : type === 'dollar' ? fmt$(Math.abs(delta)) : Math.round(delta).toLocaleString()} (${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(0)}%)`, color };
+    if (delta === 0) return { text: '—', color: 'var(--text-muted)' };
+    const pctChange = a !== 0 ? ((b - a) / a * 100) : (b > 0 ? 100 : -100);
+    const arrow = delta > 0 ? '▲' : '▼';
+    let color;
+    if (type === 'higher-better') color = delta > 0 ? '#059669' : '#dc2626';
+    else if (type === 'lower-better') color = delta < 0 ? '#059669' : '#dc2626';
+    else color = delta > 0 ? '#059669' : '#dc2626'; // neutral defaults to green=up, red=down
+    const valStr = type === 'pct' ? Math.abs(delta).toFixed(1) + 'pp'
+      : type === 'dollar' ? fmt$(Math.abs(delta))
+      : Math.abs(Math.round(delta)).toLocaleString();
+    return { text: `${arrow} ${delta > 0 ? '+' : '-'}${valStr} (${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(0)}%)`, color };
   };
 
   const compRow = (label, a, b, format, deltaType) => {
@@ -8750,12 +8772,17 @@ function ForecastVsActual({ forecast, actualsData, shiftScheduleData, cm }) {
   const comparison = useMemo(() => {
     if (!forecast || !forecast.hours || !actualsData) return null;
 
-    // Group actuals by date+hour
+    // Group actuals by date+hour (LOCAL time, not UTC)
+    const localHourKey = (d) => {
+      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'),
+            day = String(d.getDate()).padStart(2, '0'), h = String(d.getHours()).padStart(2, '0');
+      return `${y}-${m}-${day}T${h}`;
+    };
     const actualsByHour = {};
     actualsData.forEach(r => {
       const dt = parseDate(cm.date ? r[cm.date] : '');
       if (!dt) return;
-      const key = dt.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+      const key = localHourKey(dt); // YYYY-MM-DDTHH in local time
       if (!actualsByHour[key]) actualsByHour[key] = { total: 0, met: 0, missed: 0, times: [] };
       actualsByHour[key].total++;
       const sla = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
@@ -8775,7 +8802,8 @@ function ForecastVsActual({ forecast, actualsData, shiftScheduleData, cm }) {
       const hourStart = h.time || null;
       let key = null;
       if (hourStart) {
-        key = new Date(hourStart).toISOString().slice(0, 13);
+        const d = new Date(hourStart);
+        key = localHourKey(d);
       }
       const actual = key ? actualsByHour[key] : null;
 
