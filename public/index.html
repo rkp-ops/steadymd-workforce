@@ -1936,12 +1936,26 @@ function SLFilter({ value, onChange, options }) {
 function MultiSelectDropdown({ label, options, selected, onChange, color }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const ref = React.useRef(null);
+  const btnRef = React.useRef(null);
+  const panelRef = React.useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  // Position the panel below the button using fixed positioning (escapes overflow:hidden)
+  React.useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [open]);
 
   // Close on outside click
   React.useEffect(() => {
     if (!open) return;
-    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const handler = e => {
+      if (btnRef.current && btnRef.current.contains(e.target)) return;
+      if (panelRef.current && panelRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
@@ -1957,18 +1971,18 @@ function MultiSelectDropdown({ label, options, selected, onChange, color }) {
   };
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      <button onClick={() => { setOpen(!open); setSearch(''); }}
+    <div style={{ display: 'inline-block' }}>
+      <button ref={btnRef} onClick={() => { setOpen(!open); setSearch(''); }}
         style={{ padding: '4px 10px', fontSize: 11, border: hasSelection ? `1.5px solid ${c.border}` : '1px solid var(--border)',
           borderRadius: 4, background: hasSelection ? c.bg : 'white', color: hasSelection ? c.text : 'var(--text-secondary)',
           cursor: 'pointer', fontWeight: hasSelection ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
         {btnLabel}
         <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
       </button>
-      {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, width: 260, maxHeight: 320,
-          background: 'white', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          zIndex: 100, display: 'flex', flexDirection: 'column' }}>
+      {open && ReactDOM.createPortal(
+        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 260, maxHeight: 320,
+          background: 'white', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+          zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
           {/* Search */}
           <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
@@ -1996,7 +2010,8 @@ function MultiSelectDropdown({ label, options, selected, onChange, color }) {
             })}
             {filtered.length === 0 && <div style={{ padding: '12px 8px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No matches</div>}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
