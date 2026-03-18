@@ -7869,18 +7869,41 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
   const [showProgramBreakdown, setShowProgramBreakdown] = useState(false);
   const [showModalityBreakdown, setShowModalityBreakdown] = useState(false);
 
-  // Quick-set helpers
+  const isoDate = d => d.toISOString().slice(0, 10);
+  const dayLabel = d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  // Quick-set helpers — DAY-OVER-DAY
+  const setYesterdayVsPrior = () => {
+    const now = new Date(); now.setHours(0,0,0,0);
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    const dayBefore = new Date(now); dayBefore.setDate(now.getDate() - 2);
+    setPeriodAStart(isoDate(dayBefore)); setPeriodAEnd(isoDate(dayBefore));
+    setPeriodBStart(isoDate(yesterday)); setPeriodBEnd(isoDate(yesterday));
+  };
+  const setTodayVsYesterday = () => {
+    const now = new Date(); now.setHours(0,0,0,0);
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    setPeriodAStart(isoDate(yesterday)); setPeriodAEnd(isoDate(yesterday));
+    setPeriodBStart(isoDate(now)); setPeriodBEnd(isoDate(now));
+  };
+  const setSameWeekdayLastWeek = () => {
+    const now = new Date(); now.setHours(0,0,0,0);
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    const lastWeekSameDay = new Date(yesterday); lastWeekSameDay.setDate(yesterday.getDate() - 7);
+    setPeriodAStart(isoDate(lastWeekSameDay)); setPeriodAEnd(isoDate(lastWeekSameDay));
+    setPeriodBStart(isoDate(yesterday)); setPeriodBEnd(isoDate(yesterday));
+  };
+
+  // Quick-set helpers — WEEK-OVER-WEEK
   const setLastWeek = () => {
     const now = new Date();
     const dow = now.getDay();
-    const lastMonEnd = new Date(now); lastMonEnd.setDate(now.getDate() - dow - 1); // last Sunday
-    const lastMonStart = new Date(lastMonEnd); lastMonStart.setDate(lastMonEnd.getDate() - 6); // last Monday
+    const lastMonEnd = new Date(now); lastMonEnd.setDate(now.getDate() - dow - 1);
+    const lastMonStart = new Date(lastMonEnd); lastMonStart.setDate(lastMonEnd.getDate() - 6);
     const prevMonEnd = new Date(lastMonStart); prevMonEnd.setDate(lastMonStart.getDate() - 1);
     const prevMonStart = new Date(prevMonEnd); prevMonStart.setDate(prevMonEnd.getDate() - 6);
-    setPeriodAStart(prevMonStart.toISOString().slice(0,10));
-    setPeriodAEnd(prevMonEnd.toISOString().slice(0,10));
-    setPeriodBStart(lastMonStart.toISOString().slice(0,10));
-    setPeriodBEnd(lastMonEnd.toISOString().slice(0,10));
+    setPeriodAStart(isoDate(prevMonStart)); setPeriodAEnd(isoDate(prevMonEnd));
+    setPeriodBStart(isoDate(lastMonStart)); setPeriodBEnd(isoDate(lastMonEnd));
   };
 
   const setLastWeekend = () => {
@@ -7890,10 +7913,8 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     const lastSat = new Date(lastSun); lastSat.setDate(lastSun.getDate() - 1);
     const prevSun = new Date(lastSat); prevSun.setDate(lastSat.getDate() - 1);
     const prevSat = new Date(prevSun); prevSat.setDate(prevSun.getDate() - 1);
-    setPeriodAStart(prevSat.toISOString().slice(0,10));
-    setPeriodAEnd(prevSun.toISOString().slice(0,10));
-    setPeriodBStart(lastSat.toISOString().slice(0,10));
-    setPeriodBEnd(lastSun.toISOString().slice(0,10));
+    setPeriodAStart(isoDate(prevSat)); setPeriodAEnd(isoDate(prevSun));
+    setPeriodBStart(isoDate(lastSat)); setPeriodBEnd(isoDate(lastSun));
   };
 
   const setLast2Weeks = () => {
@@ -7904,10 +7925,8 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     const w2Start = new Date(w2End); w2Start.setDate(w2End.getDate() - 6);
     const w1End = new Date(w2Start); w1End.setDate(w2Start.getDate() - 1);
     const w1Start = new Date(w1End); w1Start.setDate(w1End.getDate() - 6);
-    setPeriodAStart(w1Start.toISOString().slice(0,10));
-    setPeriodAEnd(w1End.toISOString().slice(0,10));
-    setPeriodBStart(w2Start.toISOString().slice(0,10));
-    setPeriodBEnd(w2End.toISOString().slice(0,10));
+    setPeriodAStart(isoDate(w1Start)); setPeriodAEnd(isoDate(w1End));
+    setPeriodBStart(isoDate(w2Start)); setPeriodBEnd(isoDate(w2End));
   };
 
   const cm = useMemo(() => buildColMap(actualsData || []), [actualsData]);
@@ -8011,6 +8030,8 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       stateBreakdown: {},
       // Clinician-level detail
       clinicianHours: {},
+      // Hourly arrival pattern (24 buckets, 0-23)
+      hourlyArrivals: new Array(24).fill(0),
       // Dimensional breakdowns
       partnerBreakdown: {},
       programBreakdown: {},
@@ -8026,6 +8047,14 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     actuals.forEach(r => {
       const cl = cm.clinician ? (r[cm.clinician] || '') : '';
       if (cl) clinicians.add(cl.toLowerCase().trim());
+
+      // Hourly arrival pattern
+      const dtStr = cm.date ? r[cm.date] : '';
+      const dt = dtStr ? parseDate(dtStr) : null;
+      if (dt) {
+        const hr = dt.getHours();
+        if (hr >= 0 && hr < 24) result.hourlyArrivals[hr]++;
+      }
 
       const sla = cm.slaStatus ? (r[cm.slaStatus] || '').toLowerCase() : '';
       if (sla.includes('met') || sla.includes('within')) result.slaMet++;
@@ -8216,15 +8245,23 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
     <div>
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title">Period Comparison Setup</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', alignSelf: 'center' }}>QUICK SET:</span>
-          <button className="btn btn-secondary btn-sm" onClick={setLastWeek}>Last Week vs Prior Week</button>
-          <button className="btn btn-secondary btn-sm" onClick={setLastWeekend}>Last Weekend vs Prior Weekend</button>
-          <button className="btn btn-secondary btn-sm" onClick={setLast2Weeks}>2 Weeks Ago vs Last Week</button>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px' }}>DAY:</span>
+          <button className="btn btn-secondary btn-sm" onClick={setTodayVsYesterday} style={{ fontSize: 11 }}>Today vs Yesterday</button>
+          <button className="btn btn-secondary btn-sm" onClick={setYesterdayVsPrior} style={{ fontSize: 11 }}>Yesterday vs Day Before</button>
+          <button className="btn btn-secondary btn-sm" onClick={setSameWeekdayLastWeek} style={{ fontSize: 11 }}>Yesterday vs Same Day Last Week</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px' }}>WEEK:</span>
+          <button className="btn btn-secondary btn-sm" onClick={setLastWeek} style={{ fontSize: 11 }}>Last Week vs Prior</button>
+          <button className="btn btn-secondary btn-sm" onClick={setLastWeekend} style={{ fontSize: 11 }}>Last Wknd vs Prior</button>
+          <button className="btn btn-secondary btn-sm" onClick={setLast2Weeks} style={{ fontSize: 11 }}>2 Wks Ago vs Last Wk</button>
         </div>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ border: '2px solid #93c5fd', borderRadius: 'var(--radius)', padding: 12, flex: 1, minWidth: 220 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>PERIOD A (Baseline)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 6 }}>PERIOD A (Baseline)
+              {periodAStart && <span style={{ fontWeight: 400, marginLeft: 6 }}>{dayLabel(new Date(periodAStart + 'T12:00:00'))}{periodAStart !== periodAEnd ? ' — ' + dayLabel(new Date(periodAEnd + 'T12:00:00')) : ''}</span>}
+            </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input type="date" value={periodAStart} onChange={e => setPeriodAStart(e.target.value)} style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }} />
               <span style={{ fontSize: 11 }}>to</span>
@@ -8233,7 +8270,9 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)', alignSelf: 'center' }}>vs</div>
           <div style={{ border: '2px solid #86efac', borderRadius: 'var(--radius)', padding: 12, flex: 1, minWidth: 220 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', marginBottom: 6 }}>PERIOD B (Current)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', marginBottom: 6 }}>PERIOD B (Current)
+              {periodBStart && <span style={{ fontWeight: 400, marginLeft: 6 }}>{dayLabel(new Date(periodBStart + 'T12:00:00'))}{periodBStart !== periodBEnd ? ' — ' + dayLabel(new Date(periodBEnd + 'T12:00:00')) : ''}</span>}
+            </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input type="date" value={periodBStart} onChange={e => setPeriodBStart(e.target.value)} style={{ padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }} />
               <span style={{ fontSize: 11 }}>to</span>
@@ -8284,6 +8323,86 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
               </table>
             </div>
           </div>
+
+          {/* Arrival Pattern (Hourly) */}
+          {(periodA.totalVisits > 0 || periodB.totalVisits > 0) && (() => {
+            const peakHourA = periodA.hourlyArrivals.indexOf(Math.max(...periodA.hourlyArrivals));
+            const peakHourB = periodB.hourlyArrivals.indexOf(Math.max(...periodB.hourlyArrivals));
+            const maxVal = Math.max(...periodA.hourlyArrivals, ...periodB.hourlyArrivals, 1);
+            const totalDeviation = periodA.hourlyArrivals.reduce((sum, v, i) => sum + Math.abs((periodB.hourlyArrivals[i] || 0) - v), 0);
+            const avgDeviation = periodA.totalVisits > 0 ? (totalDeviation / periodA.totalVisits * 100).toFixed(1) : '0';
+            const fmtHr = h => { const ap = h >= 12 ? 'p' : 'a'; const hh = h === 0 ? 12 : h > 12 ? h - 12 : h; return hh + ap; };
+
+            return (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card-title">Arrival Pattern (Hourly)</div>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>Peak A: <strong style={{ color: '#1d4ed8' }}>{fmtHr(peakHourA)}</strong> ({periodA.hourlyArrivals[peakHourA]})</span>
+                  <span>Peak B: <strong style={{ color: '#059669' }}>{fmtHr(peakHourB)}</strong> ({periodB.hourlyArrivals[peakHourB]})</span>
+                  <span>Pattern Deviation: <strong style={{ color: parseFloat(avgDeviation) > 30 ? '#dc2626' : parseFloat(avgDeviation) > 15 ? '#d97706' : '#059669' }}>{avgDeviation}%</strong></span>
+                </div>
+                {/* Bar chart */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 120, marginBottom: 4, padding: '0 2px' }}>
+                  {Array.from({ length: 24 }, (_, h) => {
+                    const aVal = periodA.hourlyArrivals[h];
+                    const bVal = periodB.hourlyArrivals[h];
+                    const aH = maxVal > 0 ? (aVal / maxVal * 100) : 0;
+                    const bH = maxVal > 0 ? (bVal / maxVal * 100) : 0;
+                    const deviation = aVal > 0 ? ((bVal - aVal) / aVal * 100) : (bVal > 0 ? 100 : 0);
+                    const devColor = Math.abs(deviation) > 50 ? '#dc2626' : Math.abs(deviation) > 25 ? '#d97706' : '#9ca3af';
+                    return (
+                      <div key={h} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }} title={`${fmtHr(h)}: A=${aVal}, B=${bVal}, Δ=${deviation.toFixed(0)}%`}>
+                        <div style={{ width: '100%', display: 'flex', gap: 1, alignItems: 'flex-end', height: 100 }}>
+                          <div style={{ flex: 1, height: `${aH}%`, background: '#93c5fd', borderRadius: '2px 2px 0 0', minHeight: aVal > 0 ? 2 : 0 }}></div>
+                          <div style={{ flex: 1, height: `${bH}%`, background: '#6ee7b7', borderRadius: '2px 2px 0 0', minHeight: bVal > 0 ? 2 : 0 }}></div>
+                        </div>
+                        {Math.abs(deviation) > 25 && (aVal > 0 || bVal > 0) && (
+                          <div style={{ fontSize: 8, color: devColor, fontWeight: 700, lineHeight: 1 }}>{deviation > 0 ? '+' : ''}{deviation.toFixed(0)}%</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)', padding: '0 2px' }}>
+                  {[0,3,6,9,12,15,18,21].map(h => <span key={h} style={{ width: `${100/8}%`, textAlign: 'center' }}>{fmtHr(h)}</span>)}
+                </div>
+                <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 10, color: 'var(--text-muted)' }}>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#93c5fd', borderRadius: 2, marginRight: 4 }}></span>Period A</span>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#6ee7b7', borderRadius: 2, marginRight: 4 }}></span>Period B</span>
+                  <span style={{ color: '#d97706' }}>% = deviation &gt;25%</span>
+                </div>
+
+                {/* Hourly detail table */}
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Hourly Detail Table</summary>
+                  <div className="table-wrap" style={{ maxHeight: 300, overflowY: 'auto', marginTop: 8 }}>
+                    <table style={{ fontSize: 11 }}>
+                      <thead><tr><th>Hour</th><th style={{ textAlign: 'right' }}>A</th><th style={{ textAlign: 'right' }}>B</th><th style={{ textAlign: 'right' }}>Δ</th><th style={{ textAlign: 'right' }}>Deviation</th></tr></thead>
+                      <tbody>
+                        {Array.from({ length: 24 }, (_, h) => {
+                          const aVal = periodA.hourlyArrivals[h];
+                          const bVal = periodB.hourlyArrivals[h];
+                          if (aVal === 0 && bVal === 0) return null;
+                          const delta = bVal - aVal;
+                          const dev = aVal > 0 ? ((bVal - aVal) / aVal * 100) : (bVal > 0 ? 100 : 0);
+                          const devColor = Math.abs(dev) > 50 ? '#dc2626' : Math.abs(dev) > 25 ? '#d97706' : 'var(--text-muted)';
+                          return (
+                            <tr key={h} style={{ background: Math.abs(dev) > 50 ? '#fef2f2' : Math.abs(dev) > 25 ? '#fffbeb' : 'transparent' }}>
+                              <td style={{ fontWeight: 600 }}>{fmtHr(h)}</td>
+                              <td style={{ textAlign: 'right' }}>{aVal}</td>
+                              <td style={{ textAlign: 'right' }}>{bVal}</td>
+                              <td style={{ textAlign: 'right', color: delta > 0 ? '#059669' : delta < 0 ? '#dc2626' : 'var(--text-muted)' }}>{delta > 0 ? '+' : ''}{delta}</td>
+                              <td style={{ textAlign: 'right', color: devColor, fontWeight: Math.abs(dev) > 25 ? 700 : 400 }}>{dev.toFixed(0)}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+            );
+          })()}
 
           {/* Staffing & Shifts */}
           <div className="card" style={{ marginBottom: 16 }}>
