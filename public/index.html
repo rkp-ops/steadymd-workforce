@@ -369,48 +369,102 @@ const SUPABASE_ANON_KEY = 'sb_publishable_txIrKbYtv9kjSKXjQVJFbw_hzUsLNEK';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ========================== UPLOAD PERSISTENCE (Supabase) ==========================
-// Save uploaded data to Supabase — upserts by (user_id, upload_type)
+// ====== DATA PERSISTENCE via Supabase Storage (not DB jsonb — avoids bloat) ======
+// Saves upload data as JSON files in Supabase Storage bucket 'uploads'
+// Metadata (filename, row_count, detected_sl) still goes in upload_data table but WITHOUT the data column
+
 async function saveUploadData(type, data, filename, detectedSL) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) { console.warn('[saveUploadData] No session — data NOT saved for', type); return; }
+    if (!session?.user?.id) { console.warn('[saveUploadData] No session'); return; }
+    const uid = session.user.id;
     const payload = JSON.stringify(data);
     const sizeMB = (payload.length / 1048576).toFixed(2);
-    console.log(`[saveUploadData] ${type}: ${Array.isArray(data) ? data.length : 0} rows, ${sizeMB}MB`);
-    const { error } = await supabase.from('upload_data').upsert({
-      user_id: session.user.id,
-      upload_type: type,
-      filename: filename || null,
-      data: payload,
-      row_count: Array.isArray(data) ? data.length : 0,
-      detected_sl: detectedSL || null,
+    const rowCount = Array.isArray(data) ? data.length : 0;
+    console.log(`[saveUploadData] ${type}: ${rowCount} rows, ${sizeMB}MB`);
+
+    // Save data as file in Storage bucket
+    const storagePath = `${uid}/${type}.json`;
+    const blob = new Blob([payload], { type: 'application/json' });
+    const { error: storageError } = await supabase.storage.from('uploads').upload(storagePath, blob, { upsert: true });
+    if (storageError) { console.error(`[saveUploadData] Storage FAILED for ${type}:`, storageError.message); return; }
+
+    // Save lightweight metadata in DB (NO data column)
+    const { error: dbError } = await supabase.from('upload_data').upsert({
+      user_id: uid, upload_type: type,
+      filename: filename || null, data: '[]', // empty placeholder — real data in Storage
+      row_count: rowCount, detected_sl: detectedSL || null,
     }, { onConflict: 'user_id,upload_type' });
-    if (error) console.error(`[saveUploadData] FAILED for ${type}:`, error.message, error.details);
-    else console.log(`[saveUploadData] ${type} saved OK`);
+    if (dbError) console.warn(`[saveUploadData] DB metadata error (non-critical):`, dbError.message);
+    console.log(`[saveUploadData] ${type} saved OK (${sizeMB}MB to Storage)`);
   } catch (e) { console.error('[saveUploadData] Exception:', type, e); }
 }
 
-// Load all persisted uploads for current user
+// Load all persisted uploads for current user — reads from Storage bucket
 async function loadAllUploadData() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) { console.warn('[loadAllUploadData] No session — skipping restore'); return null; }
-    console.log('[loadAllUploadData] Loading for user:', session.user.id);
+    if (!session?.user?.id) { console.warn('[loadAllUploadData] No session'); return null; }
+    const uid = session.user.id;
+    console.log('[loadAllUploadData] Loading for user:', uid);
+
+    // List files in user's storage folder
+    const { data: files, error: listErr } = await supabase.storage.from('uploads').list(uid);
+    if (listErr) { console.error('[loadAllUploadData] Storage list error:', listErr.message); return null; }
+    if (!files || files.length === 0) {
+      console.log('[loadAllUploadData] No files in storage — checking DB fallback...');
+      // Fallback: try loading from DB (legacy data before migration)
+      return await loadAllUploadDataFromDB();
+    }
+
+    console.log('[loadAllUploadData] Found files:', files.map(f => f.name).join(', '));
+
+    // Also load metadata from DB for filenames/detected_sl
+    let metaMap = {};
+    try {
+      const { data: metaRows } = await supabase.from('upload_data')
+        .select('upload_type, filename, row_count, detected_sl')
+        .eq('user_id', uid);
+      (metaRows || []).forEach(r => { metaMap[r.upload_type] = r; });
+    } catch (e) { console.warn('[loadAllUploadData] Metadata query failed (non-critical):', e.message); }
+
+    const result = {};
+    for (const file of files) {
+      const type = file.name.replace('.json', '');
+      try {
+        const { data: fileData, error: dlErr } = await supabase.storage.from('uploads').download(`${uid}/${file.name}`);
+        if (dlErr) { console.error(`[loadAllUploadData] Download failed for ${type}:`, dlErr.message); continue; }
+        const text = await fileData.text();
+        const parsed = JSON.parse(text);
+        const meta = metaMap[type] || {};
+        result[type] = { data: parsed, filename: meta.filename || file.name, rowCount: meta.row_count || parsed.length, detectedSL: meta.detected_sl };
+        console.log(`[loadAllUploadData] ${type}: ${Array.isArray(parsed) ? parsed.length : '?'} rows loaded from Storage`);
+      } catch (e) { console.error(`[loadAllUploadData] PARSE FAILED for ${type}:`, e); }
+    }
+    return result;
+  } catch (e) { console.error('[loadAllUploadData] Exception:', e); return null; }
+}
+
+// Legacy DB fallback for data saved before Storage migration
+async function loadAllUploadDataFromDB() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) return null;
     const { data, error } = await supabase.from('upload_data')
       .select('upload_type, data, filename, row_count, detected_sl')
       .eq('user_id', session.user.id);
-    if (error) { console.error('[loadAllUploadData] Query error:', error.message); throw error; }
-    console.log('[loadAllUploadData] Found', (data || []).length, 'saved uploads:', (data || []).map(r => `${r.upload_type}(${r.row_count} rows)`).join(', '));
+    if (error) { console.warn('[loadAllUploadDataFromDB] Query error:', error.message); return null; }
     const result = {};
     (data || []).forEach(row => {
       try {
         const parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
-        result[row.upload_type] = { data: parsed, filename: row.filename, rowCount: row.row_count, detectedSL: row.detected_sl };
-        console.log(`[loadAllUploadData] ${row.upload_type}: ${Array.isArray(parsed) ? parsed.length : '?'} rows parsed OK`);
-      } catch (e) { console.error('[loadAllUploadData] PARSE FAILED for', row.upload_type, e); }
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          result[row.upload_type] = { data: parsed, filename: row.filename, rowCount: row.row_count, detectedSL: row.detected_sl };
+        }
+      } catch (e) { /* skip corrupt rows */ }
     });
-    return result;
-  } catch (e) { console.error('[loadAllUploadData] Exception:', e); return null; }
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (e) { console.warn('[loadAllUploadDataFromDB]', e); return null; }
 }
 
 // Clear persisted uploads (specific type or all)
@@ -418,7 +472,16 @@ async function clearUploadData(type) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user?.id) return;
-    let q = supabase.from('upload_data').delete().eq('user_id', session.user.id);
+    const uid = session.user.id;
+    // Clear from Storage
+    if (type) {
+      await supabase.storage.from('uploads').remove([`${uid}/${type}.json`]);
+    } else {
+      const { data: files } = await supabase.storage.from('uploads').list(uid);
+      if (files?.length > 0) await supabase.storage.from('uploads').remove(files.map(f => `${uid}/${f.name}`));
+    }
+    // Clear DB metadata
+    let q = supabase.from('upload_data').delete().eq('user_id', uid);
     if (type) q = q.eq('upload_type', type);
     await q;
   } catch (e) { console.warn('[clearUploadData]', e); }
