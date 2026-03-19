@@ -373,35 +373,44 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 async function saveUploadData(type, data, filename, detectedSL) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) return;
-    await supabase.from('upload_data').upsert({
+    if (!session?.user?.id) { console.warn('[saveUploadData] No session — data NOT saved for', type); return; }
+    const payload = JSON.stringify(data);
+    const sizeMB = (payload.length / 1048576).toFixed(2);
+    console.log(`[saveUploadData] ${type}: ${Array.isArray(data) ? data.length : 0} rows, ${sizeMB}MB`);
+    const { error } = await supabase.from('upload_data').upsert({
       user_id: session.user.id,
       upload_type: type,
       filename: filename || null,
-      data: JSON.stringify(data),
+      data: payload,
       row_count: Array.isArray(data) ? data.length : 0,
       detected_sl: detectedSL || null,
     }, { onConflict: 'user_id,upload_type' });
-  } catch (e) { console.warn('[saveUploadData]', type, e); }
+    if (error) console.error(`[saveUploadData] FAILED for ${type}:`, error.message, error.details);
+    else console.log(`[saveUploadData] ${type} saved OK`);
+  } catch (e) { console.error('[saveUploadData] Exception:', type, e); }
 }
 
 // Load all persisted uploads for current user
 async function loadAllUploadData() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) return null;
+    if (!session?.user?.id) { console.warn('[loadAllUploadData] No session — skipping restore'); return null; }
+    console.log('[loadAllUploadData] Loading for user:', session.user.id);
     const { data, error } = await supabase.from('upload_data')
       .select('upload_type, data, filename, row_count, detected_sl')
       .eq('user_id', session.user.id);
-    if (error) throw error;
+    if (error) { console.error('[loadAllUploadData] Query error:', error.message); throw error; }
+    console.log('[loadAllUploadData] Found', (data || []).length, 'saved uploads:', (data || []).map(r => `${r.upload_type}(${r.row_count} rows)`).join(', '));
     const result = {};
     (data || []).forEach(row => {
       try {
-        result[row.upload_type] = { data: typeof row.data === 'string' ? JSON.parse(row.data) : row.data, filename: row.filename, rowCount: row.row_count, detectedSL: row.detected_sl };
-      } catch (e) { console.warn('[loadAllUploadData] parse error for', row.upload_type, e); }
+        const parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        result[row.upload_type] = { data: parsed, filename: row.filename, rowCount: row.row_count, detectedSL: row.detected_sl };
+        console.log(`[loadAllUploadData] ${row.upload_type}: ${Array.isArray(parsed) ? parsed.length : '?'} rows parsed OK`);
+      } catch (e) { console.error('[loadAllUploadData] PARSE FAILED for', row.upload_type, e); }
     });
     return result;
-  } catch (e) { console.warn('[loadAllUploadData]', e); return null; }
+  } catch (e) { console.error('[loadAllUploadData] Exception:', e); return null; }
 }
 
 // Clear persisted uploads (specific type or all)
