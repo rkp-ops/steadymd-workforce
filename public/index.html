@@ -10788,10 +10788,12 @@ function App() {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  // Restore persisted uploads from Supabase on login
+  // Restore persisted uploads from Supabase on login (once only)
   const [restoring, setRestoring] = useState(false);
+  const hasRestoredRef = React.useRef(false);
   useEffect(() => {
-    if (!user) return;
+    if (!user || hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
     setRestoring(true);
     loadAllUploadData().then(stored => {
       if (!stored) { setRestoring(false); return; }
