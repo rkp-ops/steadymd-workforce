@@ -1743,13 +1743,18 @@ function bucketByPeriod(rows, cm, granularity) {
 }
 
 // Hour label for relative hour
-function hourLabel(relHour) {
-  const day = relHour < 24 ? 'Sat' : relHour < 48 ? 'Sun' : 'Mon';
+function hourLabel(relHour, startDate) {
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayOffset = Math.floor(relHour / 24);
+  const d = startDate ? new Date(startDate) : new Date();
+  d.setDate(d.getDate() + dayOffset);
+  const dayName = DOW[ctDow(d)];
   const h = relHour % 24;
   const ampm = h < 12 ? 'am' : 'pm';
   const hh = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${day} ${hh}${ampm}`;
+  return `${dayName} ${hh}${ampm}`;
 }
+const FORECAST_HOURS = 168; // 7 days
 
 // ======================== OPS DASHBOARD UTILITIES ========================
 
@@ -2245,8 +2250,9 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
         w.modalities[mod] = (w.modalities[mod] || 0) + 1;
         if (isSlaMet(r, cm)) { w.slaMet++; w.slaEligible++; }
         else if (isSlaMissed(r, cm)) { w.slaMissed++; w.slaEligible++; }
-        const rt = cm.responseTime ? parseFloat(r[cm.responseTime]) : NaN;
-        if (!isNaN(rt) && rt >= 0) { w.totalRT += rt; w.rtCount++; }
+        const rtRaw = cm.responseTime ? r[cm.responseTime] : '';
+        const rt = parseResponseTimeRobust(rtRaw);
+        if (rt != null && rt >= 0) { w.totalRT += rt; w.rtCount++; }
       });
     }
 
@@ -2312,8 +2318,8 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       if (clin) s.clinicians.add(normalizeName(clin));
       if (isSlaMet(r, cm)) { s.slaMet++; s.slaEligible++; }
       else if (isSlaMissed(r, cm)) { s.slaEligible++; }
-      const rt = cm.responseTime ? parseFloat(r[cm.responseTime]) : NaN;
-      if (!isNaN(rt) && rt >= 0) { s.totalRT += rt; s.rtCount++; }
+      const rt = parseResponseTimeRobust(cm.responseTime ? r[cm.responseTime] : '');
+      if (rt != null && rt >= 0) { s.totalRT += rt; s.rtCount++; }
     });
     // Add incentive spend by state
     if (filteredIncentives) {
@@ -2345,8 +2351,8 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       m.volume++;
       if (isSlaMet(r, cm)) { m.slaMet++; m.slaEligible++; }
       else if (isSlaMissed(r, cm)) { m.slaEligible++; }
-      const rt = cm.responseTime ? parseFloat(r[cm.responseTime]) : NaN;
-      if (!isNaN(rt) && rt >= 0) { m.totalRT += rt; m.rtCount++; }
+      const rt = parseResponseTimeRobust(cm.responseTime ? r[cm.responseTime] : '');
+      if (rt != null && rt >= 0) { m.totalRT += rt; m.rtCount++; }
     });
     return Object.values(mods).map(m => ({
       ...m,
@@ -2491,7 +2497,14 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
   }, [weeklyTrends, stateBreakdown, filteredActuals]);
 
   const fmt$ = (v) => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  const fmtRT = (v) => v < 60 ? v.toFixed(0) + 's' : (v / 60).toFixed(1) + 'm';
+  // Response time display — always show in minutes. Input may be seconds or minutes depending on source.
+  const fmtRT = (v) => {
+    if (v == null || isNaN(v)) return '—';
+    // If value seems like raw seconds (> 5), convert to minutes
+    const min = v > 5 ? v / 60 : v;
+    if (min < 1) return (min * 60).toFixed(0) + 's';
+    return min.toFixed(1) + ' min';
+  };
 
   // Detect which SLs actually exist in the data — MUST be before early return to keep hook count stable
   const availableSLs = useMemo(() => {
@@ -2948,9 +2961,9 @@ function runForecast(shifts, settings, dynamicRoster) {
     startDate.setHours(0, 0, 0, 0);
   }
 
-  // Build hourly aggregates for 57 hours
+  // Build hourly aggregates for 7 days
   const hours = [];
-  for (let h = 0; h < 57; h++) {
+  for (let h = 0; h < FORECAST_HOURS; h++) {
     const hourStart = new Date(startDate.getTime() + h * 3600000);
     const hourEnd = new Date(hourStart.getTime() + 3600000);
 
@@ -3035,7 +3048,7 @@ function runForecast(shifts, settings, dynamicRoster) {
     });
 
     hours.push({
-      relHour: h, label: hourLabel(h), time: hourStart,
+      relHour: h, label: hourLabel(h, startDate), time: hourStart,
       headcount, oncallCount, avgVph, arrivals, bucket,
       totalMiss, totalOver30, totalOver60,
       openShifts, openIncentivized,
@@ -4016,7 +4029,11 @@ function StaffingTab({ shiftScheduleData, setShiftScheduleData, masterRoster, sh
         {weekOptions.length > 1 && (
           <label>Week <select value={viewWeek} onChange={e => setViewWeek(e.target.value)} style={{padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}>
             <option value="">All weeks (avg)</option>
-            {weekOptions.map(w => <option key={w} value={w}>Week of {w}</option>)}
+            {weekOptions.map(w => {
+              const d = new Date(w + 'T12:00:00'); // noon to avoid timezone issues
+              const label = !isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { timeZone: CT_TZ, month: 'short', day: 'numeric' }) : w;
+              return <option key={w} value={w}>Week of {label}</option>;
+            })}
           </select></label>
         )}
         {slOptions.length > 1 && <MultiSelect label="Service Line" options={slOptions} selected={selSLs} onChange={setSelSLs} />}
@@ -8238,6 +8255,9 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       stateBreakdown: {},
       // Clinician-level detail
       clinicianHours: {},
+      // Partner & modality breakdowns
+      partnerBreakdown: {},
+      modalityBreakdown: {},
       // Hourly arrival pattern (24 buckets, 0-23)
       hourlyArrivals: new Array(24).fill(0),
       // Dimensional breakdowns
@@ -8269,11 +8289,27 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       if (sla.includes('met') || sla.includes('within')) result.slaMet++;
       else if (sla.includes('miss') || sla.includes('breach') || sla.includes('over')) result.slaMissed++;
 
-      const rt = cm.responseTime ? parseFloat(r[cm.responseTime]) : NaN;
-      if (!isNaN(rt)) result.avgResponseMin += rt;
+      const rt = parseResponseTimeRobust(cm.responseTime ? r[cm.responseTime] : '');
+      if (rt != null && rt >= 0) result.avgResponseMin += rt;
 
       const state = cm.state ? (r[cm.state] || '') : '';
       if (state) result.stateBreakdown[state] = (result.stateBreakdown[state] || 0) + 1;
+
+      // Partner & modality extraction for breakdowns
+      const partner = cm.partner ? (r[cm.partner] || '').trim() : '';
+      if (partner) {
+        if (!result.partnerBreakdown[partner]) result.partnerBreakdown[partner] = { visits: 0, slaMet: 0, slaMissed: 0 };
+        result.partnerBreakdown[partner].visits++;
+        if (sla.includes('met') || sla.includes('within')) result.partnerBreakdown[partner].slaMet++;
+        else if (sla.includes('miss') || sla.includes('breach') || sla.includes('over')) result.partnerBreakdown[partner].slaMissed++;
+      }
+      const mod = cm.modality ? (r[cm.modality] || '').trim() : '';
+      if (mod) {
+        if (!result.modalityBreakdown[mod]) result.modalityBreakdown[mod] = { visits: 0, slaMet: 0, slaMissed: 0 };
+        result.modalityBreakdown[mod].visits++;
+        if (sla.includes('met') || sla.includes('within')) result.modalityBreakdown[mod].slaMet++;
+        else if (sla.includes('miss') || sla.includes('breach') || sla.includes('over')) result.modalityBreakdown[mod].slaMissed++;
+      }
 
       // Credential from actuals license type
       const cred = cm.licenseType ? (r[cm.licenseType] || '').toUpperCase() : '';
@@ -8609,9 +8645,10 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
                           if (aVal === 0 && bVal === 0) return null;
                           const delta = bVal - aVal;
                           const dev = aVal > 0 ? ((bVal - aVal) / aVal * 100) : (bVal > 0 ? 100 : 0);
-                          const devColor = Math.abs(dev) > 50 ? '#dc2626' : Math.abs(dev) > 25 ? '#d97706' : 'var(--text-muted)';
+                          const devColor = Math.abs(dev) < 10 ? 'var(--text-muted)' : dev > 0 ? '#059669' : '#dc2626';
+                          const devBg = Math.abs(dev) < 25 ? 'transparent' : dev > 0 ? '#f0fdf4' : '#fef2f2';
                           return (
-                            <tr key={h} style={{ background: Math.abs(dev) > 50 ? '#fef2f2' : Math.abs(dev) > 25 ? '#fffbeb' : 'transparent' }}>
+                            <tr key={h} style={{ background: devBg }}>
                               <td style={{ fontWeight: 600 }}>{fmtHr(h)}</td>
                               <td style={{ textAlign: 'right' }}>{aVal}</td>
                               <td style={{ textAlign: 'right' }}>{bVal}</td>
