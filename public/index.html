@@ -2184,12 +2184,34 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
     return rows;
   }, [actualsData, serviceLine, dateFrom, dateTo, cm]);
 
-  // Pre-filter shifts by SL + date range
+  // Build clinician→SL lookup from actuals (which have reliable SL via entity/partner)
+  const clinicianSLMap = useMemo(() => {
+    if (!filteredActuals) return {};
+    const map = {};
+    filteredActuals.forEach(r => {
+      const clin = cm.clinician ? normalizeName(r[cm.clinician] || '') : '';
+      if (!clin) return;
+      const sl = mapPartnerToSL(cm.partner ? (r[cm.partner] || '') : '') || mapEntityToSL(cm.entityName ? (r[cm.entityName] || '') : '');
+      if (sl && sl !== 'Mixed') map[clin] = sl;
+    });
+    return map;
+  }, [filteredActuals, cm]);
+
+  // Pre-filter shifts by SL + date range — with fallback SL detection
   const filteredShifts = useMemo(() => {
     if (!shiftScheduleData) return null;
     let rows = shiftScheduleData;
     if (serviceLine !== 'ALL') {
-      rows = rows.filter(r => (r.sl || '') === serviceLine);
+      rows = rows.filter(r => {
+        // Try shift's own SL tag first
+        if (r.sl === serviceLine) return true;
+        // Fallback: try entity name → SL mapping
+        const entitySL = r._entityName ? mapEntityToSL(r._entityName) : '';
+        if (entitySL === serviceLine) return true;
+        // Fallback: check if this clinician works this SL based on actuals
+        if (r.clinician && clinicianSLMap[normalizeName(r.clinician)] === serviceLine) return true;
+        return false;
+      });
     }
     if (dateFrom || dateTo) {
       const from = dateFrom ? new Date(dateFrom) : null;
@@ -2204,21 +2226,35 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
     return rows;
   }, [shiftScheduleData, serviceLine, dateFrom, dateTo]);
 
-  // Pre-filter incentives by date range
+  // Pre-filter incentives by SL + date range
+  // Incentives don't have SL — infer from clinician name via clinicianSLMap (built from actuals)
   const filteredIncentives = useMemo(() => {
     if (!incentiveData) return null;
-    if (!dateFrom && !dateTo) return incentiveData;
-    const from = dateFrom ? new Date(dateFrom) : null;
-    const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
-    return incentiveData.filter(r => {
-      const raw = icm.date ? r[icm.date] : (icm.launchedTime ? r[icm.launchedTime] : '');
-      const dt = parseDate(raw);
-      if (!dt) return false;
-      if (from && dt < from) return false;
-      if (to && dt > to) return false;
-      return true;
-    });
-  }, [incentiveData, dateFrom, dateTo, icm]);
+    let rows = incentiveData;
+    if (serviceLine !== 'ALL') {
+      rows = rows.filter(r => {
+        const clin = icm.clinician ? normalizeName(r[icm.clinician] || '') : '';
+        if (clin && clinicianSLMap[clin] === serviceLine) return true;
+        // Also try entity name on incentive row
+        const entity = icm.entityName ? (r[icm.entityName] || '') : '';
+        if (entity && mapEntityToSL(entity) === serviceLine) return true;
+        return false;
+      });
+    }
+    if (dateFrom || dateTo) {
+      const from = dateFrom ? new Date(dateFrom) : null;
+      const to = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+      rows = rows.filter(r => {
+        const raw = icm.date ? r[icm.date] : (icm.launchedTime ? r[icm.launchedTime] : '');
+        const dt = parseDate(raw);
+        if (!dt) return false;
+        if (from && dt < from) return false;
+        if (to && dt > to) return false;
+        return true;
+      });
+    }
+    return rows;
+  }, [incentiveData, serviceLine, dateFrom, dateTo, icm, clinicianSLMap]);
 
   // Weekly trend data across ALL dimensions
   const weeklyTrends = useMemo(() => {
@@ -2675,29 +2711,72 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       )}
 
       {/* By-Modality Breakdown */}
-      {modalityBreakdown.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-title">Modality Impact Analysis</div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Modality</th><th style={{textAlign:'right'}}>Volume</th><th style={{textAlign:'right'}}>Share</th><th style={{textAlign:'right'}}>SLA %</th><th style={{textAlign:'right'}}>Avg RT</th></tr>
-              </thead>
-              <tbody>
-                {(() => { const totalVol = modalityBreakdown.reduce((s, m) => s + m.volume, 0); return modalityBreakdown.map(m => (
-                  <tr key={m.modality}>
-                    <td style={{ fontWeight: 600 }}>{m.modality}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.volume.toLocaleString()}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{totalVol > 0 ? (m.volume / totalVol * 100).toFixed(1) + '%' : '—'}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: m.slaPct != null && m.slaPct < 85 ? 'var(--accent-red)' : undefined }}>{m.slaPct != null ? m.slaPct.toFixed(1) + '%' : '—'}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.avgRT != null ? fmtRT(m.avgRT) : '—'}</td>
-                  </tr>
-                )); })()}
-              </tbody>
-            </table>
+      {modalityBreakdown.length > 0 && (() => {
+        const totalVol = modalityBreakdown.reduce((s, m) => s + m.volume, 0);
+        const NON_VISIT_MODALITIES = ['lab_result', 'prior_auth', 'schedule_visit', 'async_lab_result', 'prior_authorization'];
+        const visitModalities = modalityBreakdown.filter(m => !NON_VISIT_MODALITIES.includes(m.modality.toLowerCase().replace(/\s+/g, '_')));
+        const nonVisitModalities = modalityBreakdown.filter(m => NON_VISIT_MODALITIES.includes(m.modality.toLowerCase().replace(/\s+/g, '_')));
+        const visitVol = visitModalities.reduce((s, m) => s + m.volume, 0);
+        const visitSla = visitModalities.reduce((s, m) => s + (m.slaMet || 0), 0);
+        const visitEligible = visitModalities.reduce((s, m) => s + (m.slaEligible || m.slaMet + (m.volume - m.slaMet) || m.volume), 0);
+
+        return (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-title">Modality Impact Analysis</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+              Visit modalities: {visitModalities.length} types, {visitVol.toLocaleString()} visits
+              {nonVisitModalities.length > 0 && <span> | Non-visit ({nonVisitModalities.map(m => m.modality).join(', ')}): {nonVisitModalities.reduce((s,m) => s + m.volume, 0).toLocaleString()} excluded from SLA</span>}
+            </div>
+            {/* Horizontal bar chart */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+              {visitModalities.slice(0, 8).map(m => {
+                const pct = totalVol > 0 ? (m.volume / totalVol * 100) : 0;
+                const slaColor = m.slaPct != null ? (m.slaPct < 80 ? '#dc2626' : m.slaPct < 90 ? '#d97706' : '#059669') : '#94a3b8';
+                return (
+                  <div key={m.modality} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                    <div style={{ width: 120, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.modality}>{m.modality}</div>
+                    <div style={{ flex: 1, height: 16, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
+                      <div style={{ width: pct + '%', height: '100%', background: slaColor, borderRadius: 3, transition: 'width 0.3s' }} />
+                    </div>
+                    <div style={{ width: 50, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.volume.toLocaleString()}</div>
+                    <div style={{ width: 50, textAlign: 'right', fontFamily: 'var(--font-mono)', color: slaColor, fontWeight: 600 }}>{m.slaPct != null ? m.slaPct.toFixed(0) + '%' : '—'}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <details>
+              <summary style={{ cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Full Modality Table ({modalityBreakdown.length} types)</summary>
+              <div className="table-wrap" style={{ marginTop: 8 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ cursor: 'pointer' }}>Modality</th>
+                      <th style={{ textAlign: 'right', cursor: 'pointer' }}>Volume</th>
+                      <th style={{ textAlign: 'right' }}>Share</th>
+                      <th style={{ textAlign: 'right', cursor: 'pointer' }}>SLA %</th>
+                      <th style={{ textAlign: 'right', cursor: 'pointer' }}>Avg RT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalityBreakdown.map(m => (
+                      <tr key={m.modality} style={{ opacity: NON_VISIT_MODALITIES.includes(m.modality.toLowerCase().replace(/\s+/g, '_')) ? 0.5 : 1 }}>
+                        <td style={{ fontWeight: 600 }}>
+                          {m.modality}
+                          {NON_VISIT_MODALITIES.includes(m.modality.toLowerCase().replace(/\s+/g, '_')) && <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>(non-visit)</span>}
+                        </td>
+                        <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.volume.toLocaleString()}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{totalVol > 0 ? (m.volume / totalVol * 100).toFixed(1) + '%' : '—'}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: m.slaPct != null && m.slaPct < 85 ? 'var(--accent-red)' : undefined }}>{m.slaPct != null ? m.slaPct.toFixed(1) + '%' : '—'}</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.avgRT != null ? fmtRT(m.avgRT) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -3377,6 +3456,11 @@ function ForecastTab({ rosterData, onForecastComplete, masterRoster }) {
           </div>
         ) : (
           <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ background: 'var(--accent-teal-soft)', color: 'var(--accent-teal-dark)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>SL: {serviceLine}</span>
+              <span>{FORECAST_HOURS / 24}-day forecast from {forecast.hours[0]?.label || '?'} to {forecast.hours[forecast.hours.length-1]?.label || '?'}</span>
+              <span>{rosterData?.length || 0} shifts loaded</span>
+            </div>
             <div className="kpi-grid">
               <KpiCard label="Expected Volume" value={forecast.totalArrivals.toFixed(0)} sub="modeled arrivals" />
               <KpiCard label="SLA Hit Rate" value={forecast.slaRate.toFixed(1) + '%'} className={forecast.slaRate < 80 ? 'alert' : forecast.slaRate < 90 ? 'warn' : 'good'} />
@@ -3549,13 +3633,15 @@ function RecommendationsPanel({ forecast, masterRoster, settings }) {
       });
     });
 
-    // Low VPH Alert
+    // Low VPH Alert — grouped with top offenders
     if (masterRoster) {
-      const lowVph = masterRoster.filter(c => c.vph > 0 && c.vph < 1.0);
+      const lowVph = masterRoster.filter(c => c.vph > 0 && c.vph < 1.0).sort((a, b) => a.vph - b.vph);
       if (lowVph.length > 0 && forecast.slaRate < 90) {
+        const top5 = lowVph.slice(0, 5).map(c => `${c.name} (${c.vph.toFixed(2)})`).join(', ');
+        const moreCount = lowVph.length > 5 ? ` +${lowVph.length - 5} more` : '';
         recs.push({
           type: 'vph', severity: 'medium',
-          text: `${lowVph.length} clinician(s) have computed VPH below 1.0 — review recent performance trends, consider coaching or workload adjustment`
+          text: `${lowVph.length} clinician(s) below 1.0 VPH — worst: ${top5}${moreCount}`
         });
       }
     }
@@ -4097,7 +4183,11 @@ function StaffingTab({ shiftScheduleData, setShiftScheduleData, masterRoster, sh
 
       {/* Credential Mix — averaged per week */}
       <details style={{marginTop:16}}>
-        <summary className="section-toggle">🩺 Credential Mix by Time Block (avg/week)</summary>
+        <summary className="section-toggle">🩺 Credential Mix by Time Block (avg/week)
+          <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
+            {selSLs.length > 0 ? `SL: ${selSLs.join(', ')}` : 'All SLs'} | {dateRange ? `${formatDate(dateRange.min)} – ${formatDate(dateRange.max)}` : 'All dates'} | {filtered.length} shifts
+          </span>
+        </summary>
         <div className="table-wrap">
           <table>
             <thead><tr><th>SL</th>{credMix.blocks.map(b => <th key={b} style={{textAlign:'center'}}>{b}</th>)}</tr></thead>
@@ -4124,7 +4214,11 @@ function StaffingTab({ shiftScheduleData, setShiftScheduleData, masterRoster, sh
 
       {/* Hourly Staffing Curve */}
       <details style={{marginTop:16}}>
-        <summary className="section-toggle">📈 Hourly Staffing Curve</summary>
+        <summary className="section-toggle">📈 Hourly Staffing Curve
+          <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
+            {selSLs.length > 0 ? `SL: ${selSLs.join(', ')}` : 'All SLs'} | {viewWeek ? `Week of ${viewWeek}` : `${numWeeks}-wk avg`}
+          </span>
+        </summary>
         <ChartWrapper config={{
           type: 'bar', data: {
             labels: Array.from({length:24}, (_, h) => `${String(h).padStart(2,'0')}:00`),
@@ -8357,7 +8451,8 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
 
     result.headcount = clinicians.size;
     const slaTotal = result.slaMet + result.slaMissed;
-    result.slaPct = slaTotal > 0 ? (result.slaMet / slaTotal * 100) : 0;
+    result.slaPct = slaTotal >= 5 ? (result.slaMet / slaTotal * 100) : null; // null = insufficient data (< 5 eligible)
+    result.slaEligible = slaTotal;
     result.avgResponseMin = actuals.length > 0 ? result.avgResponseMin / actuals.length : 0;
     // Finalize partner avg RT
     Object.values(result.partnerBreakdown).forEach(pb => { pb.avgRT = pb.visits > 0 ? pb.rtSum / pb.visits : 0; });
@@ -8485,12 +8580,14 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
 
   const compRow = (label, a, b, format, deltaType) => {
     const fmtVal = format === '$' ? fmt$ : format === '%' ? fmtPct : v => Math.round(v).toLocaleString();
-    const d = fmtDelta(a, b, deltaType || 'neutral');
+    const aNull = a === null || a === undefined;
+    const bNull = b === null || b === undefined;
+    const d = (aNull || bNull) ? { text: '—', color: 'var(--text-muted)' } : fmtDelta(a, b, deltaType || 'neutral');
     return (
       <tr key={label}>
         <td style={{ fontWeight: 600, fontSize: 12 }}>{label}</td>
-        <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{fmtVal(a)}</td>
-        <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{fmtVal(b)}</td>
+        <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{aNull ? <span style={{color:'var(--text-muted)',fontSize:10}}>N/A</span> : fmtVal(a)}</td>
+        <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{bNull ? <span style={{color:'var(--text-muted)',fontSize:10}}>N/A</span> : fmtVal(b)}</td>
         <td style={{ fontFamily: 'var(--font-mono)', textAlign: 'right', color: d.color, fontSize: 11 }}>{d.text}</td>
       </tr>
     );
@@ -9022,7 +9119,9 @@ function ForecastVsActual({ forecast, actualsData, shiftScheduleData, cm }) {
     <div className="card" style={{ marginTop: 20, borderTop: '3px solid var(--accent-teal)' }}>
       <div className="card-title" style={{ fontSize: 14 }}>🎯 Forecast vs Actual</div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-        Comparing model predictions to actual performance. {s.matchedHours} hours matched.
+        Comparing model predictions to actual performance. <strong>{s.matchedHours} of {comparison.rows.length} forecast hours</strong> have matching actuals data.
+        {s.matchedHours === 0 && <span style={{ color: 'var(--accent-orange)', fontWeight: 600 }}> — No overlap between forecast window and actuals dates. Upload actuals that cover today/this week to see comparisons.</span>}
+        {s.matchedHours > 0 && s.matchedHours < 24 && <span> Only hours where both forecast and actuals exist are compared.</span>}
       </div>
 
       {/* Summary KPIs */}
