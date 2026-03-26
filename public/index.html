@@ -8389,14 +8389,7 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
       const state = cm.state ? (r[cm.state] || '') : '';
       if (state) result.stateBreakdown[state] = (result.stateBreakdown[state] || 0) + 1;
 
-      // Partner & modality extraction for breakdowns
-      const partner = cm.partner ? (r[cm.partner] || '').trim() : '';
-      if (partner) {
-        if (!result.partnerBreakdown[partner]) result.partnerBreakdown[partner] = { visits: 0, slaMet: 0, slaMissed: 0 };
-        result.partnerBreakdown[partner].visits++;
-        if (sla.includes('met') || sla.includes('within')) result.partnerBreakdown[partner].slaMet++;
-        else if (sla.includes('miss') || sla.includes('breach') || sla.includes('over')) result.partnerBreakdown[partner].slaMissed++;
-      }
+      // Modality extraction for breakdowns
       const mod = cm.modality ? (r[cm.modality] || '').trim() : '';
       if (mod) {
         if (!result.modalityBreakdown[mod]) result.modalityBreakdown[mod] = { visits: 0, slaMet: 0, slaMissed: 0 };
