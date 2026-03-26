@@ -1406,22 +1406,34 @@ function parseCSVLine(line) {
 // ALL times in this app are Central Time (America/Chicago), regardless of browser locale.
 const CT_TZ = 'America/Chicago';
 
-// Get CT components from a Date object
+// Get CT components from a Date object — with LRU cache for performance
+const _ctPartsCache = new Map();
+const _CT_PARTS_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: CT_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+});
+const _CT_DOW_FMT = new Intl.DateTimeFormat('en-US', { timeZone: CT_TZ, weekday: 'short' });
+
 function ctParts(d) {
-  // Intl.DateTimeFormat gives us the date/time parts in CT
+  // Cache by hour-truncated timestamp (all dates in same hour get same parts except minute/second)
+  const hourKey = Math.floor(d.getTime() / 3600000);
+  let cached = _ctPartsCache.get(hourKey);
+  if (cached) return { ...cached, minute: d.getMinutes(), second: d.getSeconds() };
+
   const parts = {};
-  new Intl.DateTimeFormat('en-US', {
-    timeZone: CT_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-  }).formatToParts(d).forEach(p => { parts[p.type] = p.value; });
-  return {
+  _CT_PARTS_FMT.formatToParts(d).forEach(p => { parts[p.type] = p.value; });
+  const dow = _CT_DOW_FMT.format(d);
+  const result = {
     year: parseInt(parts.year), month: parseInt(parts.month) - 1, day: parseInt(parts.day),
     hour: parseInt(parts.hour === '24' ? '0' : parts.hour), minute: parseInt(parts.minute), second: parseInt(parts.second),
-    dow: new Intl.DateTimeFormat('en-US', { timeZone: CT_TZ, weekday: 'short' }).format(d),
-    dowIndex: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(
-      new Intl.DateTimeFormat('en-US', { timeZone: CT_TZ, weekday: 'short' }).format(d)
-    ),
+    dow,
+    dowIndex: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(dow),
   };
+
+  // Keep cache bounded
+  if (_ctPartsCache.size > 50000) _ctPartsCache.clear();
+  _ctPartsCache.set(hourKey, result);
+  return result;
 }
 
 // Get CT hour (0-23) from a Date
