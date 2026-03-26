@@ -1644,6 +1644,28 @@ function isCanceled(row, cm) {
   return status.includes('cancel') || slaStatus.includes('cancel') || sliDetails.includes('cancel');
 }
 
+// ====== MODALITY EXCLUSION SYSTEM ======
+// Modalities excluded by default from SLA, volume, and VPH calculations.
+// Users can include/exclude any modality via the filter control.
+const DEFAULT_EXCLUDED_MODALITIES = ['chart_addendum', 'prior_authorization'];
+
+// Normalize modality string for comparison
+function normalizeModality(mod) {
+  return (mod || '').toLowerCase().trim().replace(/[\s-]+/g, '_');
+}
+
+// Check if a row should be excluded based on modality
+function isExcludedModality(row, cm, excludedSet) {
+  if (!excludedSet || excludedSet.size === 0) return false;
+  const mod = cm.modality ? (row[cm.modality] || '') : '';
+  return excludedSet.has(normalizeModality(mod));
+}
+
+// Combined check: canceled OR excluded modality
+function isExcludedRow(row, cm, excludedSet) {
+  return isCanceled(row, cm) || isExcludedModality(row, cm, excludedSet);
+}
+
 // Check if a row's SLA was met — handles all known value formats
 function isSlaMet(row, cm) {
   const sla = (cm.slaStatus ? (row[cm.slaStatus] || '') : '').toLowerCase().trim();
@@ -2145,8 +2167,112 @@ function MultiSelectDropdown({ label, options, selected, onChange, color }) {
   );
 }
 
+// ========================== MODALITY EXCLUSION FILTER ==========================
+// Dropdown with checkboxes for each modality found in data.
+// Excluded modalities are removed from SLA, volume, VPH calculations globally.
+function ModalityExclusionFilter({ actualsData, cm, excludedModalities, setExcludedModalities }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = React.useRef(null);
+  const panelRef = React.useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  // Discover all modalities from actuals data
+  const allModalities = useMemo(() => {
+    if (!actualsData || !cm.modality) return [];
+    const counts = {};
+    actualsData.forEach(r => {
+      const mod = (r[cm.modality] || '').trim();
+      if (mod) counts[mod] = (counts[mod] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([mod, count]) => ({
+      raw: mod, normalized: normalizeModality(mod), count
+    }));
+  }, [actualsData, cm]);
+
+  React.useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = e => {
+      if (btnRef.current && btnRef.current.contains(e.target)) return;
+      if (panelRef.current && panelRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const toggle = (normalized) => {
+    const next = new Set(excludedModalities);
+    if (next.has(normalized)) next.delete(normalized);
+    else next.add(normalized);
+    setExcludedModalities(next);
+  };
+
+  const includeAll = () => setExcludedModalities(new Set());
+  const resetDefaults = () => setExcludedModalities(new Set(DEFAULT_EXCLUDED_MODALITIES));
+
+  const excludedCount = excludedModalities.size;
+
+  if (allModalities.length === 0) return null;
+
+  return (
+    <div style={{ display: 'inline-block' }}>
+      <button ref={btnRef} onClick={() => setOpen(!open)}
+        style={{ padding: '4px 10px', fontSize: 11, border: excludedCount > 0 ? '1.5px solid #dc2626' : '1px solid var(--border)',
+          borderRadius: 4, background: excludedCount > 0 ? '#fef2f2' : 'white', color: excludedCount > 0 ? '#991b1b' : 'var(--text-secondary)',
+          cursor: 'pointer', fontWeight: excludedCount > 0 ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+        Modalities {excludedCount > 0 && <span style={{ background: '#dc2626', color: 'white', borderRadius: 3, padding: '0 4px', fontSize: 9 }}>{excludedCount} excluded</span>}
+        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && ReactDOM.createPortal(
+        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 300, maxHeight: 400,
+          background: 'white', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+          zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+          {/* Header */}
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>Include/Exclude Modalities</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={includeAll} style={{ fontSize: 9, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 3, background: 'white', cursor: 'pointer', color: 'var(--accent-teal-dark)' }}>Include All</button>
+              <button onClick={resetDefaults} style={{ fontSize: 9, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 3, background: 'white', cursor: 'pointer', color: 'var(--text-muted)' }}>Reset Defaults</button>
+            </div>
+          </div>
+          <div style={{ fontSize: 9, padding: '4px 10px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', background: '#f8fafc' }}>
+            Unchecked modalities are excluded from SLA, volume, and VPH calculations
+          </div>
+          {/* Modality list */}
+          <div style={{ overflowY: 'auto', flex: 1, padding: '4px 0' }}>
+            {allModalities.map(m => {
+              const isIncluded = !excludedModalities.has(m.normalized);
+              const isDefault = DEFAULT_EXCLUDED_MODALITIES.includes(m.normalized);
+              return (
+                <label key={m.normalized} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', cursor: 'pointer',
+                  fontSize: 12, background: isIncluded ? 'transparent' : '#fef2f2', opacity: isIncluded ? 1 : 0.7 }}
+                  onMouseOver={e => e.currentTarget.style.background = isIncluded ? '#f0fdf4' : '#fef2f2'}
+                  onMouseOut={e => e.currentTarget.style.background = isIncluded ? 'transparent' : '#fef2f2'}>
+                  <input type="checkbox" checked={isIncluded} onChange={() => toggle(m.normalized)}
+                    style={{ width: 14, height: 14, accentColor: '#059669', cursor: 'pointer' }} />
+                  <span style={{ flex: 1, fontWeight: isDefault ? 600 : 400 }}>{m.raw}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{m.count.toLocaleString()}</span>
+                  {isDefault && !isIncluded && <span style={{ fontSize: 8, color: '#dc2626', fontWeight: 700 }}>DEFAULT</span>}
+                </label>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ========================== TAB: EXECUTIVE OVERVIEW ==========================
-function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, masterRoster }) {
+function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, masterRoster, excludedModalities, setExcludedModalities }) {
   const [serviceLine, setServiceLine] = useState('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -2181,8 +2307,12 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
         return true;
       });
     }
+    // Exclude modalities
+    if (excludedModalities && excludedModalities.size > 0) {
+      rows = rows.filter(r => !isExcludedModality(r, cm, excludedModalities));
+    }
     return rows;
-  }, [actualsData, serviceLine, dateFrom, dateTo, cm]);
+  }, [actualsData, serviceLine, dateFrom, dateTo, cm, excludedModalities]);
 
   // Build clinician→SL lookup from actuals (which have reliable SL via entity/partner)
   const clinicianSLMap = useMemo(() => {
@@ -2571,6 +2701,7 @@ function OverviewTab({ actualsData, shiftScheduleData, incentiveData, vphData, m
       {/* Filters */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <SLFilter value={serviceLine} onChange={setServiceLine} />
+        <ModalityExclusionFilter actualsData={actualsData} cm={cm} excludedModalities={excludedModalities} setExcludedModalities={setExcludedModalities} />
         <label style={{ fontSize: 11, display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-muted)' }}>
           <span style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>From</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -4275,7 +4406,7 @@ function StaffingTab({ shiftScheduleData, setShiftScheduleData, masterRoster, sh
 }
 
 // ========================== TAB: PERFORMANCE ==========================
-function PerformanceTab({ actualsData, lookbackWeeks }) {
+function PerformanceTab({ actualsData, lookbackWeeks, excludedModalities, setExcludedModalities }) {
   const [serviceLine, setServiceLine] = useState('ALL');
   // Multi-select filter state — empty array = "all"
   const [selPartners, setSelPartners] = useState([]);
@@ -4317,11 +4448,17 @@ function PerformanceTab({ actualsData, lookbackWeeks }) {
     });
   }, [actualsData, serviceLine, cm]);
 
+  // Exclude globally excluded modalities (chart_addendum, prior_auth, etc)
+  const slFilteredNoExcluded = useMemo(() => {
+    if (!excludedModalities || excludedModalities.size === 0) return slFilteredBase;
+    return slFilteredBase.filter(r => !isExcludedModality(r, cm, excludedModalities));
+  }, [slFilteredBase, excludedModalities, cm]);
+
   // Exclude scheduled modalities by default
   const slFilteredNoSched = useMemo(() => {
-    if (includeScheduled) return slFilteredBase;
-    return slFilteredBase.filter(r => classifyModality(rowModality(r)) !== 'Scheduled');
-  }, [slFilteredBase, includeScheduled, rowModality]);
+    if (includeScheduled) return slFilteredNoExcluded;
+    return slFilteredNoExcluded.filter(r => classifyModality(rowModality(r)) !== 'Scheduled');
+  }, [slFilteredNoExcluded, includeScheduled, rowModality]);
 
   // Apply date range filter
   const slFiltered = useMemo(() => {
@@ -4602,7 +4739,10 @@ function PerformanceTab({ actualsData, lookbackWeeks }) {
 
   return (
     <div>
-      <SLFilter value={serviceLine} onChange={setServiceLine} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <SLFilter value={serviceLine} onChange={setServiceLine} />
+        <ModalityExclusionFilter actualsData={actualsData} cm={cm} excludedModalities={excludedModalities} setExcludedModalities={setExcludedModalities} />
+      </div>
       {/* Date range + cascading multi-select filters */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <label style={{fontSize:12, display:'flex', flexDirection:'column', gap:2}}>From
@@ -8175,7 +8315,7 @@ function IncentiveTab({ incentiveData, manualIncentiveData }) {
 }
 
 // ========================== TAB: COMPARE (PERIOD vs PERIOD) ==========================
-function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncentiveData, forecast }) {
+function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncentiveData, forecast, excludedModalities }) {
   const [slFilter, setSlFilter] = useState('ALL');
   const [partnerFilter, setPartnerFilter] = useState([]);  // empty = ALL
   const [programFilter, setProgramFilter] = useState([]);
@@ -8310,11 +8450,13 @@ function CompareTab({ actualsData, shiftScheduleData, incentiveData, manualIncen
         const m = (r[cm.modality] || '').trim();
         if (!modalityFilter.includes(m)) return false;
       }
+      // Global modality exclusion (chart_addendum, prior_auth, etc)
+      if (excludedModalities && excludedModalities.size > 0 && isExcludedModality(r, cm, excludedModalities)) return false;
       const dt = dateFn(r);
       if (!dt) return false;
       return dt >= from && dt <= to;
     });
-  }, [slFilter, partnerFilter, programFilter, modalityFilter, cm]);
+  }, [slFilter, partnerFilter, programFilter, modalityFilter, excludedModalities, cm]);
 
   const actualDateFn = useCallback(r => parseDate(cm.date ? r[cm.date] : ''), [cm]);
   // Parsed shifts have .start as Date already; raw shifts have column name
@@ -10839,6 +10981,9 @@ function App() {
   const [lookbackValue, setLookbackValue] = useState('6w');
   const [status, setStatus] = useState('ready');
 
+  // Global modality exclusion — chart_addendum and prior_authorization excluded by default
+  const [excludedModalities, setExcludedModalities] = useState(() => new Set(DEFAULT_EXCLUDED_MODALITIES));
+
   // Data stores
   const [rosterData, setRosterData] = useState(null);
   const [actualsData, setActualsData] = useState(null);
@@ -11264,7 +11409,7 @@ function App() {
       <div className="content">
         {restoring && <div className="card" style={{ textAlign: 'center', padding: 40 }}>Restoring your data...</div>}
         {activeTab === 'overview' && (
-          <OverviewTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData ? (manualIncentiveData ? [...incentiveData, ...manualIncentiveData] : incentiveData) : manualIncentiveData} vphData={vphData} masterRoster={masterRoster} />
+          <OverviewTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData ? (manualIncentiveData ? [...incentiveData, ...manualIncentiveData] : incentiveData) : manualIncentiveData} vphData={vphData} masterRoster={masterRoster} excludedModalities={excludedModalities} setExcludedModalities={setExcludedModalities} />
         )}
         {activeTab === 'forecast' && (
           <ForecastTab rosterData={rosterData} onForecastComplete={setForecast} masterRoster={masterRoster} />
@@ -11273,7 +11418,7 @@ function App() {
           <StaffingTab shiftScheduleData={shiftScheduleData} setShiftScheduleData={setShiftScheduleData} masterRoster={masterRoster} showToast={showToast} onShiftUpload={handleShiftUpload} />
         )}
         {activeTab === 'performance' && (
-          <PerformanceTab key={refreshTick} actualsData={actualsData} lookbackWeeks={lookbackDays} />
+          <PerformanceTab key={refreshTick} actualsData={actualsData} lookbackWeeks={lookbackDays} excludedModalities={excludedModalities} setExcludedModalities={setExcludedModalities} />
         )}
         {activeTab === 'insights' && (
           <InsightsTab actualsData={actualsData} forecast={forecast} history={history} masterRoster={masterRoster} shiftScheduleData={shiftScheduleData} calloutData={calloutData} />
@@ -11300,7 +11445,7 @@ function App() {
           <IncentiveTab key={refreshTick} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} />
         )}
         {activeTab === 'compare' && (
-          <CompareTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} forecast={forecast} />
+          <CompareTab actualsData={actualsData} shiftScheduleData={shiftScheduleData} incentiveData={incentiveData} manualIncentiveData={manualIncentiveData} forecast={forecast} excludedModalities={excludedModalities} />
         )}
         {activeTab === 'weeklyPerf' && (
           <WeeklyPerfTab weeklyPerfData={weeklyPerfData} setWeeklyPerfData={setWeeklyPerfData} showToast={showToast} />
