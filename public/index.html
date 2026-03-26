@@ -1666,6 +1666,74 @@ function isExcludedRow(row, cm, excludedSet) {
   return isCanceled(row, cm) || isExcludedModality(row, cm, excludedSet);
 }
 
+// ====== PRE-AGGREGATION ENGINE ======
+// Pre-computes daily summaries from raw actuals on upload.
+// Tabs use these ~500-row summaries instead of filtering 55k+ raw rows on every interaction.
+function preAggregateActuals(rawRows, cm) {
+  if (!rawRows || rawRows.length === 0) return null;
+  const t0 = performance.now();
+
+  // Group by (date, SL, partner, modality, state, clinician, program)
+  const dailyMap = {};
+  const ensure = (key) => {
+    if (!dailyMap[key]) dailyMap[key] = {
+      date: '', sl: '', partner: '', modality: '', state: '', clinician: '', program: '',
+      total: 0, canceled: 0, slaMet: 0, slaMissed: 0, slaUnknown: 0,
+      rtSum: 0, rtCount: 0, rtValues: [],
+      hour: null, dow: null, normalizedModality: '',
+    };
+    return dailyMap[key];
+  };
+
+  rawRows.forEach(r => {
+    const dt = parseDate(cm.date ? r[cm.date] : '');
+    const dateStr = dt ? ctDateStr(dt) : 'unknown';
+    const partner = cm.partner ? (r[cm.partner] || '').trim() : '';
+    const entityVal = cm.entityName ? (r[cm.entityName] || '').trim() : '';
+    const sl = mapPartnerToSL(partner) || mapEntityToSL(entityVal) || r._detectedSL || '';
+    const modality = cm.modality ? (r[cm.modality] || '').trim() : '';
+    const state = cm.state ? (r[cm.state] || '').trim() : '';
+    const clinician = cm.clinician ? (r[cm.clinician] || '').trim() : '';
+    const program = cm.program ? (r[cm.program] || '').trim() : '';
+
+    const key = `${dateStr}|${sl}|${partner}|${modality}|${state}`;
+    const agg = ensure(key);
+    agg.date = dateStr;
+    agg.sl = sl;
+    agg.partner = partner;
+    agg.modality = modality;
+    agg.state = state;
+    agg.normalizedModality = normalizeModality(modality);
+    if (!agg.clinicians) agg.clinicians = new Set();
+    if (clinician) agg.clinicians.add(clinician.toLowerCase());
+    agg.program = agg.program || program;
+    if (dt) { agg.hour = ctHour(dt); agg.dow = ctDow(dt); }
+
+    const canceled = isCanceled(r, cm);
+    if (canceled) { agg.canceled++; agg.total++; return; }
+    agg.total++;
+
+    if (isSlaMet(r, cm)) agg.slaMet++;
+    else if (isSlaMissed(r, cm)) agg.slaMissed++;
+    else agg.slaUnknown++;
+
+    const rt = parseResponseTimeRobust(cm.responseTime ? r[cm.responseTime] : '');
+    if (rt !== null && rt >= 0) { agg.rtSum += rt; agg.rtCount++; }
+  });
+
+  // Convert to array and finalize
+  const rows = Object.values(dailyMap).map(a => {
+    a.clinicianCount = a.clinicians ? a.clinicians.size : 0;
+    delete a.clinicians; // don't keep the Set
+    a.avgRT = a.rtCount > 0 ? a.rtSum / a.rtCount : null;
+    a.slaPct = (a.slaMet + a.slaMissed) > 0 ? (a.slaMet / (a.slaMet + a.slaMissed) * 100) : null;
+    return a;
+  });
+
+  console.log(`[preAggregate] ${rawRows.length} raw rows → ${rows.length} aggregate rows in ${(performance.now() - t0).toFixed(0)}ms`);
+  return rows;
+}
+
 // Check if a row's SLA was met — handles all known value formats
 function isSlaMet(row, cm) {
   const sla = (cm.slaStatus ? (row[cm.slaStatus] || '') : '').toLowerCase().trim();
@@ -4418,6 +4486,14 @@ function PerformanceTab({ actualsData, lookbackWeeks, excludedModalities, setExc
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // Deferred rendering — show spinner while heavy computation runs
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(false);
+    const t = setTimeout(() => setReady(true), 50); // yield to browser, then compute
+    return () => clearTimeout(t);
+  }, [actualsData]);
+
   // Build column map from actual data
   const cm = useMemo(() => buildColMap(actualsData), [actualsData]);
 
@@ -4736,6 +4812,15 @@ function PerformanceTab({ actualsData, lookbackWeeks, excludedModalities, setExc
       }
     };
   }, [trendBuckets]);
+
+  if (!ready || !actualsData) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+        <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Processing {actualsData ? actualsData.length.toLocaleString() + ' records' : 'data'}...</div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -10984,6 +11069,9 @@ function App() {
   // Global modality exclusion — chart_addendum and prior_authorization excluded by default
   const [excludedModalities, setExcludedModalities] = useState(() => new Set(DEFAULT_EXCLUDED_MODALITIES));
 
+  // Pre-aggregated actuals — computed once on upload, used by tabs instead of raw 55k rows
+  const [actualsAgg, setActualsAgg] = useState(null);
+
   // Data stores
   const [rosterData, setRosterData] = useState(null);
   const [actualsData, setActualsData] = useState(null);
@@ -10996,6 +11084,18 @@ function App() {
   });
   const [shiftScheduleData, setShiftScheduleData] = useState(null);
   const [forecast, setForecast] = useState(null);
+
+  // Pre-aggregate actuals when data changes (deferred to not block render)
+  useEffect(() => {
+    if (!actualsData || actualsData.length === 0) { setActualsAgg(null); return; }
+    const cm = buildColMap(actualsData);
+    // Defer to next frame so UI doesn't freeze
+    const t = setTimeout(() => {
+      const agg = preAggregateActuals(actualsData, cm);
+      setActualsAgg(agg);
+    }, 100);
+    return () => clearTimeout(t);
+  }, [actualsData]);
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('smw_history') || '[]'); } catch { return []; }
   });
