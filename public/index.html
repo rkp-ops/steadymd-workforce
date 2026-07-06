@@ -368,6 +368,28 @@ const SUPABASE_URL = 'https://eeszygextbqglayglvfm.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_txIrKbYtv9kjSKXjQVJFbw_hzUsLNEK';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ========================== ACCESS MODEL (app_user grant — Spec v1.10 §1) ==========================
+// Access is deny-by-default and by invitation only. The `app_user` row IS the
+// grant. resolveAppUser() binds the caller's auth_uid to their provisioned row
+// (matched on verified email) on first sign-in, then returns the active grant —
+// or null if the caller is not provisioned or is disabled. An authenticated
+// stranger is NOT a viewer. Server-side RLS is the real boundary; this is UX.
+async function resolveAppUser() {
+  try {
+    const { data, error } = await supabase.rpc('claim_app_user');
+    if (error) { console.warn('[resolveAppUser]', error.message); return null; }
+    const row = Array.isArray(data) ? data[0] : data;
+    return (row && row.status === 'active') ? row : null;
+  } catch (e) { console.warn('[resolveAppUser] exception', e); return null; }
+}
+
+// Append an access-log row (spec §1: log uid/view/span/timestamp before
+// surfacing clinician-level data). Best-effort; never blocks the UI.
+async function logAccess(view, span) {
+  try { await supabase.rpc('log_access', { p_view: view, p_span: span || null }); }
+  catch (e) { /* non-critical */ }
+}
+
 // ========================== UPLOAD PERSISTENCE (Supabase) ==========================
 // ====== DATA PERSISTENCE via Supabase Storage (not DB jsonb — avoids bloat) ======
 // Saves upload data as JSON files in Supabase Storage bucket 'uploads'
@@ -1012,7 +1034,7 @@ function formatWow(current, prev, type) {
 }
 
 // Auth context — provides current user to the entire app
-const AuthContext = React.createContext({ user: null, profile: null, signOut: () => {} });
+const AuthContext = React.createContext({ user: null, appUser: null, role: null, profile: null, signOut: () => {} });
 
 function useAuth() { return React.useContext(AuthContext); }
 
@@ -1020,11 +1042,11 @@ function useAuth() { return React.useContext(AuthContext); }
 function LoginPage({ onAuth }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [mode, setMode] = useState('login'); // 'login' | 'signup'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Sign-in only. Access is by invitation (deny-by-default allowlist, spec §1):
+  // there is no self-signup — an admin provisions each person's app_user grant.
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -1034,59 +1056,14 @@ function LoginPage({ onAuth }) {
     onAuth(data.user);
   };
 
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    if (!fullName.trim()) { setError('Full name is required'); return; }
-    setLoading(true);
-    setError('');
-    const { data, error: err } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName.trim() } }
-    });
-    if (err) { setError(err.message); setLoading(false); return; }
-    if (data.user && !data.user.email_confirmed_at) {
-      setError('');
-      setMode('confirm');
-      setLoading(false);
-      return;
-    }
-    onAuth(data.user);
-  };
-
-  if (mode === 'confirm') {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
-        <div style={{ background: '#fff', borderRadius: 12, padding: '40px 32px', maxWidth: 400, width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
-          <h2 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>Check Your Email</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 20 }}>
-            We sent a confirmation link to <strong>{email}</strong>. Click the link in the email, then come back here and log in.
-          </p>
-          <button className="btn btn-primary" onClick={() => setMode('login')} style={{ width: '100%' }}>
-            Back to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
       <div style={{ background: '#fff', borderRadius: 12, padding: '40px 32px', maxWidth: 400, width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <h1 style={{ color: 'var(--text-primary)', fontSize: 22, margin: '0 0 4px' }}>SteadyMD Workforce Intelligence</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>{mode === 'login' ? 'Sign in to continue' : 'Create your account'}</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Sign in to continue</p>
         </div>
-        <form onSubmit={mode === 'login' ? handleLogin : handleSignup}>
-          {mode === 'signup' && (
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Full Name</label>
-              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-                placeholder="Jane Smith"
-                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
-            </div>
-          )}
+        <form onSubmit={handleLogin}>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Email</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
@@ -1096,20 +1073,16 @@ function LoginPage({ onAuth }) {
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              placeholder={mode === 'signup' ? 'Min 6 characters' : '••••••••'}
+              placeholder="••••••••"
               style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' }} />
           </div>
           {error && <div style={{ background: 'var(--accent-red-soft)', color: 'var(--accent-red)', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 12 }}>{error}</div>}
           <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>
-            {loading ? '...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+            {loading ? '...' : 'Sign In'}
           </button>
         </form>
-        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>
-          {mode === 'login' ? (
-            <span>No account? <button onClick={() => { setMode('signup'); setError(''); }} style={{ background: 'none', border: 'none', color: 'var(--accent-teal)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Sign up</button></span>
-          ) : (
-            <span>Already have an account? <button onClick={() => { setMode('login'); setError(''); }} style={{ background: 'none', border: 'none', color: 'var(--accent-teal)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Sign in</button></span>
-          )}
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--text-muted)' }}>
+          Access is by invitation. Contact your administrator to be added.
         </div>
       </div>
     </div>
@@ -1119,42 +1092,42 @@ function LoginPage({ onAuth }) {
 // ========================== AUTH WRAPPER ==========================
 function AuthWrapper() {
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [appUser, setAppUser] = useState(null);    // the active grant, or null
+  const [resolved, setResolved] = useState(false); // grant lookup completed?
+  const [loading, setLoading] = useState(true);     // initial session check
+
+  // Resolve the authenticated user to their app_user grant. Deny-by-default:
+  // no active grant => appUser stays null => the app is not rendered.
+  const resolveGrant = async (u) => {
+    setResolved(false);
+    if (!u) { setAppUser(null); setResolved(true); return; }
+    const au = await resolveAppUser();
+    setAppUser(au);
+    setResolved(true);
+    if (au) logAccess('app.load', 'session');
+  };
 
   useEffect(() => {
-    // Check existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        loadProfile(session.user.id);
-      }
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) { setUser(session.user); await resolveGrant(session.user); }
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser(session.user);
-        loadProfile(session.user.id);
+        resolveGrant(session.user);
       } else {
-        setUser(null);
-        setProfile(null);
+        setUser(null); setAppUser(null); setResolved(false);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadProfile = async (userId) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (data) setProfile(data);
-  };
-
   const signOut = async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
+    setUser(null); setAppUser(null); setResolved(false);
   };
 
   if (loading) {
@@ -1169,13 +1142,156 @@ function AuthWrapper() {
   }
 
   if (!user) {
-    return <LoginPage onAuth={(u) => { setUser(u); loadProfile(u.id); }} />;
+    return <LoginPage onAuth={(u) => { setUser(u); resolveGrant(u); }} />;
   }
 
+  if (!resolved) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🔑</div>
+          <p>Checking access…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated but not provisioned (or disabled) — deny. A stranger who
+  // authenticated is not a viewer (spec §1).
+  if (!appUser) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div style={{ background: '#fff', borderRadius: 12, padding: '40px 32px', maxWidth: 440, width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>Access not provisioned</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 20 }}>
+            You're signed in as <strong>{user.email}</strong>, but this account hasn't been granted access.
+            Ask an administrator to add you, then sign in again.
+          </p>
+          <button className="btn btn-primary" onClick={signOut} style={{ width: '100%' }}>Sign out</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Compatibility shim so existing components that read profile.full_name /
+  // profile.role keep working, now sourced from the app_user grant.
+  const profile = { id: appUser.auth_uid, full_name: appUser.display_name || appUser.email, role: appUser.role, email: appUser.email };
+
   return (
-    <AuthContext.Provider value={{ user, profile, signOut }}>
+    <AuthContext.Provider value={{ user, appUser, role: appUser.role, profile, signOut }}>
       <App />
     </AuthContext.Provider>
+  );
+}
+
+// ========================== USERS ADMIN PANEL (admin only — Spec v1.10 §1) ==========================
+// Provision and manage the app_user allowlist. Admins only (RLS also enforces
+// this: app_user writes require is_admin()). Add a person by email; the grant
+// binds to their auth identity on their next sign-in (claim_app_user).
+function UsersAdminPanel({ onClose }) {
+  const { appUser } = useAuth();
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ email: '', display_name: '', role: 'viewer' });
+
+  const load = async () => {
+    const { data, error: e } = await supabase.from('app_user').select('*').order('created_at', { ascending: true });
+    if (e) { setError(e.message); return; }
+    setRows(data || []);
+  };
+  useEffect(() => { load(); }, []);
+
+  const addUser = async (e) => {
+    e.preventDefault();
+    const email = form.email.trim().toLowerCase();
+    if (!email) return;
+    setBusy(true); setError('');
+    const { error: e2 } = await supabase.from('app_user').insert({
+      email, display_name: form.display_name.trim() || null, role: form.role,
+      status: 'active', invited_by: appUser?.id || null,
+    });
+    setBusy(false);
+    if (e2) { setError(e2.message); return; }
+    setForm({ email: '', display_name: '', role: 'viewer' });
+    load();
+  };
+
+  const setRole = async (row, role) => { const { error: e } = await supabase.from('app_user').update({ role }).eq('id', row.id); if (e) setError(e.message); load(); };
+  const setStatus = async (row, status) => { const { error: e } = await supabase.from('app_user').update({ status }).eq('id', row.id); if (e) setError(e.message); load(); };
+
+  const inp = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' };
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '48px 16px', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 720, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text-primary)' }}>User Access</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 0, marginBottom: 16 }}>
+          Invitation-only allowlist. Add a person by email; access takes effect on their next sign-in. Admins upload &amp; manage users; viewers read and export.
+        </p>
+
+        <form onSubmit={addUser} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ flex: '1 1 200px' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Email</label>
+            <input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="person@steadymd.com" style={{ ...inp, width: '100%' }} />
+          </div>
+          <div style={{ flex: '1 1 140px' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Name</label>
+            <input type="text" value={form.display_name} onChange={e => setForm({ ...form, display_name: e.target.value })} placeholder="optional" style={{ ...inp, width: '100%' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Role</label>
+            <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} style={inp}>
+              <option value="viewer">viewer</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+          <button type="submit" disabled={busy} className="btn btn-primary btn-sm" style={{ padding: '8px 14px' }}>{busy ? '…' : 'Add'}</button>
+        </form>
+
+        {error && <div style={{ background: 'var(--accent-red-soft)', color: 'var(--accent-red)', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+
+        {rows === null ? <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</p> : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 11 }}>
+                <th style={{ padding: '6px 8px' }}>Email</th>
+                <th style={{ padding: '6px 8px' }}>Name</th>
+                <th style={{ padding: '6px 8px' }}>Role</th>
+                <th style={{ padding: '6px 8px' }}>Status</th>
+                <th style={{ padding: '6px 8px' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '6px 8px' }}>{r.email}{!r.auth_uid && <span title="Has not signed in yet" style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 11 }}>(pending)</span>}</td>
+                  <td style={{ padding: '6px 8px' }}>{r.display_name || '—'}</td>
+                  <td style={{ padding: '6px 8px' }}>
+                    <select value={r.role} onChange={e => setRole(r, e.target.value)} disabled={r.id === appUser?.id} style={{ padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }}>
+                      <option value="viewer">viewer</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '6px 8px' }}>
+                    <span style={{ color: r.status === 'active' ? 'var(--accent-green)' : 'var(--accent-red)', fontWeight: 600 }}>{r.status}</span>
+                  </td>
+                  <td style={{ padding: '6px 8px' }}>
+                    {r.id === appUser?.id ? <span style={{ color: 'var(--text-muted)' }}>you</span> :
+                      <button onClick={() => setStatus(r, r.status === 'active' ? 'disabled' : 'active')} className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 8px' }}>
+                        {r.status === 'active' ? 'Disable' : 'Enable'}
+                      </button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -11072,8 +11188,18 @@ function WeeklyPerfTab({ weeklyPerfData, setWeeklyPerfData, showToast }) {
 
 // ========================== MAIN APP ==========================
 function App() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, appUser, role, signOut } = useAuth();
+  const isAdmin = role === 'admin';
+  const [showUsers, setShowUsers] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Audit clinician-level views (spec §1: log uid/view/timestamp before
+  // surfacing clinician-level detail). Best-effort, non-blocking.
+  useEffect(() => {
+    const CLINICIAN_LEVEL = { clinicians: 'clinicians', vph: 'vph', review: 'review', performance: 'performance', weeklyPerf: 'weekly_report', coverage: 'state_coverage' };
+    const v = CLINICIAN_LEVEL[activeTab];
+    if (v) logAccess(`tab.${v}`, null);
+  }, [activeTab]);
   // serviceLine removed from global — each tab manages its own SL filter now
   const [lookbackValue, setLookbackValue] = useState('6w');
   const [status, setStatus] = useState('ready');
@@ -11434,11 +11560,14 @@ function App() {
                 {(profile.full_name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
               </span>
               <span style={{ fontWeight: 600 }}>{profile.full_name}</span>
+              <span title={isAdmin ? 'Full access: read, export, upload, manage users' : 'Read and export'} style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, padding: '2px 6px', borderRadius: 10, background: isAdmin ? 'var(--accent-teal)' : 'var(--border)', color: isAdmin ? '#fff' : 'var(--text-secondary)' }}>{role}</span>
+              {isAdmin && <button onClick={() => setShowUsers(true)} title="Manage user access" style={{ background: 'none', border: 'none', color: 'var(--accent-teal)', cursor: 'pointer', fontSize: 10, fontWeight: 600 }}>Users</button>}
               <button onClick={signOut} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 10, textDecoration: 'underline' }}>Sign out</button>
             </span>
           )}
         </div>
       </div>
+      {showUsers && isAdmin && <UsersAdminPanel onClose={() => setShowUsers(false)} />}
 
       {/* Data Status Banner */}
       <div className="lookback-banner">
