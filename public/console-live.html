@@ -1,3 +1,4 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SteadyMD Operations Console</title></head><body>
 <style>
   :root{
     --bg:#f5f6f8;--surface:#fff;--surface-2:#eef1f4;--border:#e3e7ec;--border-2:#d3d9e0;
@@ -151,7 +152,36 @@
   .pb .m{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
   .pb code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;color:var(--ink)}.pb b{color:var(--ink)}
   .foot{margin-top:26px;padding-top:14px;border-top:1px solid var(--border);color:var(--ink-3);font-size:11.5px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+  .authgate{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}
+  .authgate.hide{display:none}
+  .authcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:28px 28px 24px;width:100%;max-width:378px}
+  .authcard h2{font-size:20px;font-weight:680;letter-spacing:-.02em;margin:5px 0 3px}
+  .authcard .lead{color:var(--ink-2);font-size:12.5px;margin-bottom:16px}
+  .authcard label{display:block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin:12px 0 5px}
+  .authcard input{width:100%;height:38px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:9px;padding:0 12px;font:inherit;font-size:14px}
+  .authbtn{width:100%;height:40px;margin-top:18px;border:0;border-radius:9px;background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:650;cursor:pointer}
+  .authbtn:hover{filter:brightness(1.06)}.authbtn:disabled{opacity:.55;cursor:default}
+  .autherr{color:var(--bad);font-size:12.5px;margin-top:12px;min-height:16px;line-height:1.4}
+  .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
 </style>
+
+<div id="authgate" class="authgate">
+  <div class="authcard">
+    <div class="eyebrow">SteadyMD · Operational Intelligence</div>
+    <h2>Operations Console</h2>
+    <div id="authbody">
+      <div class="lead">Sign in with your SteadyMD account.</div>
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" autocomplete="username" spellcheck="false">
+      <label for="auth-pw">Password</label>
+      <input id="auth-pw" type="password" autocomplete="current-password">
+      <button class="authbtn" id="auth-go">Sign in</button>
+      <div class="autherr" id="auth-err"></div>
+    </div>
+  </div>
+</div>
 
 <div class="wrap">
   <div class="top">
@@ -163,6 +193,7 @@
     <div style="display:flex;gap:8px">
       <button class="ghost" id="theme">◐ Theme</button>
       <button class="ghost" id="export">↧ Export</button>
+      <button class="ghost" id="signout" style="display:none">⎋ Sign out</button>
     </div>
   </div>
 
@@ -498,3 +529,30 @@ function boot(){buildNav();renderConsults();renderShifts();renderIncentives();re
 window.__init=function(sli,cd,roster,shifts,inc){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  const SB_URL='https://eeszygextbqglayglvfm.supabase.co', SB_KEY='sb_publishable_txIrKbYtv9kjSKXjQVJFbw_hzUsLNEK';
+  const gate=document.getElementById('authgate'), errEl=document.getElementById('auth-err'), goBtn=document.getElementById('auth-go');
+  if(!window.supabase){errEl.textContent='Could not load the Supabase client (network blocked?). Reload to retry.';return;}
+  const sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}); window.__sb=sb;
+  const mapRoster=r=>({n:r.name,c:r.credential||'',npi:r.npi||'',em:r.emails||[],al:r.aliases||[],ls:r.license_states||[],as:r.active_states||[],pr:r.programs||[],pa:r.partners||[],mo:r.modalities||[],ct:r.consult_count||0,sh:Number(r.shift_hours)||0,inc:Number(r.incentive_usd)||0,la:r.last_active||'',st:r.status});
+  async function email(){try{const {data:{user}}=await sb.auth.getUser();return (user&&user.email)||'';}catch(_){return '';}}
+  function denied(e){document.getElementById('authbody').innerHTML=`<div class="lead">You're signed in as <b>${e||'this account'}</b>, but it isn't provisioned for the console yet. Ask an admin to add you, then reload this page.</div><button class="authbtn" id="auth-out">Sign out</button>`;document.getElementById('auth-out').onclick=async()=>{await sb.auth.signOut();location.reload();};}
+  async function load(){
+    const [a,b,c,d,e]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary')]);
+    const er=a.error||b.error||c.error||d.error||e.error;
+    if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){denied(await email());return;} errEl.textContent='Could not load data: '+(er.message||'unknown error'); return; }
+    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data);
+    const so=document.getElementById('signout'); if(so){ so.style.display='inline-flex'; so.onclick=async()=>{await sb.auth.signOut();location.reload();}; email().then(m=>{if(m)so.title='Signed in as '+m;}); }
+    gate.classList.add('hide');
+  }
+  goBtn.onclick=async()=>{const em=document.getElementById('auth-email').value.trim(),pw=document.getElementById('auth-pw').value;if(!em||!pw){errEl.textContent='Enter your email and password.';return;}errEl.textContent='';goBtn.disabled=true;goBtn.innerHTML='<span class="spin"></span>';const {error}=await sb.auth.signInWithPassword({email:em,password:pw});if(error){goBtn.disabled=false;goBtn.textContent='Sign in';errEl.textContent=error.message;return;}await load();goBtn.disabled=false;goBtn.textContent='Sign in';};
+  document.getElementById('auth-pw').addEventListener('keydown',e=>{if(e.key==='Enter')goBtn.click();});
+  document.getElementById('auth-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('auth-pw').focus();});
+  (async()=>{try{const {data:{session}}=await sb.auth.getSession();if(session)await load();}catch(_){}})();
+})();
+</script>
+
+</body></html>
