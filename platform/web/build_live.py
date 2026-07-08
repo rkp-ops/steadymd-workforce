@@ -106,9 +106,11 @@ AUTH_JS = r"""
 tpl = tpl.rstrip() + "\n" + AUTH_JS + "\n"
 
 doc = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SteadyMD Operations Console</title></head><body>\n' + tpl + "\n</body></html>\n"
-out = os.path.join(ROOT, "public/console-live.html")
-open(out, "w").write(doc)
-print("wrote", out, len(doc))
+open(os.path.join(ROOT, "public/console-live.html"), "w").write(doc)   # workforce site: /console-live.html
+# dedicated standalone home — steadymd-operational.netlify.app serves operational/index.html at root
+op = os.path.join(ROOT, "operational"); os.makedirs(op, exist_ok=True)
+open(os.path.join(op, "index.html"), "w").write(doc)
+print("wrote public/console-live.html + operational/index.html", len(doc))
 for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot","updateUser",
           "__setRosterAdmin","set_roster_membership","whoami","rid:r.id","Confirm onto roster",
           "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier"):
