@@ -30,23 +30,25 @@ Don't make the user infer the order, retype a message, or guess a path.
 - **The database I can change directly.** Supabase schema and data go through
   the Supabase tooling and take effect live — not manual steps, no upload.
 
-## The Netlify site (`steadymd-performance-tracking`, auto-deploys from `main`)
+## The Netlify site (`performance-tracking-console`, auto-deploys from `main`)
 
 One repo-connected site, publishing `public/` on every push to `main`:
 
 | URL | Serves |
 |---|---|
-| `steadymd-performance-tracking.netlify.app/` | the operations console — the landing/home. A `public/_redirects` rule rewrites `/` → `/console-live.html` (forced with `200!` so it wins over `public/index.html`). |
+| `performance-tracking-console.netlify.app/` | the operations console — the landing/home. A `public/_redirects` rule rewrites `/` → `/console-live.html` (forced with `200!` so it wins over `public/index.html`). |
 | `…/console-live.html` | the same console, direct path (back-compat for old links). |
 | `…/index.html` | the legacy Workforce Intelligence React app (`public/index.html`), kept live for the pending audit. |
 
-This is the site formerly named `steadymd-workforce`, renamed via the Netlify
-MCP (`update-project-name`); the old `steadymd-workforce.netlify.app` hostname
-retired with the rename. It reuses that site's existing repo connection, so
-there was nothing to hand-link. The separate empty
-`steadymd-performance-tracking` site that predated this was renamed aside
-(`steadymd-perf-tracking-old`), and the `operational/` folder is now vestigial
-(kept only so the old separate-site path still builds if ever revived).
+This is the site formerly named `steadymd-workforce`, renamed twice via the
+Netlify MCP (`update-project-name`) — first to `steadymd-performance-tracking`,
+then to `performance-tracking-console` (dropping the `steadymd` prefix). The old
+`steadymd-workforce.netlify.app` hostname retired with the rename; the site
+reuses that original repo connection, so there was nothing to hand-link. A
+separate empty site that briefly held the `steadymd-performance-tracking` name
+was parked aside as `steadymd-perf-tracking-old`, and the `operational/` folder
+is now vestigial (kept only so the old separate-site path still builds if ever
+revived).
 
 Note: this site has a Netlify visitor-access password in front of the console's
 own Supabase login (carried over from the workforce site). Toggle it with the
