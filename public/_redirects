@@ -1,0 +1,5 @@
+# The site root serves the operations console (the landing/home).
+# 200! = rewrite (URL stays "/") and force it ahead of public/index.html,
+# which is the legacy Workforce Intelligence app (kept for the pending audit,
+# still reachable at /index.html).
+/    /console-live.html    200!
