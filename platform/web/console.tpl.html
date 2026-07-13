@@ -154,6 +154,10 @@
   .tierb{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;border-radius:4px;margin-left:5px;vertical-align:middle}
   .tierb.seat{background:var(--surface-2);color:var(--ink-3)}
   .tierb.sup{background:var(--warn-soft);color:var(--warn)}
+  .ptrack{position:relative;width:64px;height:6px;border-radius:4px;background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
+  .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:2px;background:var(--ink-2)}
+  .mv{font-weight:700;font-size:11.5px;white-space:nowrap}
+  .mv.up{color:var(--good)}.mv.dn{color:var(--bad)}.mv.fl{color:var(--ink-3)}
   .editbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:12px 16px 14px;border-top:1px dashed var(--border-2)}
   .editbar .ef{display:flex;flex-direction:column;gap:4px}
   .editbar label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
@@ -272,6 +276,23 @@
     <div class="card"><div class="hd"><h2>Top earners</h2></div><div class="bd"><div class="rank" id="inTop"></div></div></div>
   </section>
 
+  <!-- PRODUCTIVITY -->
+  <section class="tab" data-tab="productivity">
+    <div class="stats" id="vStats"></div>
+    <div class="cols2">
+      <div class="card"><div class="hd"><h2>Network VPH by week</h2><span class="desc" id="vTrendNote"></span></div><div class="bd" id="vTrend"></div></div>
+      <div class="card"><div class="hd"><h2>How to read this</h2><span class="desc">directional, not a verdict</span></div><div class="bd" id="vMethod" style="font-size:12.5px;color:var(--ink-2);line-height:1.55"></div></div>
+    </div>
+    <div class="toolbar">
+      <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input id="vq" placeholder="Search clinician…" autocomplete="off"></div>
+      <div class="seg" id="vModSeg"></div>
+      <div class="seg" id="vTierSeg"></div>
+      <span class="muted" style="font-size:11.5px">peer colors compare within the same modality cohort</span>
+    </div>
+    <div class="card" style="margin-bottom:0"><div class="rowcount"><span><b id="vShown">0</b> of <span id="vTot">0</span> shown</span><span class="muted">click a row for the weekly detail · Export uses this filter</span></div>
+      <div class="tscroll"><table><thead><tr id="vHead"></tr></thead><tbody id="vBody"></tbody></table></div></div>
+  </section>
+
   <!-- CLINICIANS -->
   <section class="tab" data-tab="clinicians">
     <div class="stats" id="clStats"></div>
@@ -303,6 +324,7 @@ const CD  = /*__CD__*/{};
 const DATA = /*__ROSTER__*/[];
 const SHIFTS = /*__SHIFTS__*/{};
 const INC = /*__INC__*/{};
+const VPH = /*__VPH__*/{};
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const nf=n=>Number(n).toLocaleString();
 const P=0,PR=1,ST=2,CT=3,SLA=4,W=5,DOW=6,HR=7,DT=8;
@@ -319,7 +341,7 @@ function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critica
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['consults','Consults'],['shifts','Shifts'],['incentives','Incentives'],['clinicians','Clinicians'],['playbook','Playbook']];
+const TABS=[['overview','Overview'],['performance','Performance'],['consults','Consults'],['shifts','Shifts'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['playbook','Playbook']];
 function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}" class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
 function go(t){$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
 
@@ -469,6 +491,7 @@ function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);
 $('#export').onclick=()=>{const cur=($$('#nav button.on')[0]||{}).dataset?($$('#nav button.on')[0].dataset.t):'performance';
   const esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
   if(cur==='clinicians'){exportClin();return}
+  if(cur==='productivity'){const M=vphModel();if(!M)return;const r=[['clinician','credential','tier','modality','week_of','coverage','consults','sync','async','scheduled_hours','vph'].join(',')];M.list.filter(vmatch).forEach(o=>o.series.forEach(s=>r.push([o.n,o.c,o.tier||'',o.mod,s.w,s.cov,s.c,s.sc,s.ac,s.h,s.v==null?'':s.v].map(esc).join(','))));dl(r.join('\n'),`vph_weekly_${M.list.filter(vmatch).length}_clinicians.csv`);return}
   if(cur==='shifts'){const r=[['scope','name','hours','shifts'].join(',')];SHIFTS.by_service_line.forEach(x=>r.push(['service_line',x.name,x.hours,x.shifts].map(esc).join(',')));SHIFTS.by_cred.forEach(x=>r.push(['clinician_type',x.name,x.hours,x.shifts].map(esc).join(',')));SHIFTS.top_clin.forEach(x=>r.push(['clinician',x.name+' ('+x.cred+')',x.hours,x.shifts].map(esc).join(',')));dl(r.join('\n'),'shift_hours_2026-07-07.csv');return}
   if(cur==='incentives'){const r=[['scope','name','usd','count'].join(',')];INC.by_license.forEach(x=>r.push(['clinician_type',x.name,x.usd,x.n].map(esc).join(',')));INC.by_partner.forEach(x=>r.push(['partner',x.name,x.usd,x.n].map(esc).join(',')));INC.by_incentive.forEach(x=>r.push(['incentive',x.name,x.usd,x.n].map(esc).join(',')));INC.top_earners.forEach(x=>r.push(['clinician',x.name+' ('+x.license+')',x.usd,x.n].map(esc).join(',')));dl(r.join('\n'),'incentives_2026-07-07.csv');return}
   const rows=slice(),cols=['partner','program','state','consult_type','modality','sla_met','wait_seconds','dow','hour','date'];
@@ -538,12 +561,98 @@ function clToggle(tr,d){if(tr.nextElementSibling&&tr.nextElementSibling.classLis
   if(remB)remB.onclick=()=>{if(confirm('Remove '+d.n+' from the roster? Remembered across refreshes.'))doEdit(d,{remove:true},remB,eerr)}}
 function exportClin(){const list=csort(DATA.filter(cmatch)),cols=['canonical_name','credential','tier','npi','email','licensed_states','active_states_90d','programs','partners','modalities','consults_touched','shift_hours','incentive_usd','last_active','status','needs_correction'],esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;const rows=[cols.join(',')].concat(list.map(d=>[d.n,d.c,d.tier||'',d.npi,d.em[0]||'',d.ls.join(' '),d.as.join(' '),d.pr.join(' | '),d.pa.join(' | '),d.mo.join(' | '),d.ct,d.sh,d.inc,d.la,d.st,(d.needs||[]).join(' ')].map(esc).join(',')));dl(rows.join('\n'),`clinicians_${list.length}_2026-07-07.csv`)}
 
+// ---------- PRODUCTIVITY (weekly VPH ledger, stable-identity keyed) ----------
+let VF={q:'',mod:'all',tier:'all'},VSORT={k:'vph',dir:-1};
+function addDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function vphModel(){
+  const rows=VPH.rows||[];if(!rows.length)return null;
+  const cw=VPH.consult_window||[],clo=cw[0],chi=cw[1];
+  const wkAll=[...new Set(rows.map(r=>r[4]))].sort();
+  const cov={};wkAll.forEach(w=>{const e=addDays(w,6);cov[w]=(clo&&chi)?(w>=clo&&e<=chi?'full':((e<clo||w>chi)?'none':'partial')):'none'});
+  const weeks=wkAll.filter(w=>cov[w]!=='none'); // consult-visible weeks only — shift-only weeks would read as a fake collapse
+  const m=new Map();
+  for(const r of rows){
+    const key=r[0]||r[1];let o=m.get(key);
+    if(!o){o={rid:r[0],n:r[1],c:r[2]||'',tier:r[3],wk:{},sync:0,async:0,fc:0,fh:0,pct:null};m.set(key,o)}
+    o.wk[r[4]]={c:r[5],sc:r[6],ac:r[7],h:r[8]};o.sync+=r[6];o.async+=r[7];
+    if(cov[r[4]]==='full'){o.fc+=r[5];o.fh+=r[8]}
+  }
+  const list=[...m.values()];
+  for(const o of list){
+    o.mod=o.async>o.sync?'async':'sync';
+    o.vph=o.fh>0?Math.round(100*o.fc/o.fh)/100:null;
+    o.series=weeks.map(w=>{const x=o.wk[w];return{w,cov:cov[w],c:x?x.c:0,sc:x?x.sc:0,ac:x?x.ac:0,h:x?x.h:0,v:(x&&x.h>0)?Math.round(100*x.c/x.h)/100:null}});
+    const fv=o.series.filter(s=>s.cov==='full'&&s.v!=null).map(s=>s.v);
+    o.delta=null;
+    if(fv.length>=2){const last=fv[fv.length-1],base=fv.slice(0,-1).reduce((a,b)=>a+b,0)/(fv.length-1);if(base>0)o.delta=Math.round(100*(last-base)/base)}
+  }
+  for(const mod of ['sync','async']){
+    const cohort=list.filter(o=>o.mod===mod&&o.vph!=null&&o.fc>0).sort((a,b)=>a.vph-b.vph);
+    cohort.forEach((o,i)=>o.pct=cohort.length>1?Math.round(100*i/(cohort.length-1)):50);
+  }
+  return {list,weeks,cov};
+}
+function pctColor(o){if(o.pct==null)return'var(--ink-3)';return o.pct<10?'var(--bad)':o.pct<25?'var(--warn)':o.pct>=75?'var(--good)':'var(--ink)'}
+function vSpark(series){
+  const pts=series.filter(s=>s.v!=null);if(pts.length<2)return'<span class="muted">—</span>';
+  const w=92,h=24,mx=Math.max(...pts.map(p=>p.v)),mn=Math.min(...pts.map(p=>p.v));
+  const X=i=>5+i*(w-10)/(pts.length-1),Y=v=>h-4-((v-mn)/((mx-mn)||1))*(h-8);
+  return `<svg width="${w}" height="${h}" style="vertical-align:middle"><path d="${pts.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/>${pts.map((p,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="2.4" fill="${p.cov==='full'?'var(--accent)':'var(--surface)'}" stroke="var(--accent)" stroke-width="1.4"><title>${p.w}${p.cov==='partial'?' · partial week':''} · ${p.v} VPH · ${nf(p.c)} consults / ${Math.round(p.h)} h</title></circle>`).join('')}</svg>`;
+}
+function vMove(o){if(o.delta==null)return'<span class="mv fl">—</span>';if(o.delta<=-20)return`<span class="mv dn">▼ ${o.delta}%</span>`;if(o.delta>=20)return`<span class="mv up">▲ +${o.delta}%</span>`;return`<span class="mv fl">${o.delta>0?'+':''}${o.delta}%</span>`}
+function vmatch(o){if(VF.mod!=='all'&&o.mod!==VF.mod)return false;if(VF.tier!=='all'&&(o.tier||'none')!==VF.tier)return false;if(VF.q&&!o.n.toLowerCase().includes(VF.q))return false;return true}
+const VCOLS=[{k:'n',l:'Clinician'},{k:'mod',l:'Modality'},{k:'fc',l:'Consults',r:1},{k:'fh',l:'Hours',r:1},{k:'vph',l:'VPH',r:1},{k:'pct',l:'vs peers',r:1},{k:'trend',l:'Weekly trend'},{k:'delta',l:'Δ vs norm',r:1}];
+function vDrill(o){
+  $('#mTitle').textContent=o.n;
+  $('#mSub').innerHTML=`${o.c?`<span class="cred">${o.c}</span>`:''}${tierBadge(o.tier)} <span class="kind ${o.mod}">${o.mod}</span> &nbsp; ${o.vph!=null?`<b>${o.vph}</b> VPH over complete weeks · stronger than P${o.pct==null?'—':o.pct} of the ${o.mod} cohort`:'not measurable yet — needs consults and scheduled hours in the same complete week'}`;
+  $('#mBody').innerHTML=`<div class="mini"><h3>Week by week</h3><div style="overflow:auto"><table><thead><tr><th>Week of</th><th class="r">Consults</th><th class="r">Sync</th><th class="r">Async</th><th class="r">Scheduled h</th><th class="r">VPH</th><th>Data</th></tr></thead><tbody>${o.series.map(s=>`<tr><td class="tnum">${s.w}</td><td class="r tnum"><b>${nf(s.c)}</b></td><td class="r tnum muted">${nf(s.sc)}</td><td class="r tnum muted">${nf(s.ac)}</td><td class="r tnum">${Math.round(s.h*10)/10}</td><td class="r tnum"><b>${s.v==null?'—':s.v}</b></td><td>${s.cov==='full'?'<span class="muted">complete</span>':'<span style="color:var(--warn)">partial export week</span>'}</td></tr>`).join('')}</tbody></table></div><div class="muted" style="margin-top:10px;font-size:11.5px">Hours are <b>scheduled</b>, not clocked — a light schedule and a slow week look identical here. Use the trend and peer position to decide what to look into, not to conclude.</div></div>`;
+  $('#modal').classList.add('open');
+}
+function renderVph(){
+  const M=vphModel();
+  if(!M){$('#vStats').innerHTML='';$('#vTrend').innerHTML='<div class="empty">No productivity history yet — it builds from the weekly ledger on each data load.</div>';$('#vBody').innerHTML='';return}
+  const {list,weeks,cov}=M,fullN=weeks.filter(w=>cov[w]==='full').length;
+  const measured=list.filter(o=>o.vph!=null&&o.fc>0);
+  const orgC=measured.reduce((a,o)=>a+o.fc,0),orgH=measured.reduce((a,o)=>a+o.fh,0);
+  const med=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)]};
+  const idle=list.filter(o=>o.fh>0&&o.fc===0).length;
+  const down=measured.filter(o=>o.delta!=null&&o.delta<=-20).length;
+  $('#vStats').innerHTML=[
+    {k:'Network VPH',v:orgH?(Math.round(100*orgC/orgH)/100).toFixed(2):'—',d:nf(orgC)+' consults / '+nf(Math.round(orgH))+' scheduled h'},
+    {k:'Median clinician',v:med(measured.map(o=>o.vph))??'—',d:'half the cohort above, half below'},
+    {k:'Clinicians measured',v:measured.length,d:'consults + hours, complete weeks'},
+    {k:'Scheduled, no consults',v:idle,d:'hours booked · nothing attributed'},
+    {k:'Trending down',v:down,d:'last week ≥20% under their norm'},
+  ].map(tileHTML).join('');
+  // network weekly line
+  const wkPts=weeks.map(w=>{let c=0,h=0;list.forEach(o=>{const x=o.wk[w];if(x&&x.h>0){c+=x.c;h+=x.h}});return{w,cov:cov[w],v:h>0?Math.round(100*c/h)/100:null}}).filter(p=>p.v!=null);
+  $('#vTrendNote').textContent=`${fullN} complete weeks · ${weeks.length-fullN} partial at the export edge`;
+  if(wkPts.length<2){$('#vTrend').innerHTML='<div class="empty">Not enough weeks yet — the trend starts once two complete weeks exist.</div>'}
+  else{const W2=460,H=150,pad=28,xs=i=>pad+i*((W2-pad*2)/(wkPts.length-1)),lo=Math.min(...wkPts.map(x=>x.v))-.3,hi=Math.max(...wkPts.map(x=>x.v))+.3,ys=v=>H-pad-((v-lo)/((hi-lo)||1))*(H-pad*2);
+    $('#vTrend').innerHTML=`<svg viewBox="0 0 ${W2} ${H}" width="100%"><path d="M${xs(0).toFixed(1)} ${H-pad} ${wkPts.map((x,i)=>`L${xs(i).toFixed(1)} ${ys(x.v).toFixed(1)}`).join(' ')} L${xs(wkPts.length-1).toFixed(1)} ${H-pad} Z" fill="var(--accent)" opacity=".12"/><path d="${wkPts.map((x,i)=>`${i?'L':'M'}${xs(i).toFixed(1)} ${ys(x.v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${wkPts.map((x,i)=>`<circle cx="${xs(i).toFixed(1)}" cy="${ys(x.v).toFixed(1)}" r="3.2" fill="${x.cov==='full'?'var(--accent)':'var(--surface)'}" stroke="var(--accent)" stroke-width="2"><title>week of ${x.w}${x.cov==='partial'?' (partial)':''} · ${x.v} VPH</title></circle><text x="${xs(i).toFixed(1)}" y="${H-8}" font-size="9" fill="var(--ink-3)" text-anchor="middle">${x.w.slice(5)}</text><text x="${xs(i).toFixed(1)}" y="${(ys(x.v)-9).toFixed(1)}" font-size="10" font-weight="700" fill="var(--ink)" text-anchor="middle">${x.cov==='partial'?'~':''}${x.v}</text>`).join('')}</svg>`}
+  $('#vMethod').innerHTML=`VPH is <b>consults ÷ scheduled hours</b>, per ISO week, from a ledger keyed on each clinician's stable identity — so history survives roster reloads. Only <b>complete</b> weeks (fully inside the consult export) count toward totals; the export-edge week shows hollow. Hours are <b>scheduled, not worked</b> — someone under-scheduled and someone slow look the same — so treat this as <b>where to look, not what to conclude</b>. Peer colors compare within the same modality cohort: async messaging naturally runs ~3× sync video. The old tool's fixed bands (sync 2.5–3.5, async 6–9) are kept in the Playbook as reference, not verdicts.`;
+  // table
+  $('#vHead').innerHTML=VCOLS.map(c=>`<th class="${c.r?'r':''}" data-k="${c.k}">${c.l} ${VSORT.k===c.k?`<span class="ar">${VSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');
+  $$('#vHead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='trend')return;if(VSORT.k===k)VSORT.dir*=-1;else{VSORT.k=k;VSORT.dir=(k==='n'||k==='mod')?1:-1}renderVph()});
+  const flist=list.filter(vmatch).sort((a,b)=>{let x=a[VSORT.k],y=b[VSORT.k];if(VSORT.k==='n'||VSORT.k==='mod')return VSORT.dir*String(x).localeCompare(String(y));if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return VSORT.dir*(x-y)});
+  $('#vShown').textContent=flist.length;$('#vTot').textContent=list.length;
+  $('#vBody').innerHTML=flist.length?flist.slice(0,600).map((o,i)=>`<tr class="clk" data-i="${i}"><td><span class="name">${o.n}</span>${o.c?` <span class="cred">${o.c}</span>`:''}${tierBadge(o.tier)}</td><td><span class="kind ${o.mod}">${o.mod}</span></td><td class="r tnum">${nf(o.fc)}</td><td class="r tnum muted">${nf(Math.round(o.fh))}</td><td class="r tnum" style="font-weight:700;color:${pctColor(o)}">${o.vph==null?'—':o.vph}</td><td class="r">${o.pct==null?'<span class="muted">—</span>':`<span class="ptrack"><i style="left:${Math.round(o.pct*.94)}%;background:${pctColor(o)}"></i></span><span class="tnum" style="font-size:11px;color:${pctColor(o)}">P${o.pct}</span>`}</td><td>${vSpark(o.series)}</td><td class="r">${vMove(o)}</td></tr>`).join('')+(flist.length>600?`<tr><td colspan="${VCOLS.length}" class="empty" style="padding:16px">First 600 of ${flist.length}. Narrow or export.</td></tr>`:''):`<tr><td colspan="${VCOLS.length}"><div class="empty">No clinicians match.</div></td></tr>`;
+  $$('#vBody tr.clk').forEach(tr=>tr.onclick=()=>vDrill(flist[+tr.dataset.i]));
+}
+const VMODS=[['all','All modalities'],['async','Async'],['sync','Sync']],VTIERS=[['all','All tiers'],['seat','Seats'],['support','Support']];
+$('#vModSeg').innerHTML=VMODS.map(([k,l],i)=>`<button data-v="${k}" class="${i===0?'on':''}">${l}</button>`).join('');
+$$('#vModSeg button').forEach(b=>b.onclick=()=>{VF.mod=b.dataset.v;$$('#vModSeg button').forEach(x=>x.classList.toggle('on',x===b));renderVph()});
+$('#vTierSeg').innerHTML=VTIERS.map(([k,l],i)=>`<button data-v="${k}" class="${i===0?'on':''}">${l}</button>`).join('');
+$$('#vTierSeg button').forEach(b=>b.onclick=()=>{VF.tier=b.dataset.v;$$('#vTierSeg button').forEach(x=>x.classList.toggle('on',x===b));renderVph()});
+$('#vq').oninput=e=>{VF.q=e.target.value.trim().toLowerCase();renderVph()};
+
 // ---------- PLAYBOOK ----------
 function renderPlaybook(){$('#playbook').innerHTML=`
   <div class="m"><h3>Scope</h3>Operational reporting for the clinician network, on a canonical model that six exports feed. Reports read the model, not the raw files, so a renamed column or new file layout doesn't break a chart.</div>
   <div class="m"><h3>SLA — Completed vs Due</h3>An SLI counts as met when <code>completed ≤ due</code>. Overview and Performance recompute against the filter bar: partner, state, program, modality, date, and hour window.</div>
   <div class="m"><h3>Modality</h3>Taken from the status flow, not the type label. A consult that reaches <code>in_call</code> is a synchronous video visit (in_call is a video call, not a phone call). Critical-value calls are sync phone. Messaging combines chart-review and async-messaging. Lab orders and lab statuses are excluded — the tracked unit is the chart-review or call they produce, not the lab step.</div>
   <div class="m"><h3>Shifts and incentives</h3>Shift hours come from the scheduling export, split by service line and clinician type. Incentives come from the payout export, split by license type, partner, program, and incentive. Both also sit on each clinician's record.</div>
+  <div class="m"><h3>Productivity (VPH)</h3>Visits per <b>scheduled</b> hour, per ISO week, served from a weekly ledger keyed on each clinician's stable identity — a data refresh updates the same person's history instead of restarting it. Totals use complete weeks only; the export-edge week is marked partial. Scoring is peer-relative within the modality cohort (async runs ~3× sync by nature). Legacy reference bands — sync red&lt;2.5 / yellow&lt;3.5, async red&lt;6 / yellow&lt;9 — are context, not verdicts: hours are scheduled, not clocked, so VPH says where to look, never what to conclude on its own.</div>
   <div class="m"><h3>Drill-in</h3>Partner, program, state, consult-type, and wait-band rows are clickable; each opens the slice broken down worst-first, so a low number shows where it is low. Flags on Overview open the filtered detail.</div>
   <div class="m"><h3>Data-quality flag</h3>One clinician GUID carries ~49.7% of all consults — a supervising / auto-attribution artifact, flagged rather than absorbed into the totals.</div>
   <div class="m" style="border-style:dashed"><h3>Date windows</h3>The SLI export and the consult log cover different ranges, so modality on the SLA view is inferred from consult type; the Consults tab uses the true in_call flow. Matching-window exports make both exact.</div>`}
@@ -554,7 +663,7 @@ function hoursRank(sel,arr){const mx=Math.max(...arr.map(x=>x.hours),1);$(sel).i
 function usdRank(sel,arr){const mx=Math.max(...arr.map(x=>x.usd),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}${x.license&&x.license!=='—'?` <span class="cred">${x.license}</span>`:''}<small>${nf(x.n)}×</small></div><div class="val tnum">$${nf(x.usd)}</div><div class="track"><i style="width:${Math.max(2,x.usd/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
 function renderShifts(){if(!SHIFTS.total_hours)return;const S=SHIFTS;$('#shStats').innerHTML=[{k:'Scheduled hours',v:nf(Math.round(S.total_hours)),d:nf(S.n_shifts)+' shifts'},{k:'Clinicians scheduled',v:S.n_clinicians,d:'avg '+Math.round(S.total_hours/S.n_clinicians)+' h each'},{k:'Service lines',v:S.by_service_line.length,d:'scheduled against'},{k:'Window',v:(S.range.min||'')+' → '+(S.range.max||''),d:''}].map(tileHTML).join('');hoursRank('#shLine',S.by_service_line);hoursRank('#shCred',S.by_cred);hoursRank('#shTop',S.top_clin)}
 function renderIncentives(){if(!INC.n_items)return;const I=INC;$('#inStats').innerHTML=[{k:'Incentives paid',v:'$'+nf(Math.round(I.total_usd)),d:nf(I.n_items)+' line items'},{k:'Clinicians paid',v:I.n_clinicians,d:'avg $'+Math.round(I.total_usd/I.n_clinicians)+' each'},{k:'Incentive types',v:I.by_incentive.length,d:''},{k:'Window',v:(I.range.min||'')+' → '+(I.range.max||''),d:''}].map(tileHTML).join('');usdRank('#inLicense',I.by_license);usdRank('#inPartner',I.by_partner);usdRank('#inProgram',I.by_program);usdRank('#inName',I.by_incentive);usdRank('#inTop',I.top_earners)}
-function boot(){buildNav();renderConsults();renderShifts();renderIncentives();renderCl();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
-window.__init=function(sli,cd,roster,shifts,inc){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);boot()};
+function boot(){buildNav();renderConsults();renderShifts();renderIncentives();renderVph();renderCl();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+window.__init=function(sli,cd,roster,shifts,inc,vph){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>

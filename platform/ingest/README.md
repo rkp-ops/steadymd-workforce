@@ -69,6 +69,14 @@ Good for confirming a new export parses before you load it.
   read from the status flow (`in_call` → sync video) and lab work flagged.
 - **Idempotent:** each run clears the target rows for that source and reloads,
   so re-running is safe and always reflects the latest export.
+- **Stable identity + weekly ledger.** After the loads, the tool calls the
+  `relink_clinician_spine()` database function: the rebuilt roster is re-matched
+  to durable clinician entities (NPI → email → normalized name), new entities
+  are minted only for genuinely new people, every consult/shift/SLI/incentive
+  row gets its clinician id filled, and the weekly `clinician_period_metric`
+  ledger (what the console's Productivity tab reads) is refreshed. This is what
+  keeps a clinician's VPH history attached to the same person across monthly
+  reloads.
 - **Volume check.** As the SLI and consult files load, the tool compares each
   partner's row count to the previous load and prints any partner that vanished,
   newly appeared, or swung by more than ~60% — the fingerprint of a partial or

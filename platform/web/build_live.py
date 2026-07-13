@@ -51,10 +51,10 @@ AUTH_JS = r"""
   async function whoami(){try{const {data:{user}}=await sb.auth.getUser();return (user&&user.email)||'';}catch(_){return '';}}
 
   async function load(){
-    const [a,b,c,d,e]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary')]);
+    const [a,b,c,d,e,f]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend')]);
     const er=a.error||b.error||c.error||d.error||e.error;
     if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){ denied(await whoami()); return; } body.innerHTML='<div class="lead">Signed in, but the data didn’t load: '+H(er.message||'unknown error')+'</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; return; }
-    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data);
+    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null); // vph is non-fatal: the tab shows its empty state if the RPC is unavailable
     sb.rpc('whoami').then(({data,error})=>{ const admin=!error&&data&&data.is_admin; if(!window.__setRosterAdmin) return;
       const onAdd = admin?(async(row,confirm)=>{ const r=await sb.rpc('set_roster_membership',{p_roster_id:row.rid,p_confirm:confirm}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; }):null;
       const onEdit = admin?(async(row,p)=>{ const r=await sb.rpc('edit_clinician',{p_roster_id:row.rid,p_credential:(p.credential===undefined?null:p.credential),p_states:(p.states===undefined?null:p.states),p_remove:!!p.remove}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; }):null;
@@ -113,6 +113,7 @@ open(os.path.join(op, "index.html"), "w").write(doc)
 print("wrote public/console-live.html + operational/index.html", len(doc))
 for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot","updateUser",
           "__setRosterAdmin","set_roster_membership","whoami","rid:r.id","Confirm onto roster",
-          "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier"):
+          "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier",
+          "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel"):
     assert k in doc, k
 print("checks ok")
