@@ -99,6 +99,21 @@ def insert(table, rows, batch=1000):
             if r.status_code in (502, 503, 504) and a < 3: time.sleep(2 * (a + 1)); continue
             die(f"insert {table} @{i} -> HTTP {r.status_code}: {r.text[:300]}")
     return ok
+def relink():
+    """Re-anchor everything to the stable clinician spine after a load. The roster
+    reload drops its clinician_id links and fresh fact rows arrive unattributed;
+    one idempotent DB function re-matches the roster to the durable clinician
+    entities (npi -> email -> name_key), creates entities only for genuinely new
+    people, fills the fact-table clinician FKs, and refreshes the weekly
+    clinician_period_metric ledger the console's Productivity tab reads."""
+    if DRY:
+        print("  (dry run: skipping spine relink)"); return
+    for a in range(4):
+        r = requests.post(f"{URL}/rpc/relink_clinician_spine", headers=H, data="{}", timeout=300)
+        if r.status_code == 200:
+            print(f"  spine relink: {r.json()}"); return
+        if r.status_code in (502, 503, 504) and a < 3: time.sleep(2 * (a + 1)); continue
+        die(f"relink_clinician_spine -> HTTP {r.status_code}: {r.text[:300]}")
 def source_upload(kind, filename, n):
     if DRY: return "00000000-0000-0000-0000-000000000000"
     r = requests.post(f"{URL}/source_upload", headers={**H, "Prefer": "return=representation"},
@@ -297,6 +312,7 @@ def main(folder):
     if 'consult' in found:   print(f"  loaded consult: {load_consult(found['consult'])}")
     if 'shift' in found:     print(f"  loaded shift: {load_shift(found['shift'], cred_by_email)}")
     if 'incentive' in found: print(f"  loaded incentive: {load_incentive(found['incentive'])}")
+    relink()
     print("done — the console reads these live on next refresh.")
 
 if __name__ == "__main__":
