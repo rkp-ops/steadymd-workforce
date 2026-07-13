@@ -46,7 +46,11 @@ with newids as (
   returning r.clinician_id, r.name, r.credential, r.npi, r.status, r.last_active
 )
 insert into public.clinician (id, canonical_name, credential, primary_npi, status, first_seen, last_active)
-select clinician_id, name, credential, nullif(npi,''), status, last_active, last_active
+select clinician_id, name, credential, nullif(npi,''),
+       -- clinician.status allows only 'active'/'inactive'; the roster's workflow
+       -- states (NEEDS-CORRECTION etc.) stay on the roster, not the entity.
+       case when status = 'inactive' then 'inactive' else 'active' end,
+       last_active, last_active
 from newids
 on conflict (id) do nothing;
 
@@ -87,11 +91,12 @@ from public.clinician_key k
 where k.key_type = 'name_key' and k.key_value = public.name_key(s.clinician_name_raw)
   and s.clinician_id is null and public.name_key(s.clinician_name_raw) <> '';
 
--- SLIs inherit their consult's clinician (an SLI has no email of its own).
-update public.sli_response sr set clinician_id = c.primary_clinician_id
-from public.consult c
-where c.consult_guid = sr.consult_guid
-  and sr.clinician_id is null and c.primary_clinician_id is not null;
+-- SLIs have no email, and their consult_guid does NOT match the consult table's
+-- GUIDs (different export) — but 99.7% match a clinician by normalized name.
+update public.sli_response sr set clinician_id = k.clinician_id
+from public.clinician_key k
+where k.key_type = 'name_key' and k.key_value = public.name_key(sr.clinician_name_raw)
+  and sr.clinician_id is null and public.name_key(sr.clinician_name_raw) <> '';
 
 -- Incentives by email.
 update public.incentive i set clinician_id = k.clinician_id
