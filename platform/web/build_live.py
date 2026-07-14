@@ -114,6 +114,7 @@ print("wrote public/console-live.html + operational/index.html", len(doc))
 for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot","updateUser",
           "__setRosterAdmin","set_roster_membership","whoami","rid:r.id","Confirm onto roster",
           "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier",
-          "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel"):
+          "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
+          "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")
