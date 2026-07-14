@@ -162,6 +162,17 @@
   .okmsg{color:var(--good);font-size:12px;margin-top:10px;min-height:14px;line-height:1.4}
   .umanage{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
   .usub{font-size:11px;color:var(--ink-3);margin-top:1px}
+  .sev{display:inline-block;width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none}
+  .sev.high{background:var(--bad)}.sev.med{background:var(--warn)}.sev.low{background:var(--ink-3)}
+  .flagrow{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:8px}
+  .flagrow .fx{flex:1;min-width:0}
+  .flagrow .ft{font-size:13px;font-weight:640;color:var(--ink)}
+  .flagrow .fd{font-size:12px;color:var(--ink-2);line-height:1.45;margin-top:2px}
+  .flagrow .fa{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start}
+  .flagcat{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin:15px 0 8px}
+  .flagcat:first-child{margin-top:2px}
+  .flagrow.done{opacity:.62}
+  .fnote{font-size:11px;color:var(--ink-3);margin-top:4px}
   .ptrack{position:relative;width:64px;height:6px;border-radius:4px;background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
   .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:2px;background:var(--ink-2)}
   .mv{font-weight:700;font-size:11.5px;white-space:nowrap}
@@ -272,6 +283,22 @@
       </div>
     </div>
     <div class="card"><div class="hd"><h2>Time to complete</h2><span class="desc">received → completed · click a band to see who's in it</span></div><div class="bd"><div class="hist" id="hist"></div></div></div>
+  </section>
+
+  <!-- REVIEW (auto-flag triage queue) -->
+  <section class="tab" data-tab="review">
+    <div class="stats s4" id="rvStats"></div>
+    <div class="card">
+      <div class="hd"><h2>Needs a look</h2><span class="desc">auto-flagged from the live data · resolve to acknowledge</span></div>
+      <div class="bd">
+        <div id="rvOpen"></div>
+        <div class="adderr" id="rv-err" style="padding:6px 2px 0"></div>
+      </div>
+    </div>
+    <div class="card" id="rvResWrap" style="margin-bottom:0;display:none">
+      <div class="hd"><h2>Resolved <span class="cb" id="rvResCount"></span></h2><span class="desc">acknowledged — reopen if it needs another look</span></div>
+      <div class="bd"><div id="rvResolved"></div></div>
+    </div>
   </section>
 
   <!-- CONSULTS -->
@@ -430,7 +457,7 @@ function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critica
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['users','Users'],['playbook','Guide']];
+const TABS=[['overview','Overview'],['performance','Performance'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['users','Users'],['playbook','Guide']];
 function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${k==='users'?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
 function go(t){if(t==='users'&&!USERS_ADMIN)t='overview';$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
 
@@ -740,13 +767,18 @@ const GUIDE=[
   {k:'start',t:'Getting started',h:`
     <div class="m"><h3>What this is</h3>Live operational reporting for the clinician network — service levels, consults, shifts, incentives, the roster, and week-over-week productivity. Every tab reads straight from the database, so a browser refresh always shows the latest loaded data.</div>
     <div class="m"><h3>Signing in</h3>Use your SteadyMD email and password. Access is invitation-only — an admin provisions each account, so there's no self-signup. Forgot your password? Use the link on the sign-in screen (if the reset email lands you on a dead page, see <b>Keeping the data current → note</b>).</div>
-    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b> — plus, for admins only, <b>Users</b> (provision access &amp; set roles). <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
+    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Review</b> (the auto-flag queue), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b> — plus, for admins only, <b>Users</b> (provision access &amp; set roles). <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
   {k:'refresh',t:'Keeping the data current',h:`
     <div class="m"><h3>How the data flows</h3>The console never holds a stale copy — it reads <b>live from the database</b>. The database is filled by loading the monthly source exports (roster, license detail, SLI response times, consults, shifts, incentives). Loading also re-links every clinician to their stable identity and rebuilds the weekly productivity ledger, so history stays attached to the right person.</div>
     <div class="m"><h3>To refresh with new numbers</h3>Load the latest exports: drop the current files in a folder and run the one-step ingestion (<code>platform/ingest</code>). It recognizes each file by its columns, so renamed files still land correctly. When it finishes, just <b>refresh your browser</b> — no redeploy, no waiting.</div>
     <div class="m"><h3>Is this real-time?</h3>It's live against the database, but the database is only as fresh as the <b>last export load</b> — "current as of the latest pull," not a second-by-second feed from the source systems. A true live feed means wiring the console directly into those systems — a separate build we can scope when you want it.</div>
     <div class="m"><h3>Who runs the load</h3>Right now it's a scripted step run on demand (it uses the database service key, so it isn't a button in the console yet). Hand the month's exports to whoever runs loads — or your Claude Code assistant — and the numbers update in minutes. Scheduling it automatically is on the roadmap.</div>
     <div class="m" style="border-style:dashed"><h3>Note — password reset link</h3>If a reset email ever bounces you to the wrong address, it's a one-time admin setting (adding this site's URL to the auth config). Tell an admin and it's a 60-second fix.</div>`},
+  {k:'review',t:'The Review queue',h:`
+    <div class="m"><h3>What it is</h3>One triage inbox that auto-flags what needs a human look, pulled live from the data you already have — so problems surface in one place instead of hiding across tabs. It recomputes on every load; nothing here is entered by hand.</div>
+    <div class="m"><h3>What gets flagged</h3><b>Service level</b> — clinicians missing &gt;25% of their scored responses (the cleanest signal, attributed independently of consult counts). <b>Productivity</b> — someone down sharply vs. their <i>own</i> recent norm, or well under their modality peers. <b>Coverage</b> — recurring weekday-daytime holes. <b>Data quality</b> — the attribution artifact, and the schedule↔consult mismatch surfaced as one systemic note rather than hundreds of false accusations. <b>Roster</b> — entries needing a credential/state, or people to add.</div>
+    <div class="m"><h3>Working the queue</h3>Each flag shows a severity dot (red/amber/grey), what fired, and a <b>View</b> that jumps to the right tab. Judgment flags have <b>Resolve</b> — it acknowledges the flag (recording who &amp; when) and moves it to <b>Resolved</b>, where you can <b>Reopen</b> it. Roster items have no Resolve: you fix them in Clinicians and they clear themselves. Resolutions are shared and persist across reloads.</div>
+    <div class="m"><h3>Read it as a starting point</h3>VPH-based flags use <b>scheduled</b> hours, not clocked, and inherit the same attribution caveats as the Productivity tab — they tell you where to look, not what to conclude. The service-level flags are the ones to trust most directly.</div>`},
   {k:'filter',t:'Filtering &amp; drilling in',h:`
     <div class="m"><h3>The filter bar</h3>On Overview and Performance, filter by partner, state, program, modality, date range, and hour of day. Active filters show as chips — remove one with its ✕ or "Clear all." Everything recomputes instantly, and lab work is excluded unless you explicitly pick it.</div>
     <div class="m"><h3>Drilling in</h3>Almost anything low is clickable — partner rows, program/state/type ranks, the wait-time bands, and the Overview "needs attention" callouts. Each opens that slice broken down worst-first, so a low number shows you <i>where</i> it's low.</div>
@@ -861,8 +893,92 @@ function wireUsers(){
     catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
   };
 }
-function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
-window.__init=function(sli,cd,roster,shifts,inc,vph,cov){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);boot()};
+// ---------- REVIEW (auto-flag triage queue) ----------
+const ACKS=new Map(); let REVIEW_API=null, FLAG_BY_KEY=new Map();
+const SEVRANK={high:0,med:1,low:2};
+const CATLABEL={sla:'Service level',productivity:'Productivity',coverage:'Coverage','data-quality':'Data quality',roster:'Roster'};
+const CATORDER=['sla','productivity','coverage','data-quality','roster'];
+const CATTAB={sla:'performance',productivity:'productivity',coverage:'coverage','data-quality':'consults',roster:'clinicians'};
+const FLAGCAP=12;
+window.__setReviewAcks=function(list){ACKS.clear();(list||[]).forEach(a=>ACKS.set(a.flag_key,a))};
+window.__setReviewApi=function(api){REVIEW_API=api||null;renderReview()};
+function reviewFlags(){
+  const F=[];
+  const vm=(typeof vphModel==='function')?vphModel():null;
+  if(vm&&vm.list){
+    const cov=vm.cov, agg=new Map();
+    (VPH.rows||[]).forEach(r=>{ if(cov[r[4]]!=='full')return; const k=r[0]||r[1]; let o=agg.get(k); if(!o){o={consults:0,hours:0,scored:0,met:0};agg.set(k,o)} o.consults+=r[5];o.hours+=r[8];o.scored+=(r[9]||0);o.met+=(r[10]||0); });
+    const cohortMean={}; ['sync','async'].forEach(mod=>{const c=vm.list.filter(o=>o.mod===mod&&o.vph!=null&&o.fh>0);cohortMean[mod]=c.length?c.reduce((s,o)=>s+o.vph,0)/c.length:0});
+    let schedNoVisits=0, unsched=0;
+    vm.list.forEach(o=>{
+      const a=agg.get(o.rid||o.n)||{consults:0,hours:0,scored:0,met:0}, kid=o.rid||o.n, nm=o.n;
+      // Service level — the cleanest signal (SLI is attributed independently of consult attribution)
+      if(a.scored>=10){ const miss=(a.scored-a.met)/a.scored; if(miss>0.25)
+        F.push({key:'sla-miss:'+kid,cat:'sla',sev:miss>0.40?'high':'med',subject:nm,detail:`Missed ${Math.round(miss*100)}% of ${nf(a.scored)} scored responses over complete weeks (${nf(a.scored-a.met)} misses) — ${miss>0.40?'well ':''}past the 25% review line.`,act:'performance',ackable:true}); }
+      // Own-norm decline — robust to a clinician's steady attribution rate
+      if(o.delta!=null&&o.delta<=-20)
+        F.push({key:'vph-decline:'+kid,cat:'productivity',sev:o.delta<=-35?'high':'med',subject:nm,detail:`VPH last complete week ran ${o.delta}% below their own recent norm (${o.mod}${o.vph!=null?`, now ${o.vph}`:''}). Scheduled hours, not clocked — check before concluding.`,act:'productivity',ackable:true});
+      // Peer-relative low volume (attribution-sensitive → low severity, capped)
+      else if(a.hours>=8&&o.vph!=null&&cohortMean[o.mod]>0&&o.vph<0.4*cohortMean[o.mod]&&a.consults>0)
+        F.push({key:'low-vph:'+kid,cat:'productivity',sev:'low',subject:nm,detail:`${o.vph} VPH over complete weeks — under 40% of the ${o.mod} peer average (${Math.round(cohortMean[o.mod]*100)/100}). Verify against attribution before acting.`,act:'productivity',ackable:true});
+      // tally the systemic mismatch instead of flagging each person
+      if(a.hours>=8&&a.consults===0)schedNoVisits++;
+      if(a.hours===0&&a.consults>=5)unsched++;
+    });
+    if(schedNoVisits+unsched>=10)
+      F.push({key:'dq-attribution-scale',cat:'data-quality',sev:'med',subject:'Schedule ↔ consult attribution mismatch',detail:`${schedNoVisits} clinician${schedNoVisits===1?'':'s'} scheduled ≥8 h in complete weeks with zero attributed consults, and ${unsched} with consults but no scheduled hours. This is the consult-attribution artifact and export-window overlap — a systemic data gap, not ${schedNoVisits+unsched} individual performance problems. Tracked here so it isn’t mistaken for one.`,act:'consults',ackable:true});
+  }
+  // Attribution artifact (one identity carrying an implausible share)
+  (CD.top_clin||[]).forEach(c=>{ if(c.pct>40) F.push({key:'attribution:'+c.name,cat:'data-quality',sev:'high',subject:c.name,detail:`Carries ${c.pct}% of all attributed consults (${nf(c.n)}). Almost certainly a supervising or auto-attribution identity, not one person’s output — keep it out of per-clinician conclusions.`,act:'consults',ackable:true}); });
+  // Coverage — recurring weekday-daytime holes
+  const g=(COV.grid||[]),wks=COV.weeks||0;
+  g.filter(r=>r[0]<=5&&r[1]>=8&&r[1]<=18&&r[6]>0).sort((a,b)=>b[6]-a[6]||a[2]-b[2]).slice(0,6).forEach(r=>{
+    F.push({key:`coverage-zero:${r[0]}-${r[1]}`,cat:'coverage',sev:(wks&&r[6]>=Math.max(2,wks*0.34))?'high':'med',subject:`${DOWL7[r[0]]} ${r[1]}:00`,detail:`No one scheduled in ${r[6]} of ${wks} week${wks===1?'':'s'} (avg ${r[2]} on shift) — a recurring weekday-daytime coverage hole.`,act:'coverage',ackable:true}); });
+  // Roster hygiene (action-only — fixing in Clinicians auto-clears these)
+  DATA.filter(d=>d.st==='NEEDS-CORRECTION').forEach(d=>{ F.push({key:'roster-correction:'+(d.npi||d.n),cat:'roster',sev:'med',subject:d.n,detail:`Missing ${needText(d.needs)} — an incomplete roster entry.`,act:'clinicians',ackable:false}); });
+  DATA.filter(d=>d.st==='ADD-TO-ROSTER').forEach(d=>{ F.push({key:'roster-add:'+(d.npi||d.n),cat:'roster',sev:'low',subject:d.n,detail:`Seen in the activity data but not on the roster — confirm or dismiss from Clinicians.`,act:'clinicians',ackable:false}); });
+  return F;
+}
+function flagRowHTML(f,ack){
+  const actBtn=f.act?`<button class="addbtn addbtn-ghost" data-rv-go="${f.act}">View</button>`:'';
+  let resolveBtn='';
+  if(ack)resolveBtn=`<button class="addbtn addbtn-ghost" data-rv-reopen="${uH(f.key)}">Reopen</button>`;
+  else if(f.ackable&&REVIEW_API)resolveBtn=`<button class="addbtn" data-rv-ack="${uH(f.key)}">Resolve</button>`;
+  const note=ack?`<div class="fnote">Resolved${ack.acked_by?' by '+uH(ack.acked_by):''}${ack.acked_at?' · '+usSeen(ack.acked_at):''}${ack.note?' — '+uH(ack.note):''}</div>`:'';
+  return `<div class="flagrow${ack?' done':''}"><span class="sev ${f.sev}"></span><div class="fx"><div class="ft">${uH(f.subject)}</div><div class="fd">${f.detail}</div>${note}</div><div class="fa">${actBtn}${resolveBtn}</div></div>`;
+}
+function renderReview(){
+  const openEl=$('#rvOpen');if(!openEl)return;
+  const all=reviewFlags();FLAG_BY_KEY=new Map(all.map(f=>[f.key,f]));
+  const open=all.filter(f=>!ACKS.has(f.key)), acked=all.filter(f=>ACKS.has(f.key));
+  const hi=open.filter(f=>f.sev==='high').length,md=open.filter(f=>f.sev==='med').length,lo=open.filter(f=>f.sev==='low').length;
+  $('#rvStats').innerHTML=[{k:'Open flags',v:open.length,d:'need a look'},{k:'High',v:hi,d:'priority'},{k:'Medium · Low',v:md+' · '+lo,d:'watch / housekeeping'},{k:'Resolved',v:acked.length,d:'acknowledged'}].map(tileHTML).join('');
+  let html='';
+  CATORDER.forEach(cat=>{ const items=open.filter(f=>f.cat===cat).sort((a,b)=>SEVRANK[a.sev]-SEVRANK[b.sev]); if(!items.length)return;
+    html+=`<div class="flagcat">${CATLABEL[cat]} · ${items.length}</div>`;
+    html+=items.slice(0,FLAGCAP).map(f=>flagRowHTML(f)).join('');
+    if(items.length>FLAGCAP)html+=`<div class="flagrow" style="justify-content:center"><button class="addbtn addbtn-ghost" data-rv-go="${CATTAB[cat]}">+${items.length-FLAGCAP} more in ${CATLABEL[cat]} — open the tab</button></div>`;
+  });
+  openEl.innerHTML=html||'<div class="empty" style="padding:22px">Nothing flagged right now — the queue is clear.</div>';
+  const resEl=$('#rvResolved'),wrap=$('#rvResWrap');
+  if(acked.length){resEl.innerHTML=acked.map(f=>flagRowHTML(f,ACKS.get(f.key))).join('');wrap.style.display='';$('#rvResCount').textContent=acked.length}
+  else{resEl.innerHTML='';wrap.style.display='none'}
+}
+function wireReview(){
+  const sec=$('section[data-tab="review"]');if(!sec||sec._wired)return;sec._wired=true;
+  sec.addEventListener('click',async e=>{
+    const nav=e.target.closest('[data-rv-go]');if(nav){go(nav.dataset.rvGo);return}
+    const ackBtn=e.target.closest('[data-rv-ack]'),reopenBtn=e.target.closest('[data-rv-reopen]'),btn=ackBtn||reopenBtn;
+    if(!btn||!REVIEW_API)return;
+    const key=btn.dataset.rvAck||btn.dataset.rvReopen,lerr=$('#rv-err');if(lerr)lerr.textContent='';
+    const prev=btn.textContent;btn.disabled=true;btn.innerHTML='<span class="spin2"></span>';
+    try{ if(ackBtn){const f=FLAG_BY_KEY.get(key);await REVIEW_API.set(key,f?f.cat:'other',f?f.subject:null);} else {await REVIEW_API.clear(key);}
+      const fresh=await REVIEW_API.list();ACKS.clear();(fresh||[]).forEach(a=>ACKS.set(a.flag_key,a));renderReview();
+    }catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
+  });
+}
+function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
 
@@ -878,10 +994,15 @@ if(SLI.length||Object.keys(CD).length)boot();
   async function whoami(){try{const {data:{user}}=await sb.auth.getUser();return (user&&user.email)||'';}catch(_){return '';}}
 
   async function load(){
-    const [a,b,c,d,e,f,g]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid')]);
+    const [a,b,c,d,e,f,g,rvk]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('review_acks')]);
     const er=a.error||b.error||c.error||d.error||e.error;
     if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){ denied(await whoami()); return; } body.innerHTML='<div class="lead">Signed in, but the data didn’t load: '+H(er.message||'unknown error')+'</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; return; }
-    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null); // vph + coverage are non-fatal: each tab shows its empty state if the RPC is unavailable
+    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null); // vph + coverage + review acks are non-fatal: each tab shows its empty state if the RPC is unavailable
+    if(window.__setReviewApi){ window.__setReviewApi({ // any active app_user can triage; every ack records who
+      list:  async()=>{ const r=await sb.rpc('review_acks'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
+      set:   async(k,cat,subj,note)=>{ const r=await sb.rpc('set_review_ack',{p_flag_key:k,p_category:cat,p_subject:subj||null,p_note:note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
+      clear: async(k)=>{ const r=await sb.rpc('clear_review_ack',{p_flag_key:k}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
+    }); }
     sb.rpc('whoami').then(async ({data,error})=>{ const admin=!error&&data&&data.is_admin;
       if(window.__setRosterAdmin){
         const onAdd = admin?(async(row,confirm)=>{ const r=await sb.rpc('set_roster_membership',{p_roster_id:row.rid,p_confirm:confirm}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; }):null;
