@@ -55,10 +55,25 @@ AUTH_JS = r"""
     const er=a.error||b.error||c.error||d.error||e.error;
     if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){ denied(await whoami()); return; } body.innerHTML='<div class="lead">Signed in, but the data didn’t load: '+H(er.message||'unknown error')+'</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; return; }
     window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null); // vph + coverage are non-fatal: each tab shows its empty state if the RPC is unavailable
-    sb.rpc('whoami').then(({data,error})=>{ const admin=!error&&data&&data.is_admin; if(!window.__setRosterAdmin) return;
-      const onAdd = admin?(async(row,confirm)=>{ const r=await sb.rpc('set_roster_membership',{p_roster_id:row.rid,p_confirm:confirm}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; }):null;
-      const onEdit = admin?(async(row,p)=>{ const r=await sb.rpc('edit_clinician',{p_roster_id:row.rid,p_credential:(p.credential===undefined?null:p.credential),p_states:(p.states===undefined?null:p.states),p_remove:!!p.remove}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; }):null;
-      window.__setRosterAdmin(admin, onAdd, onEdit); }).catch(()=>{});
+    sb.rpc('whoami').then(async ({data,error})=>{ const admin=!error&&data&&data.is_admin;
+      if(window.__setRosterAdmin){
+        const onAdd = admin?(async(row,confirm)=>{ const r=await sb.rpc('set_roster_membership',{p_roster_id:row.rid,p_confirm:confirm}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; }):null;
+        const onEdit = admin?(async(row,p)=>{ const r=await sb.rpc('edit_clinician',{p_roster_id:row.rid,p_credential:(p.credential===undefined?null:p.credential),p_states:(p.states===undefined?null:p.states),p_remove:!!p.remove}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; }):null;
+        window.__setRosterAdmin(admin, onAdd, onEdit);
+      }
+      if(window.__setUsersAdmin){
+        if(admin){
+          const api={
+            list:      async()=>{ const r=await sb.rpc('admin_list_users'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
+            provision: async(em,role,nm)=>{ const r=await sb.rpc('admin_provision_user',{p_email:em,p_role:role,p_name:nm||null}); if(r.error) throw new Error(r.error.message||'provision failed'); return r.data; },
+            setRole:   async(id,role)=>{ const r=await sb.rpc('admin_set_user_role',{p_id:id,p_role:role}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; },
+            setStatus: async(id,st)=>{ const r=await sb.rpc('admin_set_user_status',{p_id:id,p_status:st}); if(r.error) throw new Error(r.error.message||'update failed'); return r.data; },
+          };
+          let list=[]; try{ const r=await sb.rpc('admin_list_users'); if(!r.error) list=r.data; }catch(_){}
+          window.__setUsersAdmin(true, api, list);
+        } else { window.__setUsersAdmin(false); }
+      }
+    }).catch(()=>{});
     const so=document.getElementById('signout'); if(so){ so.style.display='inline-flex'; so.onclick=async()=>{await sb.auth.signOut();location.reload();}; whoami().then(m=>{if(m)so.title='Signed in as '+m;}); }
     gate.classList.add('hide');
   }
@@ -116,6 +131,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier",
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
+          "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
+          "admin_set_user_status","Provision access","How access works",
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")

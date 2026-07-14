@@ -154,6 +154,13 @@
   .tierb{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;border-radius:4px;margin-left:5px;vertical-align:middle}
   .tierb.seat{background:var(--surface-2);color:var(--ink-3)}
   .tierb.sup{background:var(--warn-soft);color:var(--warn)}
+  .tierb.adm{background:var(--accent-soft);color:var(--accent-ink)}
+  .provform{display:grid;gap:1px;max-width:340px}
+  .provform label{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:11px 0 4px}
+  .provform input,.provform select{height:36px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:8px;padding:0 11px;font:inherit;font-size:13.5px}
+  .okmsg{color:var(--good);font-size:12px;margin-top:10px;min-height:14px;line-height:1.4}
+  .umanage{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+  .usub{font-size:11px;color:var(--ink-3);margin-top:1px}
   .ptrack{position:relative;width:64px;height:6px;border-radius:4px;background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
   .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:2px;background:var(--ink-2)}
   .mv{font-weight:700;font-size:11.5px;white-space:nowrap}
@@ -325,6 +332,44 @@
       <div class="tscroll"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div></div>
   </section>
 
+  <!-- USERS (admin only) -->
+  <section class="tab" data-tab="users">
+    <div class="stats s4" id="usStats"></div>
+    <div class="cols2">
+      <div class="card">
+        <div class="hd"><h2>Provision access</h2><span class="desc">pre-authorize an email &amp; role</span></div>
+        <div class="bd">
+          <div class="provform">
+            <label for="us-email">Email</label>
+            <input id="us-email" type="email" placeholder="person@steadymd.com" autocomplete="off" spellcheck="false">
+            <label for="us-name">Name <span class="muted" style="text-transform:none;letter-spacing:0">(optional)</span></label>
+            <input id="us-name" type="text" placeholder="Full name" autocomplete="off">
+            <label for="us-role">Role</label>
+            <select id="us-role"><option value="viewer">Viewer — read the console</option><option value="admin">Admin — manage roster &amp; users</option></select>
+            <button class="addbtn addbtn-lg" id="us-go" style="margin-top:16px;justify-self:start">Provision access</button>
+            <div class="adderr" id="us-err" style="margin-top:8px"></div>
+            <div class="okmsg" id="us-ok"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>How access works</h2><span class="desc">invitation-only</span></div>
+        <div class="bd" style="font-size:12.5px;line-height:1.65;color:var(--ink-2)">
+          <p style="margin:0 0 9px"><b style="color:var(--ink)">Provisioning</b> pre-authorizes an email with a role. The person still signs in through the normal SteadyMD login — the moment their login exists, they're recognized here with the role you set. Until then they show as <b>Invited</b>.</p>
+          <p style="margin:0 0 9px"><b style="color:var(--ink)">Viewer</b> reads every tab. <b style="color:var(--ink)">Admin</b> also manages the roster (confirm/edit/remove) and this Users list.</p>
+          <p style="margin:0"><b style="color:var(--ink)">Revoking</b> (Disable) blocks access immediately. You can't disable your own login or remove the last active admin.</p>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:0">
+      <div class="hd"><h2>People with access</h2><span class="desc" id="usCount"></span></div>
+      <div class="bd" style="padding-top:4px">
+        <div class="tscroll"><table id="usTable"><thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Last seen</th><th class="r">Views</th><th class="r">Manage</th></tr></thead><tbody id="usBody"></tbody></table></div>
+        <div class="adderr" id="us-lerr" style="padding:8px 2px 0"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- GUIDE -->
   <section class="tab" data-tab="playbook">
     <div class="toolbar" style="margin-bottom:14px"><span class="fl">Topic</span><select class="dateinp" id="guideSel" style="min-width:280px;height:36px;font-weight:600"></select><span class="muted" style="font-size:11.5px">how to use the console, keep data current, and read each metric</span></div>
@@ -360,9 +405,9 @@ function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critica
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['playbook','Guide']];
-function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}" class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
-function go(t){$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
+const TABS=[['overview','Overview'],['performance','Performance'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['users','Users'],['playbook','Guide']];
+function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${k==='users'?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
+function go(t){if(t==='users'&&!USERS_ADMIN)t='overview';$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
 
 // ---------- filter engine ----------
 let FIL={0:new Set(),2:new Set(),1:new Set(),mod:new Set(),from:null,to:null,h0:0,h1:23};
@@ -670,7 +715,7 @@ const GUIDE=[
   {k:'start',t:'Getting started',h:`
     <div class="m"><h3>What this is</h3>Live operational reporting for the clinician network — service levels, consults, shifts, incentives, the roster, and week-over-week productivity. Every tab reads straight from the database, so a browser refresh always shows the latest loaded data.</div>
     <div class="m"><h3>Signing in</h3>Use your SteadyMD email and password. Access is invitation-only — an admin provisions each account, so there's no self-signup. Forgot your password? Use the link on the sign-in screen (if the reset email lands you on a dead page, see <b>Keeping the data current → note</b>).</div>
-    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b>. <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
+    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b> — plus, for admins only, <b>Users</b> (provision access &amp; set roles). <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
   {k:'refresh',t:'Keeping the data current',h:`
     <div class="m"><h3>How the data flows</h3>The console never holds a stale copy — it reads <b>live from the database</b>. The database is filled by loading the monthly source exports (roster, license detail, SLI response times, consults, shifts, incentives). Loading also re-links every clinician to their stable identity and rebuilds the weekly productivity ledger, so history stays attached to the right person.</div>
     <div class="m"><h3>To refresh with new numbers</h3>Load the latest exports: drop the current files in a folder and run the one-step ingestion (<code>platform/ingest</code>). It recognizes each file by its columns, so renamed files still land correctly. When it finishes, just <b>refresh your browser</b> — no redeploy, no waiting.</div>
@@ -746,7 +791,52 @@ function renderCoverage(){
   const ur=[...unrel].sort((a,b)=>(b[5]/Math.max(b[2],1))-(a[5]/Math.max(a[2],1))).slice(0,8);
   $('#covUnrel').innerHTML=ur.map(r=>`<div class="rk" style="cursor:default"><div class="lab">${DOWL7[r[0]]} ${r[1]}:00<small>avg ${r[2]} · swings ±${r[5]}${r[6]?' · '+r[6]+' wk at zero':''}</small></div><div class="val tnum" style="color:var(--warn)">±${r[5]}</div><div class="track"><i style="width:${Math.max(2,Math.min(100,r[5]/Math.max(r[2],1)*100))}%;background:var(--warn)"></i></div></div>`).join('')||'<div class="empty">Coverage holds steady week to week.</div>';
 }
-function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderIncentives();renderVph();renderCl();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+// ---------- USERS (admin access management) ----------
+let USERS=[], USERS_ADMIN=false, USERS_API=null, USERS_WIRED=false;
+const uH=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+window.__setUsersAdmin=function(isAdmin,api,list){USERS_ADMIN=!!isAdmin;USERS_API=isAdmin?(api||null):null;USERS=Array.isArray(list)?list:[];const b=document.querySelector('#nav button[data-t="users"]');if(b)b.style.display=isAdmin?'':'none';renderUsers()};
+function usRoleBadge(r){return r==='admin'?'<span class="tierb adm">Admin</span>':'<span class="tierb seat">Viewer</span>'}
+function usStatusPill(u){return u.status==='disabled'?'<span class="pill p-bad"><i class="dot"></i>Disabled</span>':u.claimed?'<span class="pill p-active"><i class="dot"></i>Active</span>':'<span class="pill p-flag"><i class="dot"></i>Invited</span>'}
+function usSeen(t){if(!t)return '<span class="muted">—</span>';const d=new Date(t),days=Math.floor((Date.now()-d.getTime())/86400000);return days<=0?'today':days===1?'yesterday':days<30?days+'d ago':d.toISOString().slice(0,10)}
+function renderUsers(){
+  const stats=$('#usStats'),bodyEl=$('#usBody');if(!bodyEl)return;
+  if(!USERS_ADMIN){if(stats)stats.innerHTML='';bodyEl.innerHTML='<tr><td colspan="6" class="empty">Admin access required.</td></tr>';if($('#usCount'))$('#usCount').textContent='';return}
+  const n=USERS.length,adm=USERS.filter(u=>u.role==='admin'&&u.status==='active').length,pend=USERS.filter(u=>!u.claimed&&u.status!=='disabled').length,dis=USERS.filter(u=>u.status==='disabled').length;
+  stats.innerHTML=[{k:'People',v:n,d:'provisioned'},{k:'Admins',v:adm,d:'active'},{k:'Invited',v:pend,d:'not signed in yet'},{k:'Disabled',v:dis,d:'access revoked'}].map(tileHTML).join('');
+  $('#usCount').textContent=n+' '+(n===1?'person':'people');
+  bodyEl.innerHTML=USERS.map(u=>{
+    const name=u.name?uH(u.name):'<span class="muted">—</span>';
+    const self=u.is_self?' <span class="usub">(you)</span>':'';
+    const roleBtn=u.role==='admin'?`<button class="addbtn addbtn-ghost" data-uid="${u.id}" data-act="role" data-val="viewer">Make viewer</button>`:`<button class="addbtn addbtn-ghost" data-uid="${u.id}" data-act="role" data-val="admin">Make admin</button>`;
+    const statBtn=u.status==='disabled'?`<button class="addbtn" data-uid="${u.id}" data-act="status" data-val="active">Restore</button>`:`<button class="addbtn addbtn-ghost" data-uid="${u.id}" data-act="status" data-val="disabled">Disable</button>`;
+    const manage=u.is_self?'<span class="usub">—</span>':`<div class="umanage">${roleBtn}${statBtn}</div>`;
+    return `<tr><td><div>${uH(u.email)}${self}</div><div class="usub">${name}</div></td><td>${usRoleBadge(u.role)}</td><td>${usStatusPill(u)}</td><td>${usSeen(u.last_seen)}</td><td class="r tnum">${u.views||0}</td><td class="r">${manage}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" class="empty">No one yet — provision an email above.</td></tr>';
+}
+async function usRefresh(){if(!USERS_API)return;try{const list=await USERS_API.list();USERS=Array.isArray(list)?list:[];renderUsers()}catch(e){if($('#us-lerr'))$('#us-lerr').textContent=(e&&e.message)||String(e)}}
+function wireUsers(){
+  if(USERS_WIRED)return;USERS_WIRED=true;
+  const go=$('#us-go');
+  if(go)go.onclick=async()=>{
+    const em=$('#us-email').value.trim(),nm=$('#us-name').value.trim(),role=$('#us-role').value,err=$('#us-err'),ok=$('#us-ok');
+    err.textContent='';ok.textContent='';
+    if(!em||em.indexOf('@')<1){err.textContent='Enter a valid email.';return}
+    if(!USERS_API){err.textContent='Not connected — reload and try again.';return}
+    const prev=go.textContent;go.disabled=true;go.innerHTML='<span class="spin2"></span>';
+    try{await USERS_API.provision(em,role,nm);$('#us-email').value='';$('#us-name').value='';await usRefresh();ok.textContent='Provisioned '+em+' as '+role+'. They will have access at their next sign-in.';}
+    catch(e){err.textContent=(e&&e.message)||String(e)}
+    finally{go.disabled=false;go.textContent=prev}
+  };
+  const body=$('#usBody');
+  if(body)body.onclick=async e=>{
+    const btn=e.target.closest('button[data-uid]');if(!btn||!USERS_API)return;
+    const id=btn.dataset.uid,act=btn.dataset.act,val=btn.dataset.val,lerr=$('#us-lerr');if(lerr)lerr.textContent='';
+    const prev=btn.textContent;btn.disabled=true;btn.innerHTML='<span class="spin2"></span>';
+    try{if(act==='role')await USERS_API.setRole(id,val);else await USERS_API.setStatus(id,val);await usRefresh();}
+    catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
+  };
+}
+function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
