@@ -181,6 +181,17 @@
   .fctrack{height:8px;border-radius:5px;background:var(--surface-2);overflow:hidden}
   .fctrack i{height:100%;border-radius:5px;display:block;min-width:2px}
   .fcbar b{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+  .sbrow{display:grid;grid-template-columns:1.5fr 1.3fr auto auto;gap:10px 16px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border)}
+  .sbrow:last-child{border-bottom:0}
+  .sbname{font-weight:640;font-size:13.5px}
+  .sbnote{font-size:11px;color:var(--ink-3);margin-top:2px;line-height:1.4}
+  .sbbar{height:9px;border-radius:5px;background:var(--surface-2);position:relative;overflow:visible}
+  .sbbar i{display:block;height:100%;border-radius:5px}
+  .sbbar .tgt{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);border-radius:1px}
+  .sbstatus{font-size:11px;font-weight:650;padding:3px 10px;border-radius:20px;white-space:nowrap;text-align:center}
+  .sb-good{background:var(--good-soft);color:var(--good)}.sb-warn{background:var(--warn-soft);color:var(--warn)}
+  .sb-bad{background:var(--bad-soft);color:var(--bad)}.sb-none{background:var(--surface-2);color:var(--ink-3)}
+  @media (max-width:700px){.sbrow{grid-template-columns:1fr auto}.sbrow>div:nth-child(2){grid-column:1/-1}}
   .ptrack{position:relative;width:64px;height:6px;border-radius:4px;background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
   .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:2px;background:var(--ink-2)}
   .mv{font-weight:700;font-size:11.5px;white-space:nowrap}
@@ -269,6 +280,10 @@
 
   <!-- PERFORMANCE -->
   <section class="tab" data-tab="performance">
+    <div class="card" id="sbCard">
+      <div class="hd"><h2>Contract scoreboard</h2><span class="desc">SLA attainment vs. contract target · all SLIs, not filtered <span id="sbAdminHint"></span></span></div>
+      <div class="bd"><div id="sbBody"></div><div class="adderr" id="sb-err" style="padding:6px 2px 0"></div></div>
+    </div>
     <div class="stats s4" id="perfStats"></div>
     <div class="card">
       <div class="hd"><h2>Partner performance</h2>
@@ -465,6 +480,7 @@ const INC = /*__INC__*/{};
 const VPH = /*__VPH__*/{};
 const COV = /*__COV__*/{};
 const DEM = /*__DEM__*/{};
+const TARGETS = /*__TGT__*/[];
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const nf=n=>Number(n).toLocaleString();
 const P=0,PR=1,ST=2,CT=3,SLA=4,W=5,DOW=6,HR=7,DT=8;
@@ -826,6 +842,10 @@ const GUIDE=[
     <div class="m"><h3>One row per real clinician</h3>The roster fuses the roster / license / activity files into one record per person — NPI, email, and Metabase GUID are the gold keys; names only bridge when nothing conflicts.</div>
     <div class="m"><h3>Tiers &amp; coverage</h3>Seats (MD/DO/NP/PA) can hold a full clinical seat; support (MA/RN/etc.) touch consults but never count toward coverage. The "coverage seats" stat excludes support by design.</div>
     <div class="m"><h3>Correction &amp; add-to-roster queues</h3>Someone missing a credential or state is flagged <b>Needs fix</b>; someone seen only in the activity data lands in the <b>Add-queue</b>. From a clinician's expanded row an admin can edit credential / licensed states, confirm someone onto the roster, or remove them — and those decisions are remembered across future loads.</div>`},
+  {k:'scoreboard',t:'The contract scoreboard',h:`
+    <div class="m"><h3>What it shows</h3>At the top of <b>Performance</b>: each partner's live SLA attainment against its contract target, with a traffic light — <b>On target</b>, <b>Watch</b> (at or above the warn line but under target), or <b>Breach risk</b> (below it). The bar fills to actual attainment; the dark tick marks the target. It reads <b>all SLIs</b>, on purpose — it's a stable contract view, so it doesn't move when you use the filter bar below it.</div>
+    <div class="m"><h3>Targets are yours to set</h3>Targets are data, not baked in. They ship seeded with the old tool's response-time contracts as a starting point; an <b>admin</b> clicks <b>Edit</b> on any row (or <b>Add target</b>) to set the match key, label, tier, target / watch / breach percentages, and a note. Changes save to the database and show for everyone on the next load — no redeploy.</div>
+    <div class="m"><h3>Match keys &amp; unmapped partners</h3>A target's <b>match key</b> is found inside the partner name from the data (<code>transcarent</code> catches “98point6 Transcarent”), so one target lands on whatever the export calls that partner. Partners with real volume but no target are listed under the board so you can add one. Uptime and satisfaction SLAs aren't here — they aren't in the response log.</div>`},
   {k:'defs',t:'Metric definitions',h:`
     <div class="m"><h3>SLA — completed vs due</h3>An SLI counts as met when <code>completed ≤ due</code>. Overview and Performance recompute it against whatever the filter bar is set to.</div>
     <div class="m"><h3>Modality</h3>Read from the status flow, not the label: a consult that reaches <code>in_call</code> is synchronous video; critical-value calls are sync phone; chart-review and async-messaging are messaging. Lab steps are excluded — the tracked unit is the chart-review or call they produce.</div>
@@ -921,6 +941,69 @@ function wireUsers(){
     try{if(act==='role')await USERS_API.setRole(id,val);else await USERS_API.setStatus(id,val);await usRefresh();}
     catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
   };
+}
+// ---------- SCOREBOARD (SLA attainment vs contract target) ----------
+let SB_ADMIN=false, SB_API=null;
+function normP(s){return String(s==null?'':s).toLowerCase().trim()}
+function sbAgg(key){let scored=0,met=0,n=0;for(const r of SLI){if(!normP(r[P]).includes(key))continue;n++;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{n,scored,met,pct:scored?met/scored*100:null}}
+function sbStatus(pct,t){if(pct==null)return['sb-none','No SLIs'];const p=pct/100;if(p>=t.target)return['sb-good','On target'];if(p>=t.warn)return['sb-warn','Watch'];return['sb-bad','Breach risk']}
+window.__setSlaAdmin=function(isAdmin,api){SB_ADMIN=!!isAdmin;SB_API=isAdmin?(api||null):null;if($('#sbAdminHint'))$('#sbAdminHint').textContent=isAdmin?'· click Edit to adjust a target':'';renderScoreboard()};
+function renderScoreboard(){
+  const body=$('#sbBody');if(!body)return;
+  if(!SLI.length){body.innerHTML='<div class="empty">No SLA data loaded.</div>';return}
+  const parts=agg(SLI,P), covered=new Set();
+  const rows=TARGETS.map(t=>{
+    const key=normP(t.partner_key), a=sbAgg(key);
+    parts.forEach(p=>{if(normP(p.name).includes(key))covered.add(p.name)});
+    const [cls,lbl]=sbStatus(a.pct,t), tgt=Math.round(t.target*100);
+    const barColor=cls==='sb-good'?'var(--good)':cls==='sb-warn'?'var(--warn)':cls==='sb-bad'?'var(--bad)':'var(--ink-3)';
+    const actual=a.pct==null?'—':a.pct.toFixed(1)+'%';
+    const edit=SB_ADMIN?`<button class="addbtn addbtn-ghost" data-sb-edit="${uH(t.partner_key)}">Edit</button>`:'<span></span>';
+    return `<div class="sbrow"><div><div class="sbname">${uH(t.label)}${t.tier?` <span class="tierb seat">Tier ${t.tier}</span>`:''}</div>${t.note?`<div class="sbnote">${uH(t.note)}</div>`:''}</div>`+
+      `<div><div class="sbbar"><i style="width:${a.pct==null?0:Math.min(100,a.pct)}%;background:${barColor}"></i><span class="tgt" style="left:${Math.min(100,tgt)}%" title="target ${tgt}%"></span></div>`+
+      `<div class="sbnote" style="margin-top:5px"><b class="tnum" style="color:var(--ink)">${actual}</b> vs target ${tgt}% · ${nf(a.scored)} SLIs</div></div>`+
+      `<div class="sbstatus ${cls}">${lbl}</div><div>${edit}</div></div>`;
+  }).join('');
+  const unmapped=parts.filter(p=>!covered.has(p.name)&&p.n>=50);
+  body.innerHTML=(rows||'<div class="empty">No contract targets set yet'+(SB_ADMIN?' — add one below.':'.')+'</div>')+
+    (unmapped.length?`<div class="sbnote" style="padding:11px 2px 0"><b>${unmapped.length}</b> partner${unmapped.length===1?'':'s'} with volume ${SB_ADMIN?'have no target':'aren’t under a tracked contract'}: ${unmapped.slice(0,6).map(p=>uH(p.name)+' ('+p.pct+'%)').join(', ')}${unmapped.length>6?'…':''}.</div>`:'')+
+    (SB_ADMIN?`<div style="padding:13px 2px 2px"><button class="addbtn addbtn-lg" data-sb-add="1">＋ Add target</button></div>`:'');
+}
+function sbOpenEdit(key){
+  const t=TARGETS.find(x=>x.partner_key===key)||{partner_key:'',label:'',tier:'',target:0.9,warn:0.8,critical:0.75,note:''};
+  const pc=v=>Math.round(v*1000)/10;
+  $('#mTitle').textContent=key?('Edit target — '+t.label):'Add contract target';
+  $('#mSub').innerHTML='Targets are attainment percentages. <b>Match key</b> is found inside the partner name from the data (e.g. <code>transcarent</code> matches “98point6 Transcarent”).';
+  $('#mBody').innerHTML=`<div class="provform" style="max-width:none">`+
+    `<label>Match key</label><input id="sb-key" value="${uH(t.partner_key)}" ${key?'readonly':''} placeholder="e.g. amazon">`+
+    `<label>Label</label><input id="sb-label" value="${uH(t.label)}" placeholder="Amazon Clinic">`+
+    `<label>Tier</label><input id="sb-tier" type="number" min="1" max="5" value="${t.tier==null?'':t.tier}">`+
+    `<label>Target %</label><input id="sb-target" type="number" min="0" max="100" step="0.1" value="${pc(t.target)}">`+
+    `<label>Watch % (amber below target)</label><input id="sb-warn" type="number" min="0" max="100" step="0.1" value="${pc(t.warn)}">`+
+    `<label>Breach % (red below this)</label><input id="sb-crit" type="number" min="0" max="100" step="0.1" value="${pc(t.critical)}">`+
+    `<label>Note (contract detail)</label><input id="sb-note" value="${uH(t.note||'')}" placeholder="First contact ≤10 min · breach rule…">`+
+    `<div style="display:flex;gap:8px;margin-top:15px">`+
+    `<button class="addbtn addbtn-lg" id="sb-save">Save target</button>`+
+    (key?`<button class="addbtn addbtn-lg addbtn-ghost" id="sb-del">Delete</button>`:'')+
+    `</div><div class="adderr" id="sb-ferr" style="margin-top:8px"></div></div>`;
+  $('#modal').classList.add('open');
+  const refresh=async()=>{const list=await SB_API.list();TARGETS.length=0;(list||[]).forEach(x=>TARGETS.push(x));renderScoreboard();};
+  $('#sb-save').onclick=async()=>{
+    const err=$('#sb-ferr');err.textContent='';
+    const p={key:$('#sb-key').value.trim(),label:$('#sb-label').value.trim(),tier:parseInt($('#sb-tier').value,10)||null,target:parseFloat($('#sb-target').value)/100,warn:parseFloat($('#sb-warn').value)/100,critical:parseFloat($('#sb-crit').value)/100,note:$('#sb-note').value.trim()};
+    if(!p.key||!p.label){err.textContent='Match key and label are required.';return}
+    if([p.target,p.warn,p.critical].some(x=>isNaN(x)||x<0||x>1)){err.textContent='Percentages must be between 0 and 100.';return}
+    if(!SB_API){err.textContent='Not connected.';return}
+    const btn=$('#sb-save'),prev=btn.textContent;btn.disabled=true;btn.innerHTML='<span class="spin2"></span>';
+    try{await SB_API.set(p);await refresh();$('#modal').classList.remove('open');}
+    catch(e){btn.disabled=false;btn.textContent=prev;err.textContent=(e&&e.message)||String(e)}
+  };
+  const del=$('#sb-del');
+  if(del)del.onclick=async()=>{if(!SB_API)return;const err=$('#sb-ferr');err.textContent='';del.disabled=true;del.innerHTML='<span class="spin2"></span>';try{await SB_API.del(key);await refresh();$('#modal').classList.remove('open');}catch(e){del.disabled=false;del.textContent='Delete';err.textContent=(e&&e.message)||String(e)}};
+}
+function wireScoreboard(){
+  const c=$('#sbCard');if(!c||c._wired)return;c._wired=true;
+  c.addEventListener('click',e=>{const ed=e.target.closest('[data-sb-edit]'),ad=e.target.closest('[data-sb-add]');if(ed)sbOpenEdit(ed.dataset.sbEdit);else if(ad)sbOpenEdit('')});
 }
 // ---------- FORECAST (demand vs coverage, next-week load) ----------
 function renderForecast(){
@@ -1054,8 +1137,8 @@ function wireReview(){
     }catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
   });
 }
-function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderForecast();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
-window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(acks)window.__setReviewAcks(acks);boot()};
+function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
 
@@ -1071,10 +1154,10 @@ if(SLI.length||Object.keys(CD).length)boot();
   async function whoami(){try{const {data:{user}}=await sb.auth.getUser();return (user&&user.email)||'';}catch(_){return '';}}
 
   async function load(){
-    const [a,b,c,d,e,f,g,dmd,rvk]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('review_acks')]);
+    const [a,b,c,d,e,f,g,dmd,rvk,tgt]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('review_acks'),sb.rpc('sla_targets')]);
     const er=a.error||b.error||c.error||d.error||e.error;
     if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){ denied(await whoami()); return; } body.innerHTML='<div class="lead">Signed in, but the data didn’t load: '+H(er.message||'unknown error')+'</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; return; }
-    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null); // vph + coverage + demand + review acks are non-fatal: each tab shows its empty state if the RPC is unavailable
+    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,(tgt&&!tgt.error)?tgt.data:null); // vph + coverage + demand + review acks + sla targets are non-fatal: each tab shows its empty state if the RPC is unavailable
     if(window.__setReviewApi){ window.__setReviewApi({ // any active app_user can triage; every ack records who
       list:  async()=>{ const r=await sb.rpc('review_acks'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
       set:   async(k,cat,subj,note)=>{ const r=await sb.rpc('set_review_ack',{p_flag_key:k,p_category:cat,p_subject:subj||null,p_note:note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
@@ -1097,6 +1180,15 @@ if(SLI.length||Object.keys(CD).length)boot();
           let list=[]; try{ const r=await sb.rpc('admin_list_users'); if(!r.error) list=r.data; }catch(_){}
           window.__setUsersAdmin(true, api, list);
         } else { window.__setUsersAdmin(false); }
+      }
+      if(window.__setSlaAdmin){
+        if(admin){
+          window.__setSlaAdmin(true, {
+            list: async()=>{ const r=await sb.rpc('sla_targets'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
+            set:  async(p)=>{ const r=await sb.rpc('admin_set_sla_target',{p_key:p.key,p_label:p.label,p_tier:p.tier,p_target:p.target,p_warn:p.warn,p_critical:p.critical,p_note:p.note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
+            del:  async(k)=>{ const r=await sb.rpc('admin_delete_sla_target',{p_key:k}); if(r.error) throw new Error(r.error.message||'delete failed'); return r.data; },
+          });
+        } else { window.__setSlaAdmin(false); }
       }
     }).catch(()=>{});
     const so=document.getElementById('signout'); if(so){ so.style.display='inline-flex'; so.onclick=async()=>{await sb.auth.signOut();location.reload();}; whoami().then(m=>{if(m)so.title='Signed in as '+m;}); }
