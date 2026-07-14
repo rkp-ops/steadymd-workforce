@@ -87,6 +87,14 @@ AUTH_JS = r"""
           });
         } else { window.__setSlaAdmin(false); }
       }
+      if(window.__setImportAdmin){
+        if(admin){
+          window.__setImportAdmin(true, {
+            upload: async(file)=>{ const path=`${Date.now()}-${Math.random().toString(36).slice(2)}/${file.name}`; const {error}=await sb.storage.from('imports').upload(path,file,{upsert:false,contentType:file.type||'text/csv'}); if(error) throw new Error(error.message||'upload failed'); return path; },
+            run: async(paths,mode)=>{ const {data,error}=await sb.functions.invoke('ingest',{body:{mode,paths}}); if(error) throw new Error(error.message||'ingest failed'); if(data&&data.error) throw new Error(data.error); return data; },
+          });
+        } else { window.__setImportAdmin(false); }
+      }
     }).catch(()=>{});
     const so=document.getElementById('signout'); if(so){ so.style.display='inline-flex'; so.onclick=async()=>{await sb.auth.signOut();location.reload();}; whoami().then(m=>{if(m)so.title='Signed in as '+m;}); }
     gate.classList.add('hide');
@@ -152,6 +160,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "demand_grid","renderForecast",'data-tab="forecast"',"fcHeat","Coverage alignment",
           "sla_targets","admin_set_sla_target","renderScoreboard","Contract scoreboard",
           "__setSlaAdmin","sbOpenEdit","sbModAgg","On-demand · response time","Dedicated panel",
+          "__setImportAdmin","wireImport",'data-tab="import"',"Refresh the data","runImport",
+          "functions.invoke('ingest'","storage.from('imports')",
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")

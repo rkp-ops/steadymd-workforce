@@ -10,9 +10,13 @@
 --     SLO and a stated async SLO (in minutes), or an explicit None. "A single
 --     SLA per partner is invalid" — so sync_min and async_min are separate
 --     columns, never one blended number.
---   * NO DEFAULTS, EVER. A partner with no contractual attainment floor gets
---     floor = NULL and is shown as tracked-without-a-bar, never a placeholder %.
---     (The banned 15-minute sync default appears nowhere.)
+--   * OPERATING GOAL 95%. Ops targets 95% attainment on every scored partner
+--     (on-demand + dedicated), so floor = 0.95 across the board; green >=95%,
+--     amber >=90%, red below. Volume-only and scheduled partners stay floor NULL
+--     (not scored). The banned 15-minute sync default appears nowhere. Where a
+--     partner also carries a distinct CONTRACTUAL breach line (e.g. LifeMD async
+--     miss <=10% => 90%), that detail lives in its note; the 95% is the goal the
+--     board grades against.
 --   * PANELS ARE SEPARATE. Transcarent is a dedicated panel reported on its own;
 --     scheduled-availability SLAs (EZ Health, scheduled Noom/Futur) are out of
 --     scope for this response-time board; volume-only partners carry no SLA.
@@ -47,26 +51,26 @@ alter table public.sla_target enable row level security;
 
 insert into public.sla_target (partner_key, label, panel, sync_min, async_min, floor, basis, note, sort) values
   -- Dedicated panel (own dashboard, reported separately)
-  ('transcarent', 'Transcarent', 'dedicated', 10, null, null,
+  ('transcarent', 'Transcarent', 'dedicated', 10, null, 0.95,
      'SLI-verified (Due - Received = 10 min)',
      'Dedicated panel, TC EMR — reported separately from the Amazon+LifeMD sync view. 10 min first contact (over 20 egregious). Uptime >=99.7%, satisfaction >=4.0.', 10),
   -- On-demand (real-time queue, response time per consult)
-  ('amazon',      'Amazon Clinic', 'on_demand', 30, 240, null,
+  ('amazon',      'Amazon Clinic', 'on_demand', 30, 240, 0.95,
      'Confirmed 4/5/26; async = Looker standard',
      'No contract on file — operating targets. Same CSL queue, sync prioritized. Aliases: Amazon Clinic, Amazon One Medical, AOM.', 20),
-  ('lifemd',      'LifeMD', 'on_demand', 60, 240, 0.90,
+  ('lifemd',      'LifeMD', 'on_demand', 60, 240, 0.95,
      'Contract summary on file',
-     'Async penalty if monthly miss over 10% (floor 90%). No SLA in the first 6 months.', 30),
-  ('wisp',        'Wisp', 'on_demand', null, 240, null,
+     'Ops goal 95%. Contractual async penalty if monthly miss over 10% (breach line 90%). No SLA in the first 6 months.', 30),
+  ('wisp',        'Wisp', 'on_demand', null, 240, 0.95,
      'Contract + reporting convention',
      'Async only. Base report uses 4 hr for parity; 5 hr (300 min) is contractual.', 40),
-  ('noom',        'Noom', 'on_demand', null, 1440, null,
+  ('noom',        'Noom', 'on_demand', null, 1440, 0.95,
      'SLI read 7/13 (WSL async)',
      'Async only here (scheduled sync is separate). Flat 1,440-min clock-based SLO across both Noom programs.', 50),
-  ('futur',       'Futur', 'on_demand', null, 1440, null,
+  ('futur',       'Futur', 'on_demand', null, 1440, 0.95,
      'SLI read 7/13 (WSL async)',
      'Async only here. 24 business-hours SLO; both Futur programs identical.', 60),
-  ('nav health',  'Nav Health Direct / GenMed', 'on_demand', null, null, null,
+  ('nav health',  'Nav Health Direct / GenMed', 'on_demand', null, null, 0.95,
      'Partner reference notes',
      'No minute-SLA. Cancellation rate is the true indicator (cancels near 3h45m). Async only, no shift entity, no incentives.', 70),
   -- Volume-only (no visit SLA on file)

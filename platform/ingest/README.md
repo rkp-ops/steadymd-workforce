@@ -1,5 +1,13 @@
 # Data ingestion
 
+> **Most refreshes don't need this.** An admin can now refresh the data from the
+> console's **Import** tab — drop the exports in, click Load, done. The powerful
+> service key stays server-side (in the `ingest` Supabase Edge Function). This
+> Python CLI is the reference implementation, kept for bulk loads and automation;
+> the Edge Function (`supabase/functions/ingest`) is a verified port of it. If
+> you change the roster logic here, mirror it in `core.mjs` and re-run the
+> conformance harness (`supabase/functions/ingest/roster_conformance.mjs`).
+
 Refresh the console's data from the monthly exports in one step. No filenames or
 column positions are hard-coded — each file is recognized by the columns it
 carries, so a renamed file still lands correctly.
