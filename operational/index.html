@@ -162,6 +162,19 @@
   .okmsg{color:var(--good);font-size:12px;margin-top:10px;min-height:14px;line-height:1.4}
   .umanage{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
   .usub{font-size:11px;color:var(--ink-3);margin-top:1px}
+  .impdrop{border:1.5px dashed var(--border-2);border-radius:12px;padding:26px 16px;text-align:center;transition:border-color .15s,background .15s;cursor:pointer}
+  .impdrop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .impdi{font-size:26px;color:var(--ink-3);margin-bottom:6px}
+  .linkbtn2{appearance:none;background:0;border:0;color:var(--accent-ink);font:inherit;font-size:12.5px;font-weight:650;cursor:pointer;text-decoration:underline;padding:0}
+  .impbtns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .impf{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;margin-top:8px;font-size:12.5px}
+  .impf .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .impf .fsz{color:var(--ink-3);font-size:11px}
+  .impf .fx{cursor:pointer;color:var(--ink-3);border:0;background:0;font-size:15px;line-height:1}
+  .impf.up{border-color:var(--good)}.impf.err{border-color:var(--bad)}
+  .impkv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px;margin-bottom:10px}
+  .impkv .k{color:var(--ink-3)}.impkv .v{font-variant-numeric:tabular-nums;color:var(--ink)}
+  .impwarn{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:8px 11px;font-size:12px;margin-top:8px;line-height:1.5}
   .sev{display:inline-block;width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none}
   .sev.high{background:var(--bad)}.sev.med{background:var(--warn)}.sev.low{background:var(--ink-3)}
   .flagrow{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:8px}
@@ -426,6 +439,39 @@
       <div class="tscroll"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div></div>
   </section>
 
+  <!-- IMPORT (admin only) -->
+  <section class="tab" data-tab="import">
+    <div class="cols2">
+      <div class="card">
+        <div class="hd"><h2>Refresh the data</h2><span class="desc">drop in this month's exports</span></div>
+        <div class="bd">
+          <div id="impDrop" class="impdrop"><input type="file" id="impFiles" multiple accept=".csv,.csv.gz" style="display:none">
+            <div class="impdi">↥</div><div><b>Drop export files here</b> or <button type="button" class="linkbtn2" id="impPick">choose files</button></div>
+            <div class="muted" style="font-size:11.5px;margin-top:5px">roster, license, SLI, consults, shifts, incentives · .csv or .csv.gz</div></div>
+          <div id="impList"></div>
+          <div class="impbtns" id="impBtns" style="display:none">
+            <button class="addbtn addbtn-lg" id="impDry">Preview (no changes)</button>
+            <button class="addbtn addbtn-lg" id="impLoad">Load into console</button>
+            <button class="addbtn addbtn-lg addbtn-ghost" id="impClear">Clear</button>
+          </div>
+          <div class="adderr" id="impErr" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>How it works</h2><span class="desc">no terminal, no keys</span></div>
+        <div class="bd" style="font-size:12.5px;line-height:1.65;color:var(--ink-2)">
+          <p style="margin:0 0 9px">Files upload to secure storage, then a server-side function parses and loads them — the database key stays on the server, never in your browser. Recognized by their columns, so renamed files still land right.</p>
+          <p style="margin:0 0 9px"><b style="color:var(--ink)">Preview</b> detects each file and shows the row counts without changing anything. <b style="color:var(--ink)">Load</b> replaces the data and re-links every clinician to their stable identity, then the console reads it live — just refresh.</p>
+          <p style="margin:0">Discontinued partners (Astellas, Rezilient, MedZip) are dropped automatically and flagged if they reappear. Load the full monthly set together for the cleanest refresh.</p>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="impReportCard" style="margin-bottom:0;display:none">
+      <div class="hd"><h2 id="impReportTitle">Result</h2><span class="desc" id="impReportSub"></span></div>
+      <div class="bd"><div id="impReport"></div></div>
+    </div>
+  </section>
+
   <!-- USERS (admin only) -->
   <section class="tab" data-tab="users">
     <div class="stats s4" id="usStats"></div>
@@ -501,9 +547,10 @@ function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critica
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['users','Users'],['playbook','Guide']];
-function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${k==='users'?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
-function go(t){if(t==='users'&&!USERS_ADMIN)t='overview';$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
+const TABS=[['overview','Overview'],['performance','Performance'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
+const ADMIN_TABS=new Set(['users','import']);
+function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${ADMIN_TABS.has(k)?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
+function go(t){if(ADMIN_TABS.has(t)&&!(USERS_ADMIN||IMPORT_ADMIN))t='overview';$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
 
 // ---------- filter engine ----------
 let FIL={0:new Set(),2:new Set(),1:new Set(),mod:new Set(),from:null,to:null,h0:0,h1:23};
@@ -811,12 +858,12 @@ const GUIDE=[
   {k:'start',t:'Getting started',h:`
     <div class="m"><h3>What this is</h3>Live operational reporting for the clinician network — service levels, consults, shifts, incentives, the roster, and week-over-week productivity. Every tab reads straight from the database, so a browser refresh always shows the latest loaded data.</div>
     <div class="m"><h3>Signing in</h3>Use your SteadyMD email and password. Access is invitation-only — an admin provisions each account, so there's no self-signup. Forgot your password? Use the link on the sign-in screen (if the reset email lands you on a dead page, see <b>Keeping the data current → note</b>).</div>
-    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Review</b> (the auto-flag queue), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Forecast</b> (demand vs. coverage), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b> — plus, for admins only, <b>Users</b> (provision access &amp; set roles). <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
+    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Review</b> (the auto-flag queue), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Forecast</b> (demand vs. coverage), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b> — plus, for admins only, <b>Import</b> (refresh the data) and <b>Users</b> (provision access &amp; set roles). <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
   {k:'refresh',t:'Keeping the data current',h:`
     <div class="m"><h3>How the data flows</h3>The console never holds a stale copy — it reads <b>live from the database</b>. The database is filled by loading the monthly source exports (roster, license detail, SLI response times, consults, shifts, incentives). Loading also re-links every clinician to their stable identity and rebuilds the weekly productivity ledger, so history stays attached to the right person.</div>
-    <div class="m"><h3>To refresh with new numbers</h3>Load the latest exports: drop the current files in a folder and run the one-step ingestion (<code>platform/ingest</code>). It recognizes each file by its columns, so renamed files still land correctly. When it finishes, just <b>refresh your browser</b> — no redeploy, no waiting.</div>
+    <div class="m"><h3>To refresh with new numbers</h3>Go to the <b>Import</b> tab (admins only), drop in this month's exports, and click <b>Load</b> — no terminal, no keys. Each file is recognized by its columns, so renamed files still land right. <b>Preview</b> first to see the row counts without changing anything. When Load finishes, just <b>refresh your browser</b> — no redeploy, no waiting.</div>
+    <div class="m"><h3>Where the load runs</h3>The files upload to secure storage and a <b>server-side function</b> parses and loads them — the powerful database key stays on the server, never in your browser, and only admins can run it. Discontinued partners are dropped automatically. (A command-line loader still exists for bulk/automation, but you never need it.)</div>
     <div class="m"><h3>Is this real-time?</h3>It's live against the database, but the database is only as fresh as the <b>last export load</b> — "current as of the latest pull," not a second-by-second feed from the source systems. A true live feed means wiring the console directly into those systems — a separate build we can scope when you want it.</div>
-    <div class="m"><h3>Who runs the load</h3>Right now it's a scripted step run on demand (it uses the database service key, so it isn't a button in the console yet). Hand the month's exports to whoever runs loads — or your Claude Code assistant — and the numbers update in minutes. Scheduling it automatically is on the roadmap.</div>
     <div class="m" style="border-style:dashed"><h3>Note — password reset link</h3>If a reset email ever bounces you to the wrong address, it's a one-time admin setting (adding this site's URL to the auth config). Tell an admin and it's a 60-second fix.</div>`},
   {k:'review',t:'The Review queue',h:`
     <div class="m"><h3>What it is</h3>One triage inbox that auto-flags what needs a human look, pulled live from the data you already have — so problems surface in one place instead of hiding across tabs. It recomputes on every load; nothing here is entered by hand.</div>
@@ -1163,7 +1210,57 @@ function wireReview(){
     }catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
   });
 }
-function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+// ---------- IMPORT (admin data uploader) ----------
+let IMPORT_ADMIN=false, IMPORT_API=null, IMP_FILES=[];
+window.__setImportAdmin=function(isAdmin,api){IMPORT_ADMIN=!!isAdmin;IMPORT_API=isAdmin?(api||null):null;const b=document.querySelector('#nav button[data-t="import"]');if(b)b.style.display=isAdmin?'':'none'};
+function fmtBytes(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':(n/1048576).toFixed(1)+' MB'}
+function renderImpList(){const el=$('#impList');if(!el)return;
+  el.innerHTML=IMP_FILES.map((f,i)=>`<div class="impf ${f.status==='up'?'up':f.status==='err'?'err':''}"><span>${f.status==='up'?'✓':f.status==='err'?'✕':'📄'}</span><span class="fn">${uH(f.file.name)}</span><span class="fsz">${fmtBytes(f.file.size)}</span><button class="fx" data-imp-rm="${i}" title="remove">✕</button></div>`).join('');
+  const b=$('#impBtns');if(b)b.style.display=IMP_FILES.length?'flex':'none';}
+function addFiles(list){for(const f of list){if(f&&!IMP_FILES.some(x=>x.file.name===f.name&&x.file.size===f.size))IMP_FILES.push({file:f,path:null,status:''})}renderImpList()}
+async function runImport(mode){
+  if(!IMPORT_API||!IMP_FILES.length)return;
+  const err=$('#impErr');err.textContent='';const dry=$('#impDry'),load=$('#impLoad');dry.disabled=true;load.disabled=true;
+  const btn=mode==='load'?load:dry,prev=btn.textContent;btn.innerHTML='<span class="spin2"></span> '+(mode==='load'?'Loading…':'Reading…');
+  try{
+    for(const f of IMP_FILES){if(!f.path){try{f.path=await IMPORT_API.upload(f.file);f.status='up';renderImpList();}catch(e){f.status='err';renderImpList();throw new Error('Upload failed for '+f.file.name+': '+((e&&e.message)||e));}}}
+    const data=await IMPORT_API.run(IMP_FILES.map(f=>f.path),mode);
+    renderImpReport(data,mode);
+  }catch(e){err.textContent=(e&&e.message)||String(e)}
+  finally{dry.disabled=false;load.disabled=false;btn.textContent=prev}
+}
+function renderImpReport(d,mode){
+  const card=$('#impReportCard');card.style.display='';
+  $('#impReportTitle').textContent=mode==='load'?'Loaded':'Preview';
+  $('#impReportSub').textContent=mode==='load'?'the console now reads this — refresh to see it':'nothing changed — dry run';
+  const counts=d.counts||{},order=[['clinician_roster','Clinicians'],['sli_response','SLA responses'],['consult','Consults'],['shift','Shifts'],['incentive','Incentives']];
+  let html='<div class="impkv">';
+  order.forEach(([k,l])=>{if(counts[k]!=null)html+=`<div class="k">${l}</div><div class="v">${nf(counts[k])}${mode==='load'?' loaded':''}</div>`});
+  if(d.roster!=null&&counts.clinician_roster==null)html+=`<div class="k">Clinicians</div><div class="v">${nf(d.roster)} resolved</div>`;
+  html+='</div>';
+  if(d.detected&&d.detected.length)html+=`<div class="muted" style="font-size:11.5px;margin-bottom:8px">${d.detected.map(uH).join(' · ')}</div>`;
+  const vol=[];Object.values(d.volume||{}).forEach(a=>a.forEach(x=>vol.push(x)));
+  if(vol.length)html+=`<div class="impwarn"><b>Volume swing vs last load:</b><br>${vol.map(uH).join('<br>')}</div>`;
+  if(d.discontinued_seen&&d.discontinued_seen.length)html+=`<div class="impwarn"><b>Discontinued partners present and dropped:</b> ${d.discontinued_seen.map(uH).join(', ')} — stale, per the SLA source of truth.</div>`;
+  if(mode==='load')html+=`<div style="margin-top:13px"><button class="addbtn addbtn-lg" id="impRefresh">Refresh the console</button></div>`;
+  $('#impReport').innerHTML=html;
+  const rf=$('#impRefresh');if(rf)rf.onclick=()=>location.reload();
+}
+function wireImport(){
+  const drop=$('#impDrop');if(!drop||drop._wired)return;drop._wired=true;
+  const inp=$('#impFiles');
+  $('#impPick').onclick=e=>{e.stopPropagation();inp.click()};
+  drop.onclick=()=>inp.click();
+  inp.onchange=()=>{addFiles([...inp.files]);inp.value=''};
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+  drop.addEventListener('dragleave',e=>{e.preventDefault();if(e.target===drop)drop.classList.remove('over')});
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');if(e.dataTransfer&&e.dataTransfer.files)addFiles([...e.dataTransfer.files])});
+  $('#impList').addEventListener('click',e=>{const rm=e.target.closest('[data-imp-rm]');if(rm){IMP_FILES.splice(+rm.dataset.impRm,1);renderImpList()}});
+  $('#impDry').onclick=()=>runImport('dry');
+  $('#impLoad').onclick=()=>runImport('load');
+  $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
+}
+function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
@@ -1215,6 +1312,14 @@ if(SLI.length||Object.keys(CD).length)boot();
             del:  async(k)=>{ const r=await sb.rpc('admin_delete_sla_target',{p_key:k}); if(r.error) throw new Error(r.error.message||'delete failed'); return r.data; },
           });
         } else { window.__setSlaAdmin(false); }
+      }
+      if(window.__setImportAdmin){
+        if(admin){
+          window.__setImportAdmin(true, {
+            upload: async(file)=>{ const path=`${Date.now()}-${Math.random().toString(36).slice(2)}/${file.name}`; const {error}=await sb.storage.from('imports').upload(path,file,{upsert:false,contentType:file.type||'text/csv'}); if(error) throw new Error(error.message||'upload failed'); return path; },
+            run: async(paths,mode)=>{ const {data,error}=await sb.functions.invoke('ingest',{body:{mode,paths}}); if(error) throw new Error(error.message||'ingest failed'); if(data&&data.error) throw new Error(data.error); return data; },
+          });
+        } else { window.__setImportAdmin(false); }
       }
     }).catch(()=>{});
     const so=document.getElementById('signout'); if(so){ so.style.display='inline-flex'; so.onclick=async()=>{await sb.auth.signOut();location.reload();}; whoami().then(m=>{if(m)so.title='Signed in as '+m;}); }
