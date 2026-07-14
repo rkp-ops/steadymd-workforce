@@ -173,6 +173,14 @@
   .flagcat:first-child{margin-top:2px}
   .flagrow.done{opacity:.62}
   .fnote{font-size:11px;color:var(--ink-3);margin-top:4px}
+  .fcscore{text-align:center;padding:4px 0 15px;border-bottom:1px solid var(--border);margin-bottom:15px}
+  .fcnum{font-size:38px;font-weight:760;letter-spacing:-.02em;line-height:1}
+  .fclabel{font-size:12px;color:var(--ink-2);margin-top:5px}
+  .fcbars{display:flex;flex-direction:column;gap:10px}
+  .fcbar{display:grid;grid-template-columns:96px 1fr 40px;align-items:center;gap:10px;font-size:12px;color:var(--ink-2)}
+  .fctrack{height:8px;border-radius:5px;background:var(--surface-2);overflow:hidden}
+  .fctrack i{height:100%;border-radius:5px;display:block;min-width:2px}
+  .fcbar b{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
   .ptrack{position:relative;width:64px;height:6px;border-radius:4px;background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
   .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:2px;background:var(--ink-2)}
   .mv{font-weight:700;font-size:11.5px;white-space:nowrap}
@@ -336,6 +344,21 @@
     </div>
   </section>
 
+  <!-- FORECAST -->
+  <section class="tab" data-tab="forecast">
+    <div class="stats s4" id="fcStats"></div>
+    <div class="card">
+      <div class="hd"><h2>Load — demand vs. who's on shift</h2><span class="desc" id="fcNote">consults per on-shift clinician · day &amp; hour · Central time</span></div>
+      <div class="bd"><div class="hm"><div class="hmgrid" id="fcHeat"></div></div>
+        <div class="legend"><span>load</span><span class="sw" style="background:hsl(145 68% 37%)"></span>easy<span class="sw" style="background:hsl(58 68% 42%)"></span><span class="sw" style="background:hsl(0 68% 42%)"></span>stretched<span class="sw" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px)"></span>no coverage<span class="muted">· number = consults/clinician/hr · grey = no demand</span></span>
+      </div>
+    </div>
+    <div class="cols2">
+      <div class="card"><div class="hd"><h2>Projected tight windows</h2><span class="desc">next week's busiest hours vs. coverage</span></div><div class="bd"><div class="rank" id="fcTight"></div></div></div>
+      <div class="card"><div class="hd"><h2>Coverage alignment</h2><span class="desc">is coverage where the demand is?</span></div><div class="bd" id="fcDiag"></div></div>
+    </div>
+  </section>
+
   <!-- INCENTIVES -->
   <section class="tab" data-tab="incentives">
     <div class="stats s4" id="inStats"></div>
@@ -441,6 +464,7 @@ const SHIFTS = /*__SHIFTS__*/{};
 const INC = /*__INC__*/{};
 const VPH = /*__VPH__*/{};
 const COV = /*__COV__*/{};
+const DEM = /*__DEM__*/{};
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const nf=n=>Number(n).toLocaleString();
 const P=0,PR=1,ST=2,CT=3,SLA=4,W=5,DOW=6,HR=7,DT=8;
@@ -457,7 +481,7 @@ function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critica
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['users','Users'],['playbook','Guide']];
+const TABS=[['overview','Overview'],['performance','Performance'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['users','Users'],['playbook','Guide']];
 function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${k==='users'?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
 function go(t){if(t==='users'&&!USERS_ADMIN)t='overview';$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
 
@@ -767,7 +791,7 @@ const GUIDE=[
   {k:'start',t:'Getting started',h:`
     <div class="m"><h3>What this is</h3>Live operational reporting for the clinician network — service levels, consults, shifts, incentives, the roster, and week-over-week productivity. Every tab reads straight from the database, so a browser refresh always shows the latest loaded data.</div>
     <div class="m"><h3>Signing in</h3>Use your SteadyMD email and password. Access is invitation-only — an admin provisions each account, so there's no self-signup. Forgot your password? Use the link on the sign-in screen (if the reset email lands you on a dead page, see <b>Keeping the data current → note</b>).</div>
-    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Review</b> (the auto-flag queue), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b> — plus, for admins only, <b>Users</b> (provision access &amp; set roles). <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
+    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Review</b> (the auto-flag queue), <b>Consults</b>, <b>Shifts</b>, <b>Coverage</b> (who's on, by day &amp; hour), <b>Forecast</b> (demand vs. coverage), <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b> — plus, for admins only, <b>Users</b> (provision access &amp; set roles). <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
   {k:'refresh',t:'Keeping the data current',h:`
     <div class="m"><h3>How the data flows</h3>The console never holds a stale copy — it reads <b>live from the database</b>. The database is filled by loading the monthly source exports (roster, license detail, SLI response times, consults, shifts, incentives). Loading also re-links every clinician to their stable identity and rebuilds the weekly productivity ledger, so history stays attached to the right person.</div>
     <div class="m"><h3>To refresh with new numbers</h3>Load the latest exports: drop the current files in a folder and run the one-step ingestion (<code>platform/ingest</code>). It recognizes each file by its columns, so renamed files still land correctly. When it finishes, just <b>refresh your browser</b> — no redeploy, no waiting.</div>
@@ -793,6 +817,11 @@ const GUIDE=[
     <div class="m"><h3>Averaged across weeks</h3>Every slot is averaged over all the weeks in the loaded schedule, and the reliability math <b>zero-fills the weeks nobody was on</b> — so a slot that's staffed some weeks and empty others reads as shaky, not silently rosy. The tiles up top summarize weekday 9–5, weekend, the single peak slot, and how many slots are unreliable.</div>
     <div class="m"><h3>Thinnest vs. least reliable</h3><b>Thinnest daytime slots</b> ranks the lowest-average coverage between 7am–7pm — chronically light hours. <b>Least reliable slots</b> ranks the ones that <b>swing week to week</b> (a wide spread relative to their average, or that drop to zero some weeks) — steady-but-thin and wobbly are different problems, so they're listed separately.</div>
     <div class="m"><h3>What it's counting</h3>Scheduled presence from the shifts export — bodies on the calendar, not consults handled. Pair it with <b>Productivity</b> (what those hours produced) and <b>Performance</b> (whether service levels held) to tell a staffing gap from a throughput gap.</div>`},
+  {k:'forecast',t:'Forecast &amp; diagnostics',h:`
+    <div class="m"><h3>What it projects</h3>Where next week will be tight. It lays the real <b>demand</b> curve (consults per day-of-week &amp; hour, straight from the consult log) over the real <b>coverage</b> curve (who's on shift), and shows <b>load</b> — consults per on-shift clinician, in Central time. Greener is comfortable, redder is stretched, and a hatched <b>!</b> cell means arrivals with nobody scheduled.</div>
+    <div class="m"><h3>Projected tight windows</h3>The busiest hours ranked against their coverage, worst first, each with a plain-language suggestion — <b>staff this hour</b> when it's uncovered, or <b>+N to ease</b> (how many clinicians would bring it back to the typical per-person load). "Typical" is the network's own median load, so the bar moves with your data rather than a fixed guess.</div>
+    <div class="m"><h3>Coverage alignment</h3>One score: the share of demand that lands in comfortably-covered hours, split into well-covered / stretched / uncovered. It answers "is coverage where the demand actually is?" — plus a couple of driver lines pointing at the clearest gaps.</div>
+    <div class="m"><h3>Why it's built this way</h3>It's a <b>data-driven projection</b>, not a black box: next Monday is modeled as a typical Monday from the weeks you've loaded, so it sharpens automatically as more data arrives. It deliberately replaces the old tool's fixed, hand-coded arrival table (which only ever covered ~2½ of its 7 days) with the live pattern. It doesn't yet model holidays, launches, or one-off surges — treat it as the baseline to staff against, then adjust for what you know is coming.</div>`},
   {k:'roster',t:'Clinicians &amp; the roster',h:`
     <div class="m"><h3>One row per real clinician</h3>The roster fuses the roster / license / activity files into one record per person — NPI, email, and Metabase GUID are the gold keys; names only bridge when nothing conflicts.</div>
     <div class="m"><h3>Tiers &amp; coverage</h3>Seats (MD/DO/NP/PA) can hold a full clinical seat; support (MA/RN/etc.) touch consults but never count toward coverage. The "coverage seats" stat excludes support by design.</div>
@@ -893,6 +922,54 @@ function wireUsers(){
     catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
   };
 }
+// ---------- FORECAST (demand vs coverage, next-week load) ----------
+function renderForecast(){
+  const dg=DEM.grid||[], cg=COV.grid||[];
+  if(!dg.length){$('#fcStats').innerHTML='';$('#fcHeat').innerHTML='<div class="empty" style="grid-column:1/-1">No demand pattern yet — it comes from the consult log.</div>';$('#fcTight').innerHTML='';$('#fcDiag').innerHTML='';return}
+  const cov={};cg.forEach(r=>{(cov[r[0]]=cov[r[0]]||{})[r[1]]=r[2]});
+  const slots=[];let totDemand=0,busiest=dg[0];
+  dg.forEach(r=>{const d=r[2];totDemand+=d;if(d>busiest[2])busiest=r;const c=(cov[r[0]]&&cov[r[0]][r[1]])||0;const load=d>0?(c>0?d/c:Infinity):0;slots.push({dow:r[0],hr:r[1],d,c,load})});
+  const finite=slots.filter(s=>s.d>0&&isFinite(s.load)).map(s=>s.load).sort((a,b)=>a-b);
+  const median=finite.length?finite[Math.floor(finite.length/2)]:0;
+  const peak=slots.filter(s=>isFinite(s.load)).reduce((m,s)=>s.load>m.load?s:m,{load:0,dow:1,hr:0});
+  const uncovered=slots.filter(s=>s.d>=1&&s.c===0);
+  $('#fcStats').innerHTML=[
+    {k:'Typical week',v:nf(Math.round(totDemand)),d:'consults · '+(DEM.weeks||0)+'-wk avg'},
+    {k:'Busiest hour',v:Math.round(busiest[2]),d:DOWL7[busiest[0]]+' '+busiest[1]+':00'},
+    {k:'Peak load',v:isFinite(peak.load)?peak.load.toFixed(1):'—',d:'per clinician · '+DOWL7[peak.dow]+' '+peak.hr+':00'},
+    {k:'Uncovered hours',v:uncovered.length,d:'arrivals, nobody on'},
+  ].map(tileHTML).join('');
+  $('#fcNote').textContent=`consults per on-shift clinician · ${DEM.weeks||0}-week average · Central time · typical ${median?median.toFixed(1):'—'}/clinician`;
+  const grid=$('#fcHeat');grid.style.gridTemplateColumns='42px repeat(24,1fr)';
+  const by={};slots.forEach(s=>{(by[s.dow]=by[s.dow]||{})[s.hr]=s});
+  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
+  for(let dw=1;dw<=7;dw++){html+=`<div class="hmlab">${DOWL7[dw]}</div>`;for(let h=0;h<24;h++){const s=by[dw]&&by[dw][h];
+    if(!s||s.d===0){html+='<div class="hmcell empty">·</div>'}
+    else if(s.c===0){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:#fff;font-weight:700" title="${DOWL7[dw]} ${h}:00 · ${s.d} consults/hr · no coverage">!</div>`}
+    else{const ratio=median?s.load/median:1;const hue=Math.round(Math.max(0,Math.min(1,(1.6-ratio)/1.1))*145);html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${DOWL7[dw]} ${h}:00 · ${s.d} consults / ${s.c} on shift · load ${s.load.toFixed(1)}/clinician">${s.load.toFixed(1)}</div>`}}}
+  grid.innerHTML=html;
+  const tight=[...slots.filter(s=>s.d>=1)].sort((a,b)=>(isFinite(b.load)?b.load:1e9)-(isFinite(a.load)?a.load:1e9)).slice(0,8);
+  const mxLoad=Math.max(...tight.map(s=>isFinite(s.load)?s.load:0),median*2,1);
+  $('#fcTight').innerHTML=tight.map(s=>{const hot=s.c===0||(median&&s.load>median*1.5);const need=s.c===0?'staff this hour':(median&&s.load>median*1.25?`+${Math.max(1,Math.ceil(s.d/median)-Math.round(s.c))} to ease`:'holding');const loadTxt=isFinite(s.load)?s.load.toFixed(1)+'/clin':'no cover';return `<div class="rk" style="cursor:default"><div class="lab">${DOWL7[s.dow]} ${s.hr}:00<small>${s.d} consults · ${s.c?s.c+' on shift':'0 on shift'} · ${need}</small></div><div class="val tnum" style="color:${hot?'var(--bad)':'var(--ink)'}">${loadTxt}</div><div class="track"><i style="width:${Math.max(2,(isFinite(s.load)?s.load:mxLoad)/mxLoad*100)}%;background:${hot?'var(--bad)':'var(--accent)'}"></i></div></div>`}).join('')||'<div class="empty">—</div>';
+  let dWell=0,dStretch=0,dUncov=0;
+  slots.forEach(s=>{if(s.d<=0)return;if(s.c===0)dUncov+=s.d;else if(median&&s.load>median*1.5)dStretch+=s.d;else dWell+=s.d});
+  const align=totDemand?Math.round(dWell/totDemand*100):0, pct=x=>totDemand?Math.round(x/totDemand*100):0;
+  $('#fcDiag').innerHTML=`<div class="fcscore"><div class="fcnum" style="color:${align>=80?'var(--good)':align>=60?'var(--warn)':'var(--bad)'}">${align}%</div><div class="fclabel">of demand lands in comfortably-covered hours</div></div>`+
+    `<div class="fcbars">`+
+    `<div class="fcbar"><span>Well covered</span><div class="fctrack"><i style="width:${pct(dWell)}%;background:var(--good)"></i></div><b>${pct(dWell)}%</b></div>`+
+    `<div class="fcbar"><span>Stretched</span><div class="fctrack"><i style="width:${pct(dStretch)}%;background:var(--warn)"></i></div><b>${pct(dStretch)}%</b></div>`+
+    `<div class="fcbar"><span>Uncovered</span><div class="fctrack"><i style="width:${pct(dUncov)}%;background:var(--bad)"></i></div><b>${pct(dUncov)}%</b></div>`+
+    `</div><div class="muted" style="font-size:11.5px;line-height:1.55;margin-top:13px">${fcDrivers(slots,median,uncovered)}</div>`;
+}
+function fcDrivers(slots,median,uncovered){
+  const bits=[];
+  const stretched=slots.filter(s=>s.d>0&&isFinite(s.load)&&median&&s.load>median*1.5);
+  if(uncovered.length)bits.push(`<b>${uncovered.length}</b> hour${uncovered.length===1?'':'s'} see arrivals with no one scheduled — the clearest gap to close first.`);
+  if(stretched.length)bits.push(`<b>${stretched.length}</b> hour${stretched.length===1?'':'s'} run past 1.5× the typical per-clinician load.`);
+  const byDay={};slots.forEach(s=>{byDay[s.dow]=(byDay[s.dow]||0)+s.d});const topDay=Object.entries(byDay).sort((a,b)=>b[1]-a[1])[0];
+  if(topDay)bits.push(`Demand peaks <b>${DOWL7[+topDay[0]]}</b> (${nf(Math.round(topDay[1]))} consults in a typical week).`);
+  return bits.length?bits.map(b=>'· '+b).join('<br>'):'Coverage tracks demand well across the week.';
+}
 // ---------- REVIEW (auto-flag triage queue) ----------
 const ACKS=new Map(); let REVIEW_API=null, FLAG_BY_KEY=new Map();
 const SEVRANK={high:0,med:1,low:2};
@@ -977,8 +1054,8 @@ function wireReview(){
     }catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
   });
 }
-function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
-window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(acks)window.__setReviewAcks(acks);boot()};
+function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderForecast();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
 
@@ -994,10 +1071,10 @@ if(SLI.length||Object.keys(CD).length)boot();
   async function whoami(){try{const {data:{user}}=await sb.auth.getUser();return (user&&user.email)||'';}catch(_){return '';}}
 
   async function load(){
-    const [a,b,c,d,e,f,g,rvk]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('review_acks')]);
+    const [a,b,c,d,e,f,g,dmd,rvk]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('review_acks')]);
     const er=a.error||b.error||c.error||d.error||e.error;
     if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){ denied(await whoami()); return; } body.innerHTML='<div class="lead">Signed in, but the data didn’t load: '+H(er.message||'unknown error')+'</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; return; }
-    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null); // vph + coverage + review acks are non-fatal: each tab shows its empty state if the RPC is unavailable
+    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null); // vph + coverage + demand + review acks are non-fatal: each tab shows its empty state if the RPC is unavailable
     if(window.__setReviewApi){ window.__setReviewApi({ // any active app_user can triage; every ack records who
       list:  async()=>{ const r=await sb.rpc('review_acks'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
       set:   async(k,cat,subj,note)=>{ const r=await sb.rpc('set_review_ack',{p_flag_key:k,p_category:cat,p_subject:subj||null,p_note:note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
