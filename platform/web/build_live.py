@@ -82,7 +82,7 @@ AUTH_JS = r"""
         if(admin){
           window.__setSlaAdmin(true, {
             list: async()=>{ const r=await sb.rpc('sla_targets'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
-            set:  async(p)=>{ const r=await sb.rpc('admin_set_sla_target',{p_key:p.key,p_label:p.label,p_tier:p.tier,p_target:p.target,p_warn:p.warn,p_critical:p.critical,p_note:p.note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
+            set:  async(p)=>{ const r=await sb.rpc('admin_set_sla_target',{p_key:p.key,p_label:p.label,p_panel:p.panel,p_sync_min:p.sync_min,p_async_min:p.async_min,p_floor:p.floor,p_basis:p.basis||null,p_note:p.note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
             del:  async(k)=>{ const r=await sb.rpc('admin_delete_sla_target',{p_key:k}); if(r.error) throw new Error(r.error.message||'delete failed'); return r.data; },
           });
         } else { window.__setSlaAdmin(false); }
@@ -151,7 +151,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "__setReviewApi","Needs a look","flagRowHTML",
           "demand_grid","renderForecast",'data-tab="forecast"',"fcHeat","Coverage alignment",
           "sla_targets","admin_set_sla_target","renderScoreboard","Contract scoreboard",
-          "__setSlaAdmin","sbOpenEdit","sbStatus",
+          "__setSlaAdmin","sbOpenEdit","sbModAgg","On-demand · response time","Dedicated panel",
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")

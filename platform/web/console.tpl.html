@@ -180,17 +180,21 @@
   .fctrack{height:8px;border-radius:5px;background:var(--surface-2);overflow:hidden}
   .fctrack i{height:100%;border-radius:5px;display:block;min-width:2px}
   .fcbar b{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
-  .sbrow{display:grid;grid-template-columns:1.5fr 1.3fr auto auto;gap:10px 16px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border)}
-  .sbrow:last-child{border-bottom:0}
-  .sbname{font-weight:640;font-size:13.5px}
-  .sbnote{font-size:11px;color:var(--ink-3);margin-top:2px;line-height:1.4}
-  .sbbar{height:9px;border-radius:5px;background:var(--surface-2);position:relative;overflow:visible}
-  .sbbar i{display:block;height:100%;border-radius:5px}
-  .sbbar .tgt{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);border-radius:1px}
+  .sbsec{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:17px 0 9px}
+  .sbsec:first-child{margin-top:2px}
+  .sbrow2{padding:11px 0;border-bottom:1px solid var(--border)}.sbrow2:last-of-type{border-bottom:0}
+  .sbhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .sbright{display:flex;gap:8px;align-items:center;flex:none}
+  .sbname{font-weight:650;font-size:13.5px}
+  .sbnote{font-size:11px;color:var(--ink-3);margin-top:2px;line-height:1.45}
+  .sbmods{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+  .sbmod{display:grid;grid-template-columns:52px 92px 1fr;gap:10px;align-items:baseline;font-size:12px}
+  .sbmk{font-weight:650;color:var(--ink-2)}
+  .sbslo{font-variant-numeric:tabular-nums;color:var(--ink)}
+  .sbatt{font-variant-numeric:tabular-nums;font-weight:600}
   .sbstatus{font-size:11px;font-weight:650;padding:3px 10px;border-radius:20px;white-space:nowrap;text-align:center}
   .sb-good{background:var(--good-soft);color:var(--good)}.sb-warn{background:var(--warn-soft);color:var(--warn)}
   .sb-bad{background:var(--bad-soft);color:var(--bad)}.sb-none{background:var(--surface-2);color:var(--ink-3)}
-  @media (max-width:700px){.sbrow{grid-template-columns:1fr auto}.sbrow>div:nth-child(2){grid-column:1/-1}}
   .ptrack{position:relative;width:64px;height:6px;border-radius:4px;background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
   .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:2px;background:var(--ink-2)}
   .mv{font-weight:700;font-size:11.5px;white-space:nowrap}
@@ -256,7 +260,7 @@
   <!-- PERFORMANCE -->
   <section class="tab" data-tab="performance">
     <div class="card" id="sbCard">
-      <div class="hd"><h2>Contract scoreboard</h2><span class="desc">SLA attainment vs. contract target · all SLIs, not filtered <span id="sbAdminHint"></span></span></div>
+      <div class="hd"><h2>Contract scoreboard</h2><span class="desc">sync &amp; async attainment vs. contract SLOs · all SLIs, not filtered <span id="sbAdminHint"></span></span></div>
       <div class="bd"><div id="sbBody"></div><div class="adderr" id="sb-err" style="padding:6px 2px 0"></div></div>
     </div>
     <div class="stats s4" id="perfStats"></div>
@@ -818,9 +822,10 @@ const GUIDE=[
     <div class="m"><h3>Tiers &amp; coverage</h3>Seats (MD/DO/NP/PA) can hold a full clinical seat; support (MA/RN/etc.) touch consults but never count toward coverage. The "coverage seats" stat excludes support by design.</div>
     <div class="m"><h3>Correction &amp; add-to-roster queues</h3>Someone missing a credential or state is flagged <b>Needs fix</b>; someone seen only in the activity data lands in the <b>Add-queue</b>. From a clinician's expanded row an admin can edit credential / licensed states, confirm someone onto the roster, or remove them — and those decisions are remembered across future loads.</div>`},
   {k:'scoreboard',t:'The contract scoreboard',h:`
-    <div class="m"><h3>What it shows</h3>At the top of <b>Performance</b>: each partner's live SLA attainment against its contract target, with a traffic light — <b>On target</b>, <b>Watch</b> (at or above the warn line but under target), or <b>Breach risk</b> (below it). The bar fills to actual attainment; the dark tick marks the target. It reads <b>all SLIs</b>, on purpose — it's a stable contract view, so it doesn't move when you use the filter bar below it.</div>
-    <div class="m"><h3>Targets are yours to set</h3>Targets are data, not baked in. They ship seeded with the old tool's response-time contracts as a starting point; an <b>admin</b> clicks <b>Edit</b> on any row (or <b>Add target</b>) to set the match key, label, tier, target / watch / breach percentages, and a note. Changes save to the database and show for everyone on the next load — no redeploy.</div>
-    <div class="m"><h3>Match keys &amp; unmapped partners</h3>A target's <b>match key</b> is found inside the partner name from the data (<code>transcarent</code> catches “98point6 Transcarent”), so one target lands on whatever the export calls that partner. Partners with real volume but no target are listed under the board so you can add one. Uptime and satisfaction SLAs aren't here — they aren't in the response log.</div>`},
+    <div class="m"><h3>What it shows</h3>At the top of <b>Performance</b>: each partner's live SLA attainment against its contract SLOs. It reads <b>all SLIs</b> on purpose — a stable contract view that doesn't move when you use the filter bar below it. Sourced from the Partner &amp; Program SLA Single Source of Truth.</div>
+    <div class="m"><h3>Sync and async are separate</h3>Every partner carries a stated <b>sync</b> SLO and a stated <b>async</b> SLO (in minutes), or an explicit <b>None</b> — a single blended SLA per partner is invalid. Each modality shows its threshold (e.g. <code>≤ 30 min</code>) and the live share of consults that met it, computed straight from the SLIs.</div>
+    <div class="m"><h3>Panels &amp; the traffic light</h3><b>Dedicated</b> (Transcarent) is reported on its own. <b>On-demand</b> is the response-time queue. <b>Volume-only</b> partners have no visit SLA and aren't scored. <b>Scheduled</b> (EZ Health, scheduled Noom/Futur) use an appointment-availability model and sit out of scope here. A row goes green/amber/red only where a <b>contractual attainment floor</b> exists (e.g. LifeMD async ≥90%); otherwise it reads <b>Tracking</b> — no invented default.</div>
+    <div class="m"><h3>Editing &amp; match keys</h3>Targets are data, not baked in. An <b>admin</b> clicks <b>Edit</b> (or <b>Add target</b>) to set the panel, sync/async minutes, an optional floor, and notes — saved to the database, live on the next load, no redeploy. A target's <b>match key</b> is found inside the partner name (<code>transcarent</code> catches “98point6 Transcarent”). Uptime and satisfaction SLAs aren't here — they aren't in the response log.</div>`},
   {k:'defs',t:'Metric definitions',h:`
     <div class="m"><h3>SLA — completed vs due</h3>An SLI counts as met when <code>completed ≤ due</code>. Overview and Performance recompute it against whatever the filter bar is set to.</div>
     <div class="m"><h3>Modality</h3>Read from the status flow, not the label: a consult that reaches <code>in_call</code> is synchronous video; critical-value calls are sync phone; chart-review and async-messaging are messaging. Lab steps are excluded — the tracked unit is the chart-review or call they produce.</div>
@@ -917,64 +922,85 @@ function wireUsers(){
     catch(err){btn.disabled=false;btn.textContent=prev;if(lerr)lerr.textContent=(err&&err.message)||String(err)}
   };
 }
-// ---------- SCOREBOARD (SLA attainment vs contract target) ----------
+// ---------- SCOREBOARD (SLA attainment vs contract SLOs — modality-explicit) ----------
 let SB_ADMIN=false, SB_API=null;
 function normP(s){return String(s==null?'':s).toLowerCase().trim()}
-function sbAgg(key){let scored=0,met=0,n=0;for(const r of SLI){if(!normP(r[P]).includes(key))continue;n++;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{n,scored,met,pct:scored?met/scored*100:null}}
-function sbStatus(pct,t){if(pct==null)return['sb-none','No SLIs'];const p=pct/100;if(p>=t.target)return['sb-good','On target'];if(p>=t.warn)return['sb-warn','Watch'];return['sb-bad','Breach risk']}
+function sbMod(ct){const m=smod(ct);return (m==='sync_video'||m==='sync_phone')?'sync':m==='messaging'?'async':null}
+function sbModAgg(key,mod){let scored=0,met=0;for(const r of SLI){if(!normP(r[P]).includes(key))continue;if(sbMod(r[CT])!==mod)continue;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{scored,met,pct:scored?met/scored*100:null}}
+function fmtMin(m){if(m==null)return null;return (m%60===0&&m>=60)?(m/60)+' hr':m+' min'}
+function attColor(pct,floor){if(pct==null)return'var(--ink-3)';if(floor==null)return'var(--ink)';const p=pct/100;return p>=floor?'var(--good)':p>=floor-0.05?'var(--warn)':'var(--bad)'}
 window.__setSlaAdmin=function(isAdmin,api){SB_ADMIN=!!isAdmin;SB_API=isAdmin?(api||null):null;if($('#sbAdminHint'))$('#sbAdminHint').textContent=isAdmin?'· click Edit to adjust a target':'';renderScoreboard()};
+function sbModLine(label,slo,a,floor){
+  if(slo==null&&(!a||a.pct==null))return'';
+  const sloTxt=slo==null?'<span class="muted">None</span>':'≤ '+fmtMin(slo);
+  const val=a&&a.pct!=null?a.pct.toFixed(1)+'%':'<span class="muted">no SLIs</span>';
+  const n=a&&a.scored?' <span class="muted">· '+nf(a.scored)+'</span>':'';
+  return `<div class="sbmod"><span class="sbmk">${label}</span><span class="sbslo">${sloTxt}</span><span class="sbatt" style="color:${attColor(a?a.pct:null,slo!=null?floor:null)}">${val}${n}</span></div>`;
+}
+function sbRow(t){
+  const key=normP(t.partner_key), sy=sbModAgg(key,'sync'), as=sbModAgg(key,'async');
+  const lines=sbModLine('Sync',t.sync_min,sy,t.floor)+sbModLine('Async',t.async_min,as,t.floor);
+  let pill=['sb-none','Tracking'];
+  if(t.sync_min==null&&t.async_min==null)pill=['sb-none','No SLA'];
+  else if(t.floor!=null){const ps=[t.sync_min!=null?sy.pct:null,t.async_min!=null?as.pct:null].filter(x=>x!=null);
+    if(!ps.length)pill=['sb-none','No SLIs'];else{const w=Math.min(...ps)/100;pill=w>=t.floor?['sb-good','On target']:w>=t.floor-0.05?['sb-warn','Watch']:['sb-bad','Breach risk']}}
+  const edit=SB_ADMIN?`<button class="addbtn addbtn-ghost" data-sb-edit="${uH(t.partner_key)}">Edit</button>`:'';
+  const floorTxt=t.floor!=null?`floor ${Math.round(t.floor*100)}%`:'';
+  const sub=[t.basis?uH(t.basis):'',floorTxt].filter(Boolean).join(' · ');
+  return `<div class="sbrow2"><div class="sbhead"><div><span class="sbname">${uH(t.label)}</span>${sub?`<div class="sbnote">${sub}</div>`:''}</div><div class="sbright"><span class="sbstatus ${pill[0]}">${pill[1]}</span>${edit}</div></div>`+
+    (lines?`<div class="sbmods">${lines}</div>`:'')+(t.note?`<div class="sbnote" style="margin-top:7px">${uH(t.note)}</div>`:'')+`</div>`;
+}
 function renderScoreboard(){
   const body=$('#sbBody');if(!body)return;
   if(!SLI.length){body.innerHTML='<div class="empty">No SLA data loaded.</div>';return}
+  const dedicated=TARGETS.filter(t=>t.panel==='dedicated'), onDemand=TARGETS.filter(t=>t.panel==='on_demand');
+  const volOnly=TARGETS.filter(t=>t.panel==='volume_only'), scheduled=TARGETS.filter(t=>t.panel==='scheduled');
   const parts=agg(SLI,P), covered=new Set();
-  const rows=TARGETS.map(t=>{
-    const key=normP(t.partner_key), a=sbAgg(key);
-    parts.forEach(p=>{if(normP(p.name).includes(key))covered.add(p.name)});
-    const [cls,lbl]=sbStatus(a.pct,t), tgt=Math.round(t.target*100);
-    const barColor=cls==='sb-good'?'var(--good)':cls==='sb-warn'?'var(--warn)':cls==='sb-bad'?'var(--bad)':'var(--ink-3)';
-    const actual=a.pct==null?'—':a.pct.toFixed(1)+'%';
-    const edit=SB_ADMIN?`<button class="addbtn addbtn-ghost" data-sb-edit="${uH(t.partner_key)}">Edit</button>`:'<span></span>';
-    return `<div class="sbrow"><div><div class="sbname">${uH(t.label)}${t.tier?` <span class="tierb seat">Tier ${t.tier}</span>`:''}</div>${t.note?`<div class="sbnote">${uH(t.note)}</div>`:''}</div>`+
-      `<div><div class="sbbar"><i style="width:${a.pct==null?0:Math.min(100,a.pct)}%;background:${barColor}"></i><span class="tgt" style="left:${Math.min(100,tgt)}%" title="target ${tgt}%"></span></div>`+
-      `<div class="sbnote" style="margin-top:5px"><b class="tnum" style="color:var(--ink)">${actual}</b> vs target ${tgt}% · ${nf(a.scored)} SLIs</div></div>`+
-      `<div class="sbstatus ${cls}">${lbl}</div><div>${edit}</div></div>`;
-  }).join('');
+  TARGETS.forEach(t=>{const k=normP(t.partner_key);parts.forEach(p=>{if(normP(p.name).includes(k))covered.add(p.name)})});
+  let html='';
+  if(dedicated.length)html+='<div class="sbsec">Dedicated panel · reported separately</div>'+dedicated.map(sbRow).join('');
+  if(onDemand.length)html+='<div class="sbsec">On-demand · response time per consult</div>'+onDemand.map(sbRow).join('');
+  if(volOnly.length)html+='<div class="sbsec">Volume-only · no visit SLA</div><div class="sbnote" style="padding:1px 2px 4px">'+volOnly.map(t=>uH(t.label)).join(' · ')+' — tracked for volume, not scored.</div>';
   const unmapped=parts.filter(p=>!covered.has(p.name)&&p.n>=50);
-  body.innerHTML=(rows||'<div class="empty">No contract targets set yet'+(SB_ADMIN?' — add one below.':'.')+'</div>')+
-    (unmapped.length?`<div class="sbnote" style="padding:11px 2px 0"><b>${unmapped.length}</b> partner${unmapped.length===1?'':'s'} with volume ${SB_ADMIN?'have no target':'aren’t under a tracked contract'}: ${unmapped.slice(0,6).map(p=>uH(p.name)+' ('+p.pct+'%)').join(', ')}${unmapped.length>6?'…':''}.</div>`:'')+
-    (SB_ADMIN?`<div style="padding:13px 2px 2px"><button class="addbtn addbtn-lg" data-sb-add="1">＋ Add target</button></div>`:'');
+  if(unmapped.length)html+=`<div class="sbnote" style="padding:9px 2px 0"><b>${unmapped.length}</b> partner${unmapped.length===1?'':'s'} with volume and no entry: ${unmapped.slice(0,6).map(p=>uH(p.name)).join(', ')}${unmapped.length>6?'…':''}${SB_ADMIN?' — add below':''}.</div>`;
+  if(scheduled.length)html+='<div class="sbnote" style="padding:9px 2px 0"><b>Scheduled (out of scope here):</b> '+scheduled.map(t=>uH(t.label)).join(', ')+' — appointment-availability model, tracked separately.</div>';
+  html+='<div class="sbnote" style="padding:9px 2px 0">Discontinued &amp; filtered: Astellas, Rezilient, MedZip.</div>';
+  if(SB_ADMIN)html+='<div style="padding:13px 2px 2px"><button class="addbtn addbtn-lg" data-sb-add="1">＋ Add target</button></div>';
+  body.innerHTML=html||'<div class="empty">No contract targets set.</div>';
 }
 function sbOpenEdit(key){
-  const t=TARGETS.find(x=>x.partner_key===key)||{partner_key:'',label:'',tier:'',target:0.9,warn:0.8,critical:0.75,note:''};
-  const pc=v=>Math.round(v*1000)/10;
+  const t=TARGETS.find(x=>x.partner_key===key)||{partner_key:'',label:'',panel:'on_demand',sync_min:null,async_min:null,floor:null,basis:'',note:''};
+  const mv=v=>v==null?'':v;
   $('#mTitle').textContent=key?('Edit target — '+t.label):'Add contract target';
-  $('#mSub').innerHTML='Targets are attainment percentages. <b>Match key</b> is found inside the partner name from the data (e.g. <code>transcarent</code> matches “98point6 Transcarent”).';
+  $('#mSub').innerHTML='Modality is explicit: set a <b>sync</b> and an <b>async</b> SLO in minutes, or leave a box blank for <b>None</b>. <b>Floor</b> is the contractual attainment % — leave blank when there is no defined floor (no defaults).';
   $('#mBody').innerHTML=`<div class="provform" style="max-width:none">`+
     `<label>Match key</label><input id="sb-key" value="${uH(t.partner_key)}" ${key?'readonly':''} placeholder="e.g. amazon">`+
     `<label>Label</label><input id="sb-label" value="${uH(t.label)}" placeholder="Amazon Clinic">`+
-    `<label>Tier</label><input id="sb-tier" type="number" min="1" max="5" value="${t.tier==null?'':t.tier}">`+
-    `<label>Target %</label><input id="sb-target" type="number" min="0" max="100" step="0.1" value="${pc(t.target)}">`+
-    `<label>Watch % (amber below target)</label><input id="sb-warn" type="number" min="0" max="100" step="0.1" value="${pc(t.warn)}">`+
-    `<label>Breach % (red below this)</label><input id="sb-crit" type="number" min="0" max="100" step="0.1" value="${pc(t.critical)}">`+
-    `<label>Note (contract detail)</label><input id="sb-note" value="${uH(t.note||'')}" placeholder="First contact ≤10 min · breach rule…">`+
-    `<div style="display:flex;gap:8px;margin-top:15px">`+
-    `<button class="addbtn addbtn-lg" id="sb-save">Save target</button>`+
+    `<label>Panel</label><select id="sb-panel"><option value="on_demand">On-demand</option><option value="dedicated">Dedicated panel</option><option value="volume_only">Volume-only (no SLA)</option><option value="scheduled">Scheduled (out of scope)</option></select>`+
+    `<label>Sync SLO — minutes (blank = None)</label><input id="sb-sync" type="number" min="0" value="${mv(t.sync_min)}" placeholder="30">`+
+    `<label>Async SLO — minutes (blank = None)</label><input id="sb-async" type="number" min="0" value="${mv(t.async_min)}" placeholder="240">`+
+    `<label>Attainment floor % (blank = none)</label><input id="sb-floor" type="number" min="0" max="100" step="0.1" value="${t.floor==null?'':Math.round(t.floor*1000)/10}" placeholder="90">`+
+    `<label>Basis / source</label><input id="sb-basis" value="${uH(t.basis||'')}" placeholder="Contract summary on file">`+
+    `<label>Note</label><input id="sb-note" value="${uH(t.note||'')}" placeholder="modality notes, breach rule…">`+
+    `<div style="display:flex;gap:8px;margin-top:15px"><button class="addbtn addbtn-lg" id="sb-save">Save target</button>`+
     (key?`<button class="addbtn addbtn-lg addbtn-ghost" id="sb-del">Delete</button>`:'')+
     `</div><div class="adderr" id="sb-ferr" style="margin-top:8px"></div></div>`;
+  $('#sb-panel').value=t.panel||'on_demand';
   $('#modal').classList.add('open');
   const refresh=async()=>{const list=await SB_API.list();TARGETS.length=0;(list||[]).forEach(x=>TARGETS.push(x));renderScoreboard();};
   $('#sb-save').onclick=async()=>{
-    const err=$('#sb-ferr');err.textContent='';
-    const p={key:$('#sb-key').value.trim(),label:$('#sb-label').value.trim(),tier:parseInt($('#sb-tier').value,10)||null,target:parseFloat($('#sb-target').value)/100,warn:parseFloat($('#sb-warn').value)/100,critical:parseFloat($('#sb-crit').value)/100,note:$('#sb-note').value.trim()};
+    const err=$('#sb-ferr');err.textContent='';const iv=id=>{const v=$(id).value.trim();return v===''?null:parseInt(v,10)};
+    const fv=$('#sb-floor').value.trim();
+    const p={key:$('#sb-key').value.trim(),label:$('#sb-label').value.trim(),panel:$('#sb-panel').value,sync_min:iv('#sb-sync'),async_min:iv('#sb-async'),floor:fv===''?null:parseFloat(fv)/100,basis:$('#sb-basis').value.trim(),note:$('#sb-note').value.trim()};
     if(!p.key||!p.label){err.textContent='Match key and label are required.';return}
-    if([p.target,p.warn,p.critical].some(x=>isNaN(x)||x<0||x>1)){err.textContent='Percentages must be between 0 and 100.';return}
+    if(p.floor!=null&&(isNaN(p.floor)||p.floor<0||p.floor>1)){err.textContent='Floor must be between 0 and 100.';return}
     if(!SB_API){err.textContent='Not connected.';return}
     const btn=$('#sb-save'),prev=btn.textContent;btn.disabled=true;btn.innerHTML='<span class="spin2"></span>';
     try{await SB_API.set(p);await refresh();$('#modal').classList.remove('open');}
     catch(e){btn.disabled=false;btn.textContent=prev;err.textContent=(e&&e.message)||String(e)}
   };
   const del=$('#sb-del');
-  if(del)del.onclick=async()=>{if(!SB_API)return;const err=$('#sb-ferr');err.textContent='';del.disabled=true;del.innerHTML='<span class="spin2"></span>';try{await SB_API.del(key);await refresh();$('#modal').classList.remove('open');}catch(e){del.disabled=false;del.textContent='Delete';err.textContent=(e&&e.message)||String(e)}};
+  if(del)del.onclick=async()=>{if(!SB_API)return;del.disabled=true;del.innerHTML='<span class="spin2"></span>';try{await SB_API.del(key);await refresh();$('#modal').classList.remove('open');}catch(e){del.disabled=false;del.textContent='Delete';$('#sb-ferr').textContent=(e&&e.message)||String(e)}};
 }
 function wireScoreboard(){
   const c=$('#sbCard');if(!c||c._wired)return;c._wired=true;
