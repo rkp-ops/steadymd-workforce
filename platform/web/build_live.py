@@ -51,10 +51,10 @@ AUTH_JS = r"""
   async function whoami(){try{const {data:{user}}=await sb.auth.getUser();return (user&&user.email)||'';}catch(_){return '';}}
 
   async function load(){
-    const [a,b,c,d,e,f,g,rvk]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('review_acks')]);
+    const [a,b,c,d,e,f,g,dmd,rvk]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('review_acks')]);
     const er=a.error||b.error||c.error||d.error||e.error;
     if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){ denied(await whoami()); return; } body.innerHTML='<div class="lead">Signed in, but the data didn’t load: '+H(er.message||'unknown error')+'</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; return; }
-    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null); // vph + coverage + review acks are non-fatal: each tab shows its empty state if the RPC is unavailable
+    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null); // vph + coverage + demand + review acks are non-fatal: each tab shows its empty state if the RPC is unavailable
     if(window.__setReviewApi){ window.__setReviewApi({ // any active app_user can triage; every ack records who
       list:  async()=>{ const r=await sb.rpc('review_acks'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
       set:   async(k,cat,subj,note)=>{ const r=await sb.rpc('set_review_ack',{p_flag_key:k,p_category:cat,p_subject:subj||null,p_note:note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
@@ -140,6 +140,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "admin_set_user_status","Provision access","How access works",
           "review_acks","set_review_ack","reviewFlags","renderReview",'data-tab="review"',
           "__setReviewApi","Needs a look","flagRowHTML",
+          "demand_grid","renderForecast",'data-tab="forecast"',"fcHeat","Coverage alignment",
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")
