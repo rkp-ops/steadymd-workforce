@@ -310,8 +310,11 @@
       <div class="tscroll"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div></div>
   </section>
 
-  <!-- PLAYBOOK -->
-  <section class="tab" data-tab="playbook"><div class="pb" id="playbook"></div></section>
+  <!-- GUIDE -->
+  <section class="tab" data-tab="playbook">
+    <div class="toolbar" style="margin-bottom:14px"><span class="fl">Topic</span><select class="dateinp" id="guideSel" style="min-width:280px;height:36px;font-weight:600"></select><span class="muted" style="font-size:11.5px">how to use the console, keep data current, and read each metric</span></div>
+    <div class="pb" id="playbook"></div>
+  </section>
 
   <div class="foot"><span>Built from six source exports · SLA window <b id="footRange"></b></span><span>Reference Jul 7 2026 · figures match the database</span></div>
 </div>
@@ -341,7 +344,7 @@ function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critica
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['consults','Consults'],['shifts','Shifts'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['playbook','Playbook']];
+const TABS=[['overview','Overview'],['performance','Performance'],['consults','Consults'],['shifts','Shifts'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['playbook','Guide']];
 function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}" class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
 function go(t){$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
 
@@ -646,16 +649,46 @@ $('#vTierSeg').innerHTML=VTIERS.map(([k,l],i)=>`<button data-v="${k}" class="${i
 $$('#vTierSeg button').forEach(b=>b.onclick=()=>{VF.tier=b.dataset.v;$$('#vTierSeg button').forEach(x=>x.classList.toggle('on',x===b));renderVph()});
 $('#vq').oninput=e=>{VF.q=e.target.value.trim().toLowerCase();renderVph()};
 
-// ---------- PLAYBOOK ----------
-function renderPlaybook(){$('#playbook').innerHTML=`
-  <div class="m"><h3>Scope</h3>Operational reporting for the clinician network, on a canonical model that six exports feed. Reports read the model, not the raw files, so a renamed column or new file layout doesn't break a chart.</div>
-  <div class="m"><h3>SLA — Completed vs Due</h3>An SLI counts as met when <code>completed ≤ due</code>. Overview and Performance recompute against the filter bar: partner, state, program, modality, date, and hour window.</div>
-  <div class="m"><h3>Modality</h3>Taken from the status flow, not the type label. A consult that reaches <code>in_call</code> is a synchronous video visit (in_call is a video call, not a phone call). Critical-value calls are sync phone. Messaging combines chart-review and async-messaging. Lab orders and lab statuses are excluded — the tracked unit is the chart-review or call they produce, not the lab step.</div>
-  <div class="m"><h3>Shifts and incentives</h3>Shift hours come from the scheduling export, split by service line and clinician type. Incentives come from the payout export, split by license type, partner, program, and incentive. Both also sit on each clinician's record.</div>
-  <div class="m"><h3>Productivity (VPH)</h3>Visits per <b>scheduled</b> hour, per ISO week, served from a weekly ledger keyed on each clinician's stable identity — a data refresh updates the same person's history instead of restarting it. Totals use complete weeks only; the export-edge week is marked partial. Scoring is peer-relative within the modality cohort (async runs ~3× sync by nature). Legacy reference bands — sync red&lt;2.5 / yellow&lt;3.5, async red&lt;6 / yellow&lt;9 — are context, not verdicts: hours are scheduled, not clocked, so VPH says where to look, never what to conclude on its own.</div>
-  <div class="m"><h3>Drill-in</h3>Partner, program, state, consult-type, and wait-band rows are clickable; each opens the slice broken down worst-first, so a low number shows where it is low. Flags on Overview open the filtered detail.</div>
-  <div class="m"><h3>Data-quality flag</h3>One clinician GUID carries ~49.7% of all consults — a supervising / auto-attribution artifact, flagged rather than absorbed into the totals.</div>
-  <div class="m" style="border-style:dashed"><h3>Date windows</h3>The SLI export and the consult log cover different ranges, so modality on the SLA view is inferred from consult type; the Consults tab uses the true in_call flow. Matching-window exports make both exact.</div>`}
+// ---------- GUIDE (dropdown-selected help topics) ----------
+const GUIDE=[
+  {k:'start',t:'Getting started',h:`
+    <div class="m"><h3>What this is</h3>Live operational reporting for the clinician network — service levels, consults, shifts, incentives, the roster, and week-over-week productivity. Every tab reads straight from the database, so a browser refresh always shows the latest loaded data.</div>
+    <div class="m"><h3>Signing in</h3>Use your SteadyMD email and password. Access is invitation-only — an admin provisions each account, so there's no self-signup. Forgot your password? Use the link on the sign-in screen (if the reset email lands you on a dead page, see <b>Keeping the data current → note</b>).</div>
+    <div class="m"><h3>Getting around</h3>Tabs across the top: <b>Overview</b> and <b>Performance</b> (SLA &amp; response times, with the filter bar), <b>Consults</b>, <b>Shifts</b>, <b>Incentives</b>, <b>Productivity</b> (weekly VPH), <b>Clinicians</b> (the roster), and this <b>Guide</b>. <b>◐ Theme</b> flips light/dark, <b>↧ Export</b> downloads the current tab as CSV, <b>⎋ Sign out</b> is top-right.</div>`},
+  {k:'refresh',t:'Keeping the data current',h:`
+    <div class="m"><h3>How the data flows</h3>The console never holds a stale copy — it reads <b>live from the database</b>. The database is filled by loading the monthly source exports (roster, license detail, SLI response times, consults, shifts, incentives). Loading also re-links every clinician to their stable identity and rebuilds the weekly productivity ledger, so history stays attached to the right person.</div>
+    <div class="m"><h3>To refresh with new numbers</h3>Load the latest exports: drop the current files in a folder and run the one-step ingestion (<code>platform/ingest</code>). It recognizes each file by its columns, so renamed files still land correctly. When it finishes, just <b>refresh your browser</b> — no redeploy, no waiting.</div>
+    <div class="m"><h3>Is this real-time?</h3>It's live against the database, but the database is only as fresh as the <b>last export load</b> — "current as of the latest pull," not a second-by-second feed from the source systems. A true live feed means wiring the console directly into those systems — a separate build we can scope when you want it.</div>
+    <div class="m"><h3>Who runs the load</h3>Right now it's a scripted step run on demand (it uses the database service key, so it isn't a button in the console yet). Hand the month's exports to whoever runs loads — or your Claude Code assistant — and the numbers update in minutes. Scheduling it automatically is on the roadmap.</div>
+    <div class="m" style="border-style:dashed"><h3>Note — password reset link</h3>If a reset email ever bounces you to the wrong address, it's a one-time admin setting (adding this site's URL to the auth config). Tell an admin and it's a 60-second fix.</div>`},
+  {k:'filter',t:'Filtering &amp; drilling in',h:`
+    <div class="m"><h3>The filter bar</h3>On Overview and Performance, filter by partner, state, program, modality, date range, and hour of day. Active filters show as chips — remove one with its ✕ or "Clear all." Everything recomputes instantly, and lab work is excluded unless you explicitly pick it.</div>
+    <div class="m"><h3>Drilling in</h3>Almost anything low is clickable — partner rows, program/state/type ranks, the wait-time bands, and the Overview "needs attention" callouts. Each opens that slice broken down worst-first, so a low number shows you <i>where</i> it's low.</div>
+    <div class="m"><h3>Search &amp; export</h3>Clinicians and Productivity have a search box (name, NPI, email, alias). The <b>↧ Export</b> button downloads a CSV of whichever tab you're on, honoring the current filters — good for a spreadsheet or a deck.</div>`},
+  {k:'vph',t:'Productivity (VPH)',h:`
+    <div class="m"><h3>What VPH is</h3>Visits per <b>scheduled</b> hour — consults ÷ scheduled hours — per clinician, per ISO week, from a ledger keyed on each clinician's stable identity so history survives data reloads.</div>
+    <div class="m"><h3>Read it as direction, not a verdict</h3>Hours are <b>scheduled, not clocked</b> — someone under-scheduled and someone slow look identical. And one clinician is credited per consult, so async collaboration is undercounted. Use VPH to decide <b>where to look</b>, never to conclude on its own.</div>
+    <div class="m"><h3>Complete vs partial weeks</h3>Only weeks fully inside the consult export count toward totals; the export-edge week shows hollow (a leading ~) and consult-blind weeks are dropped — so the data boundary can't masquerade as a productivity collapse.</div>
+    <div class="m"><h3>Peers, not fixed lines</h3>Each clinician is scored against their own modality cohort (async messaging naturally runs ~3× sync video), and the tiles flag who's <b>trending down</b> vs. their own norm. The old tool's fixed bands (sync 2.5–3.5, async 6–9) are reference only.</div>`},
+  {k:'roster',t:'Clinicians &amp; the roster',h:`
+    <div class="m"><h3>One row per real clinician</h3>The roster fuses the roster / license / activity files into one record per person — NPI, email, and Metabase GUID are the gold keys; names only bridge when nothing conflicts.</div>
+    <div class="m"><h3>Tiers &amp; coverage</h3>Seats (MD/DO/NP/PA) can hold a full clinical seat; support (MA/RN/etc.) touch consults but never count toward coverage. The "coverage seats" stat excludes support by design.</div>
+    <div class="m"><h3>Correction &amp; add-to-roster queues</h3>Someone missing a credential or state is flagged <b>Needs fix</b>; someone seen only in the activity data lands in the <b>Add-queue</b>. From a clinician's expanded row an admin can edit credential / licensed states, confirm someone onto the roster, or remove them — and those decisions are remembered across future loads.</div>`},
+  {k:'defs',t:'Metric definitions',h:`
+    <div class="m"><h3>SLA — completed vs due</h3>An SLI counts as met when <code>completed ≤ due</code>. Overview and Performance recompute it against whatever the filter bar is set to.</div>
+    <div class="m"><h3>Modality</h3>Read from the status flow, not the label: a consult that reaches <code>in_call</code> is synchronous video; critical-value calls are sync phone; chart-review and async-messaging are messaging. Lab steps are excluded — the tracked unit is the chart-review or call they produce.</div>
+    <div class="m"><h3>Shifts &amp; incentives</h3>Shift hours come from the scheduling export (by service line &amp; clinician type); incentives from the payout export (by license, partner, program, incentive). Both also sit on each clinician's record.</div>`},
+  {k:'dq',t:'Data-quality notes',h:`
+    <div class="m"><h3>Attribution artifact</h3>One clinician GUID carries ~49.7% of all consults — a supervising / auto-attribution artifact, flagged on the Consults tab rather than silently absorbed into the totals.</div>
+    <div class="m" style="border-style:dashed"><h3>Date windows</h3>The SLI export and the consult log cover different ranges, so modality on the SLA view is inferred from consult type while the Consults tab uses the true in_call flow. Productivity aligns shift hours to the consult window so VPH isn't deflated. Matching-window exports make everything exact.</div>`},
+];
+function renderPlaybook(){
+  const sel=$('#guideSel');if(!sel)return;
+  sel.innerHTML=GUIDE.map(g=>`<option value="${g.k}">${g.t}</option>`).join('');
+  const draw=k=>{const g=GUIDE.find(x=>x.k===k)||GUIDE[0];$('#playbook').innerHTML=g.h;};
+  sel.onchange=e=>draw(e.target.value);
+  draw(GUIDE[0].k);
+}
 
 // ---------- boot ----------
 function tileHTML(t){return `<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d||''}</div></div>`}
