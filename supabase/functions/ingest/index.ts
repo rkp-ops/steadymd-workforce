@@ -126,9 +126,9 @@ async function volumeAlert(kind: string, counts: Map<string, number>, uploadId: 
 interface Report { detected: string[]; counts: Record<string, number>; names: Record<string, string>;
   volume: Record<string, string[]>; discontinued_seen: string[]; roster?: number; relink?: unknown; mode: string; }
 
-async function loadSli(text: string, dry: boolean, report: Report) {
+async function loadSli(src: Row[], dry: boolean, report: Report) {
   const rows: Row[] = []; const counts = new Map<string, number>(); let dropped = 0; const disc = new Set<string>();
-  for (const r of parseCsv(text)) {
+  for (const r of src) {
     if (isDiscontinued(r["Partner"])) { dropped++; if (r["Partner"]) disc.add(r["Partner"]); continue; }
     const biz = s(r["SLI During Biz Hrs?"]);
     rows.push({ consult_guid: s(r["Consult GUID"]), clinician_name_raw: s(r["Clinician"]), partner: s(r["Partner"]),
@@ -145,9 +145,9 @@ async function loadSli(text: string, dry: boolean, report: Report) {
   report.volume.sli = await volumeAlert("sli_response", counts, up);
   await clearTable("sli_response"); report.counts.sli_response = await insertRows("sli_response", rows);
 }
-async function loadShift(text: string, credByEmail: Map<string, string>, dry: boolean, report: Report) {
+async function loadShift(src: Row[], credByEmail: Map<string, string>, dry: boolean, report: Report) {
   const rows: Row[] = [];
-  for (const r of parseCsv(text)) {
+  for (const r of src) {
     const h = parseFloat(r["Hours"] || "0") || 0; const em = (r["User"] || "").trim().toLowerCase();
     rows.push({ shift_type: s(r["Shift Type"]), service_line: s(r["Entity Name"]), start_at: isoDT(pdt(r["Start Time"])),
       end_at: isoDT(pdt(r["End Time"])), hours: h, clinician_email_raw: em || null,
@@ -160,9 +160,9 @@ async function loadShift(text: string, credByEmail: Map<string, string>, dry: bo
   for (const x of rows) x.source_upload_id = up;
   await clearTable("shift"); report.counts.shift = await insertRows("shift", rows);
 }
-async function loadIncentive(text: string, dry: boolean, report: Report) {
+async function loadIncentive(src: Row[], dry: boolean, report: Report) {
   const rows: Row[] = []; let dropped = 0; const disc = new Set<string>();
-  for (const r of parseCsv(text)) {
+  for (const r of src) {
     if (isDiscontinued(r["Partner Name"])) { dropped++; if (r["Partner Name"]) disc.add(r["Partner Name"]); continue; }
     const cents = Math.round((parseFloat(r["Amount"] || "0") || 0) * 100);
     rows.push({ consult_guid: s(r["Consult Guid"]), partner: s(r["Partner Name"]), program: s(r["Program Name"]), state: s(r["States"]),
@@ -179,7 +179,7 @@ async function loadIncentive(text: string, dry: boolean, report: Report) {
   await clearTable("incentive"); report.counts.incentive = await insertRows("incentive", rows);
 }
 // deno-lint-ignore no-explicit-any
-async function loadConsult(path: string | null, text: string | null, dry: boolean, report: Report, forRoster: any) {
+async function loadConsult(paths: string[], dry: boolean, report: Report, forRoster: any) {
   const C = new Map<string, Row>(); const distinctGuid = new Set<string>(); let dropped = 0; const disc = new Set<string>();
   const onRow = (r: Row) => {
     const g = (r["Consult GUID"] || "").trim(); if (!g) return;
@@ -206,7 +206,7 @@ async function loadConsult(path: string | null, text: string | null, dry: boolea
       if (dd && (a.last === null || dd > a.last)) a.last = dd;
     }
   };
-  if (path) await streamConsult(path, onRow); else for (const r of parseCsv(text!)) onRow(r);
+  for (const p of paths) await streamConsult(p, onRow);
   const rows: Row[] = []; const counts = new Map<string, number>();
   for (const [g, c] of C) {
     if (c.latestTs === null) continue;
@@ -249,7 +249,8 @@ function consultInline(text: string) {
 }
 
 Deno.serve(async (req: Request) => {
-  const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, apikey", "Access-Control-Allow-Methods": "POST, OPTIONS" };
+  const acrh = req.headers.get("Access-Control-Request-Headers");
+  const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": acrh || "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const J = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...cors, "Content-Type": "application/json" } });
   try {
@@ -274,40 +275,45 @@ Deno.serve(async (req: Request) => {
     if (!paths.length) return J({ error: "no files provided" }, 400);
     const report: Report = { detected: [], counts: {}, names: {}, volume: {}, discontinued_seen: [], mode };
 
-    const byType: Record<string, string> = {};
+    // classify every file; MANY files can share a type — exports are split by
+    // service line / modality (e.g. WSL_sync, CSL_async, TC all detect as sli).
+    const byType: Record<string, string[]> = {};
     for (const p of paths) {
       const base = p.split("/").pop()!;
       const typ = detect(await headersOfPath(p));
-      if (typ && !byType[typ]) { byType[typ] = p; report.names[typ] = base; report.detected.push(`detected ${typ} <- ${base}`); }
-      else if (!typ) report.detected.push(`unrecognized: ${base}`);
+      if (typ) { (byType[typ] ||= []).push(p); report.detected.push(`${typ} <- ${base}`); }
+      else report.detected.push(`unrecognized: ${base}`);
     }
+    for (const t of Object.keys(byType)) report.names[t] = byType[t].map(p => p.split("/").pop()).join(", ");
+
+    // concatenate every file of a type (small types buffered; consult streams)
+    const rowsOfType = async (typ: string): Promise<Row[]> => {
+      const out: Row[] = [];
+      for (const p of byType[typ] || []) for (const r of parseCsv(await downloadText(p))) out.push(r);
+      return out;
+    };
+    const rosterRows = byType.roster ? await rowsOfType("roster") : [];
+    const licenseRows = byType.license ? await rowsOfType("license") : [];
+    const sliRows = byType.sli ? await rowsOfType("sli") : [];
+    const incRows = byType.incentive ? await rowsOfType("incentive") : [];
+    const shiftRows = byType.shift ? await rowsOfType("shift") : [];
 
     const forRoster = { tuples: [] as Row[], act: new Map<string, Row>() };
-    const rosterTxt = byType.roster ? await downloadText(byType.roster) : null;
-    const licenseTxt = byType.license ? await downloadText(byType.license) : null;
-    const sliTxt = byType.sli ? await downloadText(byType.sli) : null;
-    const incTxt = byType.incentive ? await downloadText(byType.incentive) : null;
-    const shiftTxt = byType.shift ? await downloadText(byType.shift) : null;
-
-    if (byType.consult) await loadConsult(byType.consult, null, dry, report, forRoster);
+    if (byType.consult) await loadConsult(byType.consult, dry, report, forRoster);
 
     let credByEmail = new Map<string, string>();
-    if (byType.roster || byType.license) {
+    if (rosterRows.length || licenseRows.length) {
       const { confirmed, overrides } = dry ? { confirmed: new Set<string>(), overrides: {} } : await fetchDecisions();
-      const built = buildRoster({
-        roster: rosterTxt ? parseCsv(rosterTxt) : undefined, license: licenseTxt ? parseCsv(licenseTxt) : undefined,
-        sli: sliTxt ? parseCsv(sliTxt) : undefined, incentive: incTxt ? parseCsv(incTxt) : undefined,
-        shift: shiftTxt ? parseCsv(shiftTxt) : undefined, consultTuples: forRoster.tuples, consultAct: forRoster.act,
-      }, confirmed, overrides);
+      const built = buildRoster({ roster: rosterRows, license: licenseRows, sli: sliRows, incentive: incRows, shift: shiftRows, consultTuples: forRoster.tuples, consultAct: forRoster.act }, confirmed, overrides);
       credByEmail = built.credByEmail;
       report.roster = built.rows.length;
       if (!dry) { const up = await sourceUpload("clinician_roster", report.names.roster || report.names.license || "roster", built.rows.length);
         for (const x of built.rows) x.source_upload_id = up;
         await clearTable("clinician_roster"); report.counts.clinician_roster = await insertRows("clinician_roster", built.rows); }
     }
-    if (sliTxt) await loadSli(sliTxt, dry, report);
-    if (shiftTxt) await loadShift(shiftTxt, credByEmail, dry, report);
-    if (incTxt) await loadIncentive(incTxt, dry, report);
+    if (byType.sli) await loadSli(sliRows, dry, report);
+    if (byType.shift) await loadShift(shiftRows, credByEmail, dry, report);
+    if (byType.incentive) await loadIncentive(incRows, dry, report);
     if (!dry) report.relink = await relink();
     report.discontinued_seen = [...new Set(report.discontinued_seen)];
     return J({ ok: true, ...report });
