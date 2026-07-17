@@ -198,18 +198,47 @@ def rows_of(path):
     with opn(path) as fh:
         yield from csv.DictReader(fh)
 
+DUE_RE = re.compile(r'^\s*(.+?)\s+due\s*time\b', re.I)
+def sli_normalizer(fieldnames, path):
+    """A partner-specific SLI export (e.g. Wisp) omits the shared `Partner` column
+    and labels its deadline `<Partner> Due Time (Nhrs to complete)` instead of the
+    canonical `SLI Due Time`. Left as-is those rows attribute to no partner and never
+    score (`sla_met` needs a due). Recover both — partner from the column header
+    itself (far more reliable than the filename, which is only a backstop) and the
+    due — so the rows attribute + score exactly like every other partner. Standard
+    multi-partner exports (both canonical columns present) are untouched.
+    Returns (partner_fallback, due_key); either may be None."""
+    hdrs = list(fieldnames or [])
+    if "Partner" in hdrs and "SLI Due Time" in hdrs: return None, None
+    partner = due_key = None
+    for h in hdrs:
+        m = DUE_RE.match(h or "")
+        if m and m.group(1).strip().lower() != "sli":
+            partner, due_key = m.group(1).strip(), h; break
+    partner_fallback = None if "Partner" in hdrs else (
+        partner or (re.split(r'[_.\-]', os.path.basename(path))[0] or None))
+    return partner_fallback, due_key
+
 def load_sli(path):
-    up = None; rows = []
-    for r in rows_of(path):
-        biz = s(r.get("SLI During Biz Hrs?"))
-        rows.append({
-            "consult_guid": s(r.get("Consult GUID")), "clinician_name_raw": s(r.get("Clinician")),
-            "partner": s(r.get("Partner")), "program": s(r.get("Program Name")), "state": s(r.get("State")),
-            "consult_type": s(r.get("Consult Type")),
-            "sli_received": iso(pdt(r.get("SLI Received"), DT_ISO)), "sli_due": iso(pdt(r.get("SLI Due Time"), DT_ISO)),
-            "sli_completed": iso(pdt(r.get("SLI Completed"), DT_ISO)), "sli_status_raw": s(r.get("SLI Status")),
-            "during_biz_hrs": (biz.lower() == "yes") if biz else None,
-        })
+    rows = []
+    with opn(path) as fh:
+        rd = csv.DictReader(fh)
+        partner_fallback, due_key = sli_normalizer(rd.fieldnames, path)
+        for r in rd:
+            if partner_fallback and not s(r.get("Partner")): r["Partner"] = partner_fallback
+            if due_key and not s(r.get("SLI Due Time")): r["SLI Due Time"] = r.get(due_key)
+            biz = s(r.get("SLI During Biz Hrs?"))
+            rows.append({
+                "consult_guid": s(r.get("Consult GUID")), "clinician_name_raw": s(r.get("Clinician")),
+                "partner": s(r.get("Partner")), "program": s(r.get("Program Name")), "state": s(r.get("State")),
+                "consult_type": s(r.get("Consult Type")),
+                "sli_received": iso(pdt(r.get("SLI Received"), DT_ISO)), "sli_due": iso(pdt(r.get("SLI Due Time"), DT_ISO)),
+                "sli_completed": iso(pdt(r.get("SLI Completed"), DT_ISO)), "sli_status_raw": s(r.get("SLI Status")),
+                "during_biz_hrs": (biz.lower() == "yes") if biz else None,
+            })
+    if partner_fallback or due_key:
+        print(f"  sli normalized ({os.path.basename(path)}) — partner={partner_fallback or '—'}" +
+              (f', due<-"{due_key}"' if due_key else ""))
     up = source_upload("sli_response", path, len(rows))
     for x in rows: x["source_upload_id"] = up
     volume_alert("sli_response", rows, "partner", up)

@@ -32,7 +32,33 @@ const SVC_H = { apikey: SVC, Authorization: "Bearer " + SVC, "Content-Type": "ap
 type Row = Record<string, any>;
 
 // ---------------------------------------------------------------- CSV IO
-function parseCsv(text: string): Row[] { return parse(text.replace(/^﻿/, ""), { skipFirstRow: true }) as Row[]; }
+function parseCsv(text: string): Row[] { return parse(text.replace(/^\uFEFF/, ""), { skipFirstRow: true }) as Row[]; }
+
+// A partner-specific SLI export (e.g. Wisp) omits the shared `Partner` column and
+// labels its deadline "<Partner> Due Time (Nhrs to complete)" instead of the
+// canonical `SLI Due Time`. Left as-is those rows attribute to no partner and
+// never score (the generated `sla_met` needs a due). Recover both from that one
+// column — the partner name is embedded in the column header itself, which is far
+// more reliable than a filename guess; the filename's leading token is only a
+// backstop. Standard multi-partner exports (both canonical columns present) are
+// untouched. Mutates rows in place; returns what it recovered, else null.
+function normalizeSliFile(rows: Row[], filename: string): { partner: string | null; due: string | null } | null {
+  if (!rows.length) return null;
+  const hdrs = Object.keys(rows[0]);
+  if (hdrs.includes("Partner") && hdrs.includes("SLI Due Time")) return null;
+  let partner: string | null = null, dueKey: string | null = null;
+  for (const h of hdrs) {
+    const m = h.match(/^\s*(.+?)\s+due\s*time\b/i);
+    if (m && !/^sli$/i.test(m[1].trim())) { partner = m[1].trim(); dueKey = h; break; }
+  }
+  const partnerFallback = hdrs.includes("Partner") ? null : (partner || (filename.split(/[_.\-]/)[0] || null));
+  if (!partnerFallback && !dueKey) return null;
+  for (const r of rows) {
+    if (partnerFallback && !s(r["Partner"])) r["Partner"] = partnerFallback;
+    if (dueKey && !s(r["SLI Due Time"])) r["SLI Due Time"] = r[dueKey];
+  }
+  return { partner: partnerFallback, due: dueKey };
+}
 async function objBody(path: string): Promise<ReadableStream<Uint8Array>> {
   const r = await fetch(`${URL_}/storage/v1/object/imports/${path}`, { headers: { apikey: SVC, Authorization: "Bearer " + SVC } });
   if (!r.ok) throw new Error(`storage ${path} -> HTTP ${r.status}`);
@@ -294,7 +320,16 @@ Deno.serve(async (req: Request) => {
     };
     const rosterRows = byType.roster ? await rowsOfType("roster") : [];
     const licenseRows = byType.license ? await rowsOfType("license") : [];
-    const sliRows = byType.sli ? await rowsOfType("sli") : [];
+    // SLI is gathered per-file so a partner-specific export (Wisp) can be
+    // normalized — partner + due recovered — before it feeds the roster or loads.
+    const sliRows: Row[] = [];
+    for (const p of byType.sli || []) {
+      const base = p.split("/").pop()!;
+      const rows = parseCsv(await downloadText(p));
+      const fixed = normalizeSliFile(rows, base);
+      if (fixed) report.detected.push(`sli normalized (${base}) — partner=${fixed.partner ?? "—"}${fixed.due ? `, due←"${fixed.due}"` : ""}`);
+      for (const r of rows) sliRows.push(r);
+    }
     const incRows = byType.incentive ? await rowsOfType("incentive") : [];
     const shiftRows = byType.shift ? await rowsOfType("shift") : [];
 
