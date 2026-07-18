@@ -369,7 +369,13 @@ Deno.serve(async (req: Request) => {
     }
     if (byType.shift) await loadShift(shiftRows, credByEmail, dry, report);
     if (byType.incentive) await loadIncentive(incRows, dry, report);
-    if (!dry) report.relink = await relink();
+    // relink is the finalization step — the source rows are already committed above,
+    // so a hiccup here (e.g. a slow spine rebuild) must NOT report a completed load
+    // as a failure. It's idempotent and re-runs on the next load.
+    if (!dry) {
+      try { report.relink = await relink(); }
+      catch (e) { report.relink = { error: String((e as Error)?.message || e), note: "data loaded; clinician re-link didn't finish — it re-runs on the next load" }; }
+    }
     report.discontinued_seen = [...new Set(report.discontinued_seen)];
     return J({ ok: true, ...report });
   } catch (e) {
