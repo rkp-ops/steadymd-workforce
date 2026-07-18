@@ -1,0 +1,24 @@
+-- ============================================================================
+-- 18_sli_dataset_timeout.sql
+-- Applied live to project eeszygextbqglayglvfm as migration sli_dataset_timeout.
+--
+-- ⚠ SUPERSEDED BY 19_statement_timeouts.sql. A function-scoped statement_timeout
+-- is a no-op for a PostgREST call (see 19). 19 raises the `authenticated` role's
+-- timeout instead (the effective lever) and RESETs this. Kept as historical record.
+--
+-- STOPGAP. sli_dataset() returns one jsonb array element per SLI row so the
+-- console can cross-filter Overview/Performance client-side. When sli_response
+-- grew from ~12k to ~120k rows (the first real monthly load), building that
+-- ~120k-element array takes ~5s warm / more cold — past the `authenticated`
+-- role's 8s statement_timeout — so the console's sign-in data load failed with
+-- "canceling statement due to statement timeout" and the whole console went dark.
+--
+-- This raises the timeout for THIS function only so it completes and the console
+-- loads again. It is explicitly a stopgap: a per-row payload doesn't scale (at
+-- 500k rows it's a 50 MB download and a 20s+ build), so the real fix is to return
+-- a compact server-side aggregation and stop shipping raw rows to the browser —
+-- tracked separately. 60s is bounded (seq scan + aggregate) and well under the
+-- isolate/PostgREST ceilings.
+-- ============================================================================
+
+alter function public.sli_dataset() set statement_timeout = '60s';

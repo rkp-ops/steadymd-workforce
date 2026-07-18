@@ -51,10 +51,15 @@ AUTH_JS = r"""
   async function whoami(){try{const {data:{user}}=await sb.auth.getUser();return (user&&user.email)||'';}catch(_){return '';}}
 
   async function load(){
-    const [a,b,c,d,e,f,g,dmd,rvk,tgt]=await Promise.all([sb.rpc('sli_dataset'),sb.rpc('consult_summary'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('vph_trend'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('review_acks'),sb.rpc('sla_targets')]);
-    const er=a.error||b.error||c.error||d.error||e.error;
+    // WAVE 1 — block the sign-in gate only on what the landing view needs. sli_dataset is the core
+    // (Overview/Performance are built on it); roster/shift/incentive/targets are small and fast. The
+    // heavy 126MB consult scans (consult_summary, coverage_grid, demand_grid) plus vph + review acks
+    // load in a background wave AFTER the gate opens (WAVE 2 below), so they no longer contend with
+    // sli_dataset — that all-at-once fan-out was turning ~2.5s of real work into a 20-25s sign-in.
+    const [a,c,d,e,tgt]=await Promise.all([sb.rpc('sli_dataset'),sb.from('clinician_roster').select('*'),sb.rpc('shift_summary'),sb.rpc('incentive_summary'),sb.rpc('sla_targets')]);
+    const er=a.error||c.error;
     if(er){ if(String(er.code)==='42501'||/not authorized/i.test(er.message||'')){ denied(await whoami()); return; } body.innerHTML='<div class="lead">Signed in, but the data didn’t load: '+H(er.message||'unknown error')+'</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; return; }
-    window.__init(a.data,b.data,(c.data||[]).map(mapRoster),d.data,e.data,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,(tgt&&!tgt.error)?tgt.data:null); // vph + coverage + demand + review acks + sla targets are non-fatal: each tab shows its empty state if the RPC is unavailable
+    window.__init(a.data,null,(c.data||[]).map(mapRoster),(d&&!d.error)?d.data:null,(e&&!e.error)?e.data:null,null,null,null,null,(tgt&&!tgt.error)?tgt.data:null); // wave-1 render; consult_summary/vph/coverage/demand/review-acks fold in during wave 2
     if(window.__setReviewApi){ window.__setReviewApi({ // any active app_user can triage; every ack records who
       list:  async()=>{ const r=await sb.rpc('review_acks'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
       set:   async(k,cat,subj,note)=>{ const r=await sb.rpc('set_review_ack',{p_flag_key:k,p_category:cat,p_subject:subj||null,p_note:note||null}); if(r.error) throw new Error(r.error.message||'save failed'); return r.data; },
@@ -98,6 +103,13 @@ AUTH_JS = r"""
     }).catch(()=>{});
     const so=document.getElementById('signout'); if(so){ so.style.display='inline-flex'; so.onclick=async()=>{await sb.auth.signOut();location.reload();}; whoami().then(m=>{if(m)so.title='Signed in as '+m;}); }
     gate.classList.add('hide');
+    // WAVE 2 — the console is interactive now; pull the heavy read models in the background and fold
+    // them into the already-rendered tabs. boot() is idempotent (render* rebuild from globals, wire*
+    // self-guard via _wired), so this second __init just enriches. Each RPC is non-fatal: a failure
+    // leaves its tab on the empty state it already shows.
+    Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks')])
+      .then(([b,g,dmd,f,rvk])=>{ window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); })
+      .catch(()=>{}); // background enrichment only; the console is already usable without it
   }
   function denied(em){ body.innerHTML='<div class="lead">You’re signed in as <b>'+H(em||'this account')+'</b>, but it isn’t provisioned for the console yet. Ask an admin to add you, then reload.</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; }
 
@@ -162,6 +174,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "__setSlaAdmin","sbOpenEdit","sbModAgg","On-demand · response time","Dedicated panel",
           "__setImportAdmin","wireImport",'data-tab="import"',"Refresh the data","runImport",
           "functions.invoke('ingest'","storage.from('imports')",
+          "message|async|chart",  # smod: async work matched before video|urgent (so video_chat_message_followup reads async)
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")

@@ -32,7 +32,28 @@ const SVC_H = { apikey: SVC, Authorization: "Bearer " + SVC, "Content-Type": "ap
 type Row = Record<string, any>;
 
 // ---------------------------------------------------------------- CSV IO
-function parseCsv(text: string): Row[] { return parse(text.replace(/^﻿/, ""), { skipFirstRow: true }) as Row[]; }
+function parseCsv(text: string): Row[] { return parse(text.replace(/^\uFEFF/, ""), { skipFirstRow: true }) as Row[]; }
+
+// A partner-specific SLI export (e.g. Wisp) omits the shared `Partner` column and
+// labels its deadline "<Partner> Due Time (Nhrs to complete)" instead of the
+// canonical `SLI Due Time`. Left as-is those rows attribute to no partner and
+// never score (the generated `sla_met` needs a due). This decides, FROM THE HEADER
+// ROW ALONE, how to recover both — the partner name is embedded in the column
+// header itself, far more reliable than a filename guess; the filename's leading
+// token is only a backstop. Header-based so the SLI load can stream (see
+// loadSliStreaming) instead of buffering a whole file to inspect row[0]. Standard
+// multi-partner exports (both canonical columns present) return null (no-op).
+function sliNormalizer(hdrs: string[], filename: string): { partner: string | null; dueKey: string | null } | null {
+  if (hdrs.includes("Partner") && hdrs.includes("SLI Due Time")) return null;
+  let partner: string | null = null, dueKey: string | null = null;
+  for (const h of hdrs) {
+    const m = h.match(/^\s*(.+?)\s+due\s*time\b/i);
+    if (m && !/^sli$/i.test(m[1].trim())) { partner = m[1].trim(); dueKey = h; break; }
+  }
+  const partnerFallback = hdrs.includes("Partner") ? null : (partner || (filename.split(/[_.\-]/)[0] || null));
+  if (!partnerFallback && !dueKey) return null;
+  return { partner: partnerFallback, dueKey };
+}
 async function objBody(path: string): Promise<ReadableStream<Uint8Array>> {
   const r = await fetch(`${URL_}/storage/v1/object/imports/${path}`, { headers: { apikey: SVC, Authorization: "Bearer " + SVC } });
   if (!r.ok) throw new Error(`storage ${path} -> HTTP ${r.status}`);
@@ -59,7 +80,7 @@ async function clearTable(table: string) {
   const r = await fetch(`${REST}/${table}?id=not.is.null`, { method: "DELETE", headers: { ...SVC_H, Prefer: "return=minimal" } });
   if (![200, 204].includes(r.status)) throw new Error(`clear ${table} -> HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
 }
-async function insertRows(table: string, rows: Row[], batch = 1000): Promise<number> {
+async function insertRows(table: string, rows: Row[], batch = 3000): Promise<number> {
   let ok = 0;
   for (let i = 0; i < rows.length; i += batch) {
     const chunk = rows.slice(i, i + batch);
@@ -76,6 +97,11 @@ async function sourceUpload(kind: string, filename: string, n: number): Promise<
   const r = await fetch(`${REST}/source_upload`, { method: "POST", headers: { ...SVC_H, Prefer: "return=representation" }, body: JSON.stringify({ source_kind: kind, filename, row_count: n }) });
   if (![200, 201].includes(r.status)) throw new Error(`source_upload -> HTTP ${r.status}`);
   return (await r.json())[0].id;
+}
+// Streaming loaders create the source_upload before the final row count is known,
+// then patch it once streaming completes. Best-effort: provenance metadata only.
+async function patchSourceCount(id: string, n: number): Promise<void> {
+  await fetch(`${REST}/source_upload?id=eq.${id}`, { method: "PATCH", headers: { ...SVC_H, Prefer: "return=minimal" }, body: JSON.stringify({ row_count: n }) }).catch(() => {});
 }
 async function relink(): Promise<unknown> {
   for (let a = 0; a < 4; a++) {
@@ -126,24 +152,48 @@ async function volumeAlert(kind: string, counts: Map<string, number>, uploadId: 
 interface Report { detected: string[]; counts: Record<string, number>; names: Record<string, string>;
   volume: Record<string, string[]>; discontinued_seen: string[]; roster?: number; relink?: unknown; mode: string; }
 
-async function loadSli(src: Row[], dry: boolean, report: Report) {
-  const rows: Row[] = []; const counts = new Map<string, number>(); let dropped = 0; const disc = new Set<string>();
-  for (const r of src) {
-    if (isDiscontinued(r["Partner"])) { dropped++; if (r["Partner"]) disc.add(r["Partner"]); continue; }
-    const biz = s(r["SLI During Biz Hrs?"]);
-    rows.push({ consult_guid: s(r["Consult GUID"]), clinician_name_raw: s(r["Clinician"]), partner: s(r["Partner"]),
-      program: s(r["Program Name"]), state: s(r["State"]), consult_type: s(r["Consult Type"]),
-      sli_received: isoDT(pdt(r["SLI Received"])), sli_due: isoDT(pdt(r["SLI Due Time"])), sli_completed: isoDT(pdt(r["SLI Completed"])),
-      sli_status_raw: s(r["SLI Status"]), during_biz_hrs: biz ? (biz.toLowerCase() === "yes") : null });
-    const p = s(r["Partner"]); if (p) counts.set(p, (counts.get(p) || 0) + 1);
+// SLI loads STREAM: each file is parsed row-by-row and inserted in bounded
+// batches, so memory never scales with file size (the real exports include a
+// ~22 MB / ~100k-row file that OOM-killed the isolate when buffered). Only the
+// compact fields the roster engine reads are retained, and only when a
+// roster/license file is present (wantRoster) — otherwise nothing is held at all.
+// Wisp normalization is applied per row using the header-derived decision.
+async function loadSliStreaming(paths: string[], dry: boolean, report: Report, sliForRoster: Row[], wantRoster: boolean) {
+  const counts = new Map<string, number>(); let total = 0, dropped = 0; const disc = new Set<string>();
+  let up: string | null = null;
+  if (!dry) { up = await sourceUpload("sli_response", report.names.sli || "sli", 0); await clearTable("sli_response"); }
+  let batch: Row[] = [];
+  const flush = async () => { if (batch.length) { const b = batch; batch = []; await insertRows("sli_response", b); } };
+  for (const p of paths) {
+    const base = p.split("/").pop()!;
+    let norm: { partner: string | null; dueKey: string | null } | null = null; let seenHeader = false;
+    const stream = (await objBody(p)).pipeThrough(new TextDecoderStream()).pipeThrough(new CsvParseStream({ skipFirstRow: true }));
+    for await (const rr of stream) {
+      const r = rr as unknown as Row;
+      if (!seenHeader) {
+        seenHeader = true; norm = sliNormalizer(Object.keys(r), base);
+        if (norm) report.detected.push(`sli normalized (${base}) — partner=${norm.partner ?? "—"}${norm.dueKey ? `, due←"${norm.dueKey}"` : ""}`);
+      }
+      if (norm) { if (norm.partner && !s(r["Partner"])) r["Partner"] = norm.partner; if (norm.dueKey && !s(r["SLI Due Time"])) r["SLI Due Time"] = r[norm.dueKey]; }
+      if (isDiscontinued(r["Partner"])) { dropped++; if (r["Partner"]) disc.add(r["Partner"]); continue; }
+      if (wantRoster) sliForRoster.push({ Clinician: r["Clinician"], Partner: r["Partner"], "Program Name": r["Program Name"],
+        "Consult Type": r["Consult Type"], "Consult GUID": r["Consult GUID"], State: r["State"], "SLI Completed": r["SLI Completed"], "SLI Received": r["SLI Received"] });
+      const pn = s(r["Partner"]); if (pn) counts.set(pn, (counts.get(pn) || 0) + 1);
+      total++;
+      if (!dry) {
+        const biz = s(r["SLI During Biz Hrs?"]);
+        batch.push({ consult_guid: s(r["Consult GUID"]), clinician_name_raw: s(r["Clinician"]), partner: s(r["Partner"]),
+          program: s(r["Program Name"]), state: s(r["State"]), consult_type: s(r["Consult Type"]),
+          sli_received: isoDT(pdt(r["SLI Received"])), sli_due: isoDT(pdt(r["SLI Due Time"])), sli_completed: isoDT(pdt(r["SLI Completed"])),
+          sli_status_raw: s(r["SLI Status"]), during_biz_hrs: biz ? (biz.toLowerCase() === "yes") : null, source_upload_id: up });
+        if (batch.length >= 3000) await flush();
+      }
+    }
   }
-  report.detected.push(`sli: ${rows.length} rows${dropped ? ` (${dropped} discontinued dropped)` : ""}`);
+  report.detected.push(`sli: ${total} rows${dropped ? ` (${dropped} discontinued dropped)` : ""}`);
   disc.forEach(d => report.discontinued_seen.push(d));
-  if (dry) { report.counts.sli_response = rows.length; return; }
-  const up = await sourceUpload("sli_response", report.names.sli || "sli", rows.length);
-  for (const x of rows) x.source_upload_id = up;
-  report.volume.sli = await volumeAlert("sli_response", counts, up);
-  await clearTable("sli_response"); report.counts.sli_response = await insertRows("sli_response", rows);
+  report.counts.sli_response = total;
+  if (!dry) { await flush(); report.volume.sli = await volumeAlert("sli_response", counts, up!); await patchSourceCount(up!, total); }
 }
 async function loadShift(src: Row[], credByEmail: Map<string, string>, dry: boolean, report: Report) {
   const rows: Row[] = [];
@@ -294,27 +344,38 @@ Deno.serve(async (req: Request) => {
     };
     const rosterRows = byType.roster ? await rowsOfType("roster") : [];
     const licenseRows = byType.license ? await rowsOfType("license") : [];
-    const sliRows = byType.sli ? await rowsOfType("sli") : [];
     const incRows = byType.incentive ? await rowsOfType("incentive") : [];
     const shiftRows = byType.shift ? await rowsOfType("shift") : [];
+    // SLI streams (loadSliStreaming) so a ~22 MB file never lands in memory; it
+    // populates sliForRoster only when a roster/license file is present to build.
+    const wantRoster = !!(byType.roster || byType.license);
+    const sliForRoster: Row[] = [];
 
     const forRoster = { tuples: [] as Row[], act: new Map<string, Row>() };
     if (byType.consult) await loadConsult(byType.consult, dry, report, forRoster);
+    // Stream + load SLI first so the roster build below sees the (normalized) SLI
+    // activity via sliForRoster; the insert itself is bounded-memory batches.
+    if (byType.sli) await loadSliStreaming(byType.sli, dry, report, sliForRoster, wantRoster);
 
     let credByEmail = new Map<string, string>();
     if (rosterRows.length || licenseRows.length) {
       const { confirmed, overrides } = dry ? { confirmed: new Set<string>(), overrides: {} } : await fetchDecisions();
-      const built = buildRoster({ roster: rosterRows, license: licenseRows, sli: sliRows, incentive: incRows, shift: shiftRows, consultTuples: forRoster.tuples, consultAct: forRoster.act }, confirmed, overrides);
+      const built = buildRoster({ roster: rosterRows, license: licenseRows, sli: sliForRoster, incentive: incRows, shift: shiftRows, consultTuples: forRoster.tuples, consultAct: forRoster.act }, confirmed, overrides);
       credByEmail = built.credByEmail;
       report.roster = built.rows.length;
       if (!dry) { const up = await sourceUpload("clinician_roster", report.names.roster || report.names.license || "roster", built.rows.length);
         for (const x of built.rows) x.source_upload_id = up;
         await clearTable("clinician_roster"); report.counts.clinician_roster = await insertRows("clinician_roster", built.rows); }
     }
-    if (byType.sli) await loadSli(sliRows, dry, report);
     if (byType.shift) await loadShift(shiftRows, credByEmail, dry, report);
     if (byType.incentive) await loadIncentive(incRows, dry, report);
-    if (!dry) report.relink = await relink();
+    // relink is the finalization step — the source rows are already committed above,
+    // so a hiccup here (e.g. a slow spine rebuild) must NOT report a completed load
+    // as a failure. It's idempotent and re-runs on the next load.
+    if (!dry) {
+      try { report.relink = await relink(); }
+      catch (e) { report.relink = { error: String((e as Error)?.message || e), note: "data loaded; clinician re-link didn't finish — it re-runs on the next load" }; }
+    }
     report.discontinued_seen = [...new Set(report.discontinued_seen)];
     return J({ ok: true, ...report });
   } catch (e) {
