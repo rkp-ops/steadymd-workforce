@@ -2,6 +2,12 @@
 -- 17_relink_timeout.sql
 -- Applied live to project eeszygextbqglayglvfm as migration relink_statement_timeout.
 --
+-- ⚠ SUPERSEDED BY 19_statement_timeouts.sql. A function-scoped statement_timeout
+-- does NOT extend a PostgREST request's timer (the per-request timer is armed at
+-- the request role's value before the function is entered), so this was a no-op.
+-- 19 sets it on the service_role instead, which is the effective lever, and RESETs
+-- this. Kept as historical record of the applied migration.
+--
 -- relink_clinician_spine() re-anchors the clinician spine and rebuilds the weekly
 -- ledger across ALL fact rows — the finalization step every ingest ends with. The
 -- ingest Edge Function calls it over PostgREST, whose connection role
