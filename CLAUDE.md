@@ -1,5 +1,24 @@
 # Working notes for Claude
 
+## Design bar (standing preference — the user pays per token; waste is disrespect)
+
+Every element I put on screen must **earn its place**: it has to be readable,
+actionable, and repurposable. If a chart/panel/tile can't be read at a glance,
+drilled into, or used to make a decision, it is *space-filling* and must not
+exist. Decorative or "looks like analytics" filler is a failure — it wastes the
+user's time and money and erodes trust. Before adding any visual, I state (to
+myself) what decision it supports; if I can't, I don't build it.
+
+- **Never show raw seconds** (or any machine-unit) for a human-facing duration.
+  Wait/response/handle times are always human-readable — `12m`, `1h 10m`,
+  `2d 3h`. Seconds are a computer's unit, not a reader's. This is non-negotiable.
+- **Order lists for the human, not the machine.** Filters, dropdowns, and any
+  pick-list a person scans are **alphabetical** (or another human-sensible
+  order), never sorted by row-count/volume just because that's what the query
+  returned. Volume ranking is fine for *ranked insight lists*, not for *pickers*.
+- Concretely retired for these reasons: the Overview "SLA by day" chart
+  (unreadable, undrillable, pure filler). Don't reintroduce that class of thing.
+
 ## Handing off manual steps (standing preference)
 
 Whenever a task needs a step **the user has to do by hand** — anything I can't
