@@ -145,10 +145,18 @@ AUTH_JS = r"""
   }
 
   sb.auth.onAuthStateChange((event)=>{ if(event==='PASSWORD_RECOVERY') viewRecovery(); });
-  viewSignin();
+  // Restore a persisted session BEFORE showing anything, and only fall back to the sign-in form when
+  // there is genuinely no session. Rendering viewSignin() unconditionally made the login form appear
+  // on every reload even with a valid session — and since getSession()+load() resolve a beat later,
+  // it would then drop you into the console mid-typing (the "it logs me in once I enter my email"
+  // effect). The session was always persisting; the form just shouldn't render until we know.
   (async()=>{
-    if((location.hash||'').indexOf('type=recovery')>-1) return; // recovery handler takes over
-    try{ const {data:{session}}=await sb.auth.getSession(); if(session) await load(); }catch(_){}
+    if((location.hash||'').indexOf('type=recovery')>-1) return; // recovery link -> onAuthStateChange shows viewRecovery()
+    try{
+      const {data:{session}}=await sb.auth.getSession();
+      if(session){ await load(); return; } // valid session -> straight into the console, no form
+    }catch(_){}
+    viewSignin(); // no session (or restore failed) -> show the sign-in form
   })();
 })();
 </script>"""
@@ -161,6 +169,8 @@ op = os.path.join(ROOT, "operational"); os.makedirs(op, exist_ok=True)
 open(os.path.join(op, "index.html"), "w").write(doc)
 print("wrote public/console-live.html + operational/index.html", len(doc))
 for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot","updateUser",
+          "no session (or restore failed)",  # session restored before the sign-in form is ever shown
+          "valid session -> straight into the console",
           "__setRosterAdmin","set_roster_membership","whoami","rid:r.id","Confirm onto roster",
           "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier",
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
