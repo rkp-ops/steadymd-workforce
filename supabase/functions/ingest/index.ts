@@ -80,7 +80,7 @@ async function clearTable(table: string) {
   const r = await fetch(`${REST}/${table}?id=not.is.null`, { method: "DELETE", headers: { ...SVC_H, Prefer: "return=minimal" } });
   if (![200, 204].includes(r.status)) throw new Error(`clear ${table} -> HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
 }
-async function insertRows(table: string, rows: Row[], batch = 1000): Promise<number> {
+async function insertRows(table: string, rows: Row[], batch = 3000): Promise<number> {
   let ok = 0;
   for (let i = 0; i < rows.length; i += batch) {
     const chunk = rows.slice(i, i + batch);
@@ -186,7 +186,7 @@ async function loadSliStreaming(paths: string[], dry: boolean, report: Report, s
           program: s(r["Program Name"]), state: s(r["State"]), consult_type: s(r["Consult Type"]),
           sli_received: isoDT(pdt(r["SLI Received"])), sli_due: isoDT(pdt(r["SLI Due Time"])), sli_completed: isoDT(pdt(r["SLI Completed"])),
           sli_status_raw: s(r["SLI Status"]), during_biz_hrs: biz ? (biz.toLowerCase() === "yes") : null, source_upload_id: up });
-        if (batch.length >= 1000) await flush();
+        if (batch.length >= 3000) await flush();
       }
     }
   }
