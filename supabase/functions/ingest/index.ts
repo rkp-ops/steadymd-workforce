@@ -111,6 +111,15 @@ async function relink(): Promise<unknown> {
     throw new Error(`relink -> HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
 }
+async function mergeStaged(): Promise<unknown> {
+  const r = await fetch(`${REST}/rpc/merge_staged`, { method: "POST", headers: SVC_H, body: "{}" });
+  if (r.status !== 200) throw new Error(`merge_staged -> HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  return await r.json();
+}
+async function resetStaging(): Promise<void> {
+  const r = await fetch(`${REST}/rpc/reset_staging`, { method: "POST", headers: SVC_H, body: "{}" });
+  if (![200, 204].includes(r.status)) throw new Error(`reset_staging -> HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+}
 async function restGet(pathq: string): Promise<Row[] | null> {
   const r = await fetch(`${REST}/${pathq}`, { headers: SVC_H }); return r.ok ? await r.json() : null;
 }
@@ -150,7 +159,7 @@ async function volumeAlert(kind: string, counts: Map<string, number>, uploadId: 
 
 // ---------------------------------------------------------------- transforms
 interface Report { detected: string[]; counts: Record<string, number>; names: Record<string, string>;
-  volume: Record<string, string[]>; discontinued_seen: string[]; roster?: number; relink?: unknown; mode: string; }
+  volume: Record<string, string[]>; discontinued_seen: string[]; roster?: number; relink?: unknown; merge?: unknown; mode: string; }
 
 // SLI loads STREAM: each file is parsed row-by-row and inserted in bounded
 // batches, so memory never scales with file size (the real exports include a
@@ -161,9 +170,9 @@ interface Report { detected: string[]; counts: Record<string, number>; names: Re
 async function loadSliStreaming(paths: string[], dry: boolean, report: Report, sliForRoster: Row[], wantRoster: boolean) {
   const counts = new Map<string, number>(); let total = 0, dropped = 0; const disc = new Set<string>();
   let up: string | null = null;
-  if (!dry) { up = await sourceUpload("sli_response", report.names.sli || "sli", 0); await clearTable("sli_response"); }
+  if (!dry) { up = await sourceUpload("sli_response", report.names.sli || "sli", 0); }
   let batch: Row[] = [];
-  const flush = async () => { if (batch.length) { const b = batch; batch = []; await insertRows("sli_response", b); } };
+  const flush = async () => { if (batch.length) { const b = batch; batch = []; await insertRows("sli_response_stage", b); } };
   for (const p of paths) {
     const base = p.split("/").pop()!;
     let norm: { partner: string | null; dueKey: string | null } | null = null; let seenHeader = false;
@@ -208,7 +217,7 @@ async function loadShift(src: Row[], credByEmail: Map<string, string>, dry: bool
   if (dry) { report.counts.shift = rows.length; return; }
   const up = await sourceUpload("shift", report.names.shift || "shift", rows.length);
   for (const x of rows) x.source_upload_id = up;
-  await clearTable("shift"); report.counts.shift = await insertRows("shift", rows);
+  report.counts.shift = await insertRows("shift_stage", rows);
 }
 async function loadIncentive(src: Row[], dry: boolean, report: Report) {
   const rows: Row[] = []; let dropped = 0; const disc = new Set<string>();
@@ -226,7 +235,7 @@ async function loadIncentive(src: Row[], dry: boolean, report: Report) {
   if (dry) { report.counts.incentive = rows.length; return; }
   const up = await sourceUpload("incentive", report.names.incentive || "incentive", rows.length);
   for (const x of rows) x.source_upload_id = up;
-  await clearTable("incentive"); report.counts.incentive = await insertRows("incentive", rows);
+  report.counts.incentive = await insertRows("incentive_stage", rows);
 }
 // deno-lint-ignore no-explicit-any
 async function loadConsult(paths: string[], dry: boolean, report: Report, forRoster: any) {
@@ -275,7 +284,7 @@ async function loadConsult(paths: string[], dry: boolean, report: Report, forRos
   const up = await sourceUpload("consult_touch_log", report.names.consult || "consult", rows.length);
   for (const x of rows) x.source_upload_id = up;
   report.volume.consult = await volumeAlert("consult", counts, up);
-  await clearTable("consult"); report.counts.consult = await insertRows("consult", rows);
+  report.counts.consult = await insertRows("consult_stage", rows);
 }
 
 // ---------------------------------------------------------------- handler
@@ -352,6 +361,10 @@ Deno.serve(async (req: Request) => {
     const sliForRoster: Row[] = [];
 
     const forRoster = { tuples: [] as Row[], act: new Map<string, Row>() };
+    // Accumulate, don't replace: the fact loaders APPEND into *_stage; merge_staged()
+    // below upserts staging -> main (newest-wins). Reset staging first so a prior
+    // crashed load can't leak stale rows into this merge.
+    if (!dry) await resetStaging();
     if (byType.consult) await loadConsult(byType.consult, dry, report, forRoster);
     // Stream + load SLI first so the roster build below sees the (normalized) SLI
     // activity via sliForRoster; the insert itself is bounded-memory batches.
@@ -369,6 +382,9 @@ Deno.serve(async (req: Request) => {
     }
     if (byType.shift) await loadShift(shiftRows, credByEmail, dry, report);
     if (byType.incentive) await loadIncentive(incRows, dry, report);
+    // Merge staging -> main as one atomic upsert (accumulate, newest-wins). Until this
+    // succeeds, main is untouched — a failed load can no longer corrupt existing data.
+    if (!dry) report.merge = await mergeStaged();
     // relink is the finalization step — the source rows are already committed above,
     // so a hiccup here (e.g. a slow spine rebuild) must NOT report a completed load
     // as a failure. It's idempotent and re-runs on the next load.
