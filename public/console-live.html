@@ -352,6 +352,16 @@
   </section>
 
   <!-- SHIFTS -->
+  <!-- SCHEDULED — a separate lane, never folded into on-demand -->
+  <section class="tab" data-tab="scheduled">
+    <div class="stats s4" id="schStats"></div>
+    <div class="cols2">
+      <div class="card"><div class="hd"><h2>By partner</h2><span class="desc">on-time within the scheduled slot</span></div><div class="bd"><div class="rank" id="schPartner"></div></div></div>
+      <div class="card"><div class="hd"><h2>By visit type</h2><span class="desc">on-time within the scheduled slot</span></div><div class="bd"><div class="rank" id="schType"></div></div></div>
+    </div>
+    <div class="muted" style="font-size:11.5px;line-height:1.55;margin-top:4px">Scheduled care is a separate population from on-demand — slot-based visits (Noom &amp; Futur) graded on whether they happened on time, never on queue-wait (a scheduled visit has no queue to wait in). It is deliberately excluded from every on-demand metric — SLA, wait, and the contract scoreboard.</div>
+  </section>
+
   <section class="tab" data-tab="shifts">
     <div class="stats s4" id="shStats"></div>
     <div class="card"><div class="hd"><h2>Hours by service line</h2><span class="desc">scheduled shift hours</span></div><div class="bd"><div class="rank" id="shLine"></div></div></div>
@@ -558,7 +568,7 @@ function laneOf(ct){return ct&&(/video_visit/.test(ct)||/scheduled_video/.test(c
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
+const TABS=[['overview','Overview'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
 const ADMIN_TABS=new Set(['users','import']);
 function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${(ADMIN_TABS.has(k)&&!((k==='users'&&USERS_ADMIN)||(k==='import'&&IMPORT_ADMIN)))?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
 // buildNav hides the admin tabs unless the caller is already known to be admin — so a second boot()
@@ -685,6 +695,22 @@ function renderPerf(rows){
 
 // ---------- CONSULTS (modality-first, static from CD) ----------
 let cModFilter=null;
+function renderScheduled(){
+  const rows=SLI.filter(r=>laneOf(r[CT])==='scheduled');
+  let scored=0,met=0,dmin=null,dmax=null; const byP=new Map(),byT=new Map();
+  const bump=(m,k,ok)=>{k=k||'—';let o=m.get(k);if(!o){o={n:0,scored:0,met:0};m.set(k,o)}o.n++;if(ok!=null){o.scored++;if(ok)o.met++}};
+  for(const r of rows){const ok=r[SLA];if(ok!=null){scored++;if(ok)met++}bump(byP,r[P],ok);bump(byT,r[CT],ok);const dt=r[DT];if(dt){if(!dmin||dt<dmin)dmin=dt;if(!dmax||dt>dmax)dmax=dt}}
+  const ot=scored?Math.round(1000*met/scored)/10:0;
+  $('#schStats').innerHTML=[
+    {k:'Scheduled visits',v:nf(rows.length),d:'slot-based'},
+    {k:'On-time',v:scored?ot+'%':'—',d:'completed within the slot window'},
+    {k:'Partners',v:new Set(rows.map(r=>r[P]).filter(Boolean)).size||'—',d:'scheduled model'},
+    {k:'Window',v:dmin?`${dmin.slice(5)}→${dmax.slice(5)}`:'—',d:dmin?dmin.slice(0,4):''},
+  ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
+  const mk=m=>[...m.entries()].map(([name,o])=>({name,n:o.n,pct:o.scored?Math.round(1000*o.met/o.scored)/10:null})).sort((a,b)=>a.name<b.name?-1:1); // alphabetical — human-ordered
+  const rh=arr=>{const mx=Math.max(...arr.map(x=>x.n),1);return arr.length?arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}<small>${nf(x.n)} visits</small></div><div class="val">${x.pct==null?'—':slaPill(x.pct)}</div><div class="track"><i style="width:${Math.max(2,x.n/mx*100)}%;background:var(--accent)"></i></div></div>`).join(''):'<div class="empty">No scheduled visits in the data.</div>'};
+  $('#schPartner').innerHTML=rh(mk(byP)); $('#schType').innerHTML=rh(mk(byT));
+}
 function renderConsults(){
   if(!CD||!Object.keys(CD).length)return; // consult_summary arrives in the background load wave; keep the tab's placeholder until then (no undefined flash)
   $('#cdStats').innerHTML=[
@@ -1275,7 +1301,7 @@ function wireImport(){
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
 }
-function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
