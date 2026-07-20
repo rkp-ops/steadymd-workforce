@@ -1234,14 +1234,77 @@ function renderImpList(){const el=$('#impList');if(!el)return;
   el.innerHTML=IMP_FILES.map((f,i)=>`<div class="impf ${f.status==='up'?'up':f.status==='err'?'err':''}"><span>${f.status==='up'?'✓':f.status==='err'?'✕':'📄'}</span><span class="fn">${uH(f.file.name)}</span><span class="fsz">${fmtBytes(f.file.size)}</span><button class="fx" data-imp-rm="${i}" title="remove">✕</button></div>`).join('');
   const b=$('#impBtns');if(b)b.style.display=IMP_FILES.length?'flex':'none';}
 function addFiles(list){for(const f of list){if(f&&!IMP_FILES.some(x=>x.file.name===f.name&&x.file.size===f.size))IMP_FILES.push({file:f,path:null,status:''})}renderImpList()}
+// A large upload can exceed one edge invocation's worker budget (CPU/wall-clock),
+// which is why big Loads intermittently died mid-insert with a non-2xx. The durable
+// fix: split each file into row-bounded parts CONSOLE-SIDE and load each part in its
+// own bounded invocation. Every part is a full reset→stage→merge→relink, so facts
+// accumulate (newest-wins by GUID key) and no single isolate ever hits the wall.
+// Preview stays a single dry pass (it inserts nothing, so it never hits the wall).
+const CHUNK_ROWS=12000;
+// Quote-aware CSV record splitter: one record may span physical lines when a field
+// is quoted (embedded newlines/commas, doubled-"" escapes). Record 0 is the header.
+function csvRecords(text){
+  const recs=[];let i=0,start=0,inQ=false;const n=text.length;
+  while(i<n){const c=text.charCodeAt(i);
+    if(inQ){if(c===34){if(text.charCodeAt(i+1)===34){i+=2;continue;}inQ=false;i++;continue;}i++;continue;}
+    if(c===34){inQ=true;i++;continue;}
+    if(c===10){recs.push(text.slice(start,i));i++;start=i;continue;}
+    i++;}
+  if(start<n)recs.push(text.slice(start));
+  return recs;}
+// Split CSV text into ≤maxRows-row pieces, each re-prefixed with the header so the
+// edge's header-based type detection recognizes every piece identically.
+function chunkCsvText(text,maxRows){
+  const recs=csvRecords(text);if(!recs.length)return[];
+  const header=recs[0],data=[];
+  for(let k=1;k<recs.length;k++){const r=recs[k];if(r.replace(/\r$/,'').trim()!=='')data.push(r);}
+  if(!data.length)return[];
+  const out=[];for(let k=0;k<data.length;k+=maxRows)out.push(header+'\n'+data.slice(k,k+maxRows).join('\n')+'\n');
+  return out;}
+// Upload a file as one or more storage objects: files within budget go whole; larger
+// files split into row-bounded parts. Returns the list of storage paths.
+async function uploadParts(f){
+  const chunks=chunkCsvText(await f.file.text(),CHUNK_ROWS);
+  if(chunks.length<=1)return[await IMPORT_API.upload(f.file)];
+  const out=[];for(const ct of chunks)out.push(await IMPORT_API.upload(new File([ct],f.file.name,{type:'text/csv'})));
+  return out;}
 async function runImport(mode){
   if(!IMPORT_API||!IMP_FILES.length)return;
   const err=$('#impErr');err.textContent='';const dry=$('#impDry'),load=$('#impLoad');dry.disabled=true;load.disabled=true;
-  const btn=mode==='load'?load:dry,prev=btn.textContent;btn.innerHTML='<span class="spin2"></span> '+(mode==='load'?'Loading…':'Reading…');
+  const btn=mode==='load'?load:dry,prev=btn.textContent;const busy=t=>{btn.innerHTML='<span class="spin2"></span> '+t;};
+  busy(mode==='load'?'Loading…':'Reading…');
   try{
-    for(const f of IMP_FILES){if(!f.path){try{f.path=await IMPORT_API.upload(f.file);f.status='up';renderImpList();}catch(e){f.status='err';renderImpList();throw new Error('Upload failed for '+f.file.name+': '+((e&&e.message)||e));}}}
-    const data=await IMPORT_API.run(IMP_FILES.map(f=>f.path),mode);
-    renderImpReport(data,mode);
+    if(mode!=='load'){
+      for(const f of IMP_FILES){if(!f.path){try{f.path=await IMPORT_API.upload(f.file);f.status='up';renderImpList();}catch(e){f.status='err';renderImpList();throw new Error('Upload failed for '+f.file.name+': '+((e&&e.message)||e));}}}
+      const data=await IMPORT_API.run(IMP_FILES.map(f=>f.path),'dry');
+      if(data&&data.error)throw new Error(data.error);
+      renderImpReport(data,'dry');
+    }else{
+      busy('Preparing…');
+      const parts=[];
+      for(const f of IMP_FILES){
+        let paths;try{paths=await uploadParts(f);f.status='up';renderImpList();}
+        catch(e){f.status='err';renderImpList();throw new Error('Upload failed for '+f.file.name+': '+((e&&e.message)||e));}
+        paths.forEach(p=>parts.push(p));
+      }
+      const agg={detected:new Set(),counts:{},names:{},disc:new Set(),roster:null};
+      for(let i=0;i<parts.length;i++){
+        busy(parts.length>1?`Loading… ${i+1}/${parts.length}`:'Loading…');
+        const data=await IMPORT_API.run([parts[i]],'load');
+        if(data&&data.error)throw new Error(data.error);
+        (data.detected||[]).forEach(d=>{if(/<-|unrecognized|normalized/.test(d))agg.detected.add(d);});
+        Object.entries(data.counts||{}).forEach(([k,v])=>{agg.counts[k]=(agg.counts[k]||0)+(v||0);});
+        Object.assign(agg.names,data.names||{});
+        (data.discontinued_seen||[]).forEach(d=>agg.disc.add(d));
+        if(data.roster!=null)agg.roster=data.roster;
+      }
+      // one clean whole-load volume-swing pass (supersedes the misleading per-part snapshots)
+      let vol={};
+      if(agg.counts.sli_response&&IMPORT_API.reconcile){
+        try{const fl=await IMPORT_API.reconcile('sli_response');if(fl&&fl.length)vol={sli:fl};}catch(_){}
+      }
+      renderImpReport({counts:agg.counts,names:agg.names,roster:agg.roster,detected:[...agg.detected],discontinued_seen:[...agg.disc],volume:vol},'load');
+    }
   }catch(e){err.textContent=(e&&e.message)||String(e)}
   finally{dry.disabled=false;load.disabled=false;btn.textContent=prev}
 }

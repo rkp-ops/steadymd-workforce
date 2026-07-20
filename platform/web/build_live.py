@@ -97,6 +97,7 @@ AUTH_JS = r"""
           window.__setImportAdmin(true, {
             upload: async(file)=>{ const path=`${Date.now()}-${Math.random().toString(36).slice(2)}/${file.name}`; const {error}=await sb.storage.from('imports').upload(path,file,{upsert:false,contentType:file.type||'text/csv'}); if(error) throw new Error(error.message||'upload failed'); return path; },
             run: async(paths,mode)=>{ const {data,error}=await sb.functions.invoke('ingest',{body:{mode,paths}}); if(error) throw new Error(error.message||'ingest failed'); if(data&&data.error) throw new Error(data.error); return data; },
+            reconcile: async(kind)=>{ const {data,error}=await sb.rpc('reconcile_partner_snapshot',{p_kind:kind}); if(error) throw new Error(error.message||'reconcile failed'); return data||[]; },
           });
         } else { window.__setImportAdmin(false); }
       }
@@ -188,6 +189,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "laneOf(r[CT])==='scheduled'",  # scheduled care never folded into on-demand (inFilter)
           "return'<1m'",  # fmtDur never emits raw seconds
           'data-tab="scheduled"', "renderScheduled",  # dedicated Scheduled lane tab
+          "chunkCsvText","CHUNK_ROWS=12000","uploadParts",  # console-side row-bounded Load chunking (durable non-2xx fix)
+          "reconcile_partner_snapshot",  # one clean whole-load volume snapshot after chunked Load
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")
