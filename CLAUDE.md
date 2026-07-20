@@ -19,6 +19,19 @@ myself) what decision it supports; if I can't, I don't build it.
 - Concretely retired for these reasons: the Overview "SLA by day" chart
   (unreadable, undrillable, pure filler). Don't reintroduce that class of thing.
 
+## Scheduled vs on-demand (standing rule — NEVER combine, in any scenario)
+
+Scheduled care and on-demand care are **separate populations** and must never be
+mixed in any on-demand-dominant metric — SLA adherence, VPH/productivity,
+wait/response time, coverage-vs-demand, or the contract scoreboard. Scheduled
+visits carry a *slot* time as their SLI `received` (due = received + a fixed
+~10-min grace), so "wait = completed − received" is meaningless for them — it goes
+negative when the visit runs before its slot (Noom & Futur video/scheduled consult
+types: due-offset ≈ 10 min, ~30–50% of rows complete before the slot). Scheduled is
+graded on availability / did-it-happen, in its **own tab**, never folded into
+on-demand numbers. Implement as an explicit `lane` and filter every on-demand read
+to `lane = 'on_demand'`.
+
 ## Handing off manual steps (standing preference)
 
 Whenever a task needs a step **the user has to do by hand** — anything I can't
