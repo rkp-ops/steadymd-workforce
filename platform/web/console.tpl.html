@@ -509,7 +509,9 @@ const TARGETS = /*__TGT__*/[];
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const nf=n=>Number(n).toLocaleString();
 const P=0,PR=1,ST=2,CT=3,SLA=4,W=5,DOW=6,HR=7,DT=8;
-function fmtDur(s){if(s==null)return'—';s=Math.round(s);if(s<60)return s+'s';let m=Math.round(s/60);if(m<60)return m+'m';let h=Math.floor(m/60);return h+'h'+(m%60?' '+(m%60)+'m':'')}
+// Human-readable duration — NEVER raw seconds (a computer's unit, not a reader's).
+// <1m / Nm / Nh Mm / Nd Nh; carries a sign so a stray negative reads sanely.
+function fmtDur(s){if(s==null)return'—';let m=Math.round(s/60);const neg=m<0;m=Math.abs(m);if(m<1)return'<1m';let out;if(m<60)out=m+'m';else{const h=Math.floor(m/60),mm=m%60;if(h<24)out=h+'h'+(mm?' '+mm+'m':'');else{const d=Math.floor(h/24),hh=h%24;out=d+'d'+(hh?' '+hh+'h':'')}}return(neg?'-':'')+out}
 function fmtMin(m){if(m==null)return'—';if(m<60)return Math.round(m)+'m';const h=Math.floor(m/60),mm=Math.round(m%60);return h+'h'+(mm?' '+mm+'m':'')}
 function slaHue(p){return Math.round(Math.max(0,Math.min(1,(p-85)/15))*145)}
 function slaCss(p){const h=slaHue(p);return `hsl(${h} 68% ${h>95?37:40}%)`}
@@ -524,6 +526,10 @@ const MODKIND={messaging:'async',sync_video:'sync',sync_phone:'sync',lab:'other'
 // video|urgent check so video_chat_message_followup reads async, not sync),
 // then genuinely-live video/urgent, else other.
 function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critical_values_phone/.test(ct))return'sync_phone';if(/message|async|chart/.test(ct))return'messaging';if(/video|urgent/.test(ct))return'sync_video';return'other'}
+// Care lane — mirrors the SQL generated column exactly. Scheduled visits (slot-based
+// video, Noom/Futur) are a SEPARATE population and must NEVER be folded into any
+// on-demand metric (SLA, wait, scoreboard, productivity). They live in their own tab.
+function laneOf(ct){return ct&&(/video_visit/.test(ct)||/scheduled_video/.test(ct))?'scheduled':'on_demand'}
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
@@ -537,6 +543,7 @@ function go(t){if(ADMIN_TABS.has(t)&&!(USERS_ADMIN||IMPORT_ADMIN))t='overview';$
 // ---------- filter engine ----------
 let FIL={0:new Set(),2:new Set(),1:new Set(),mod:new Set(),from:null,to:null,h0:0,h1:23};
 function inFilter(r){
+  if(laneOf(r[CT])==='scheduled')return false; // scheduled care is its own lane — never in on-demand views
   if(FIL[0].size&&!FIL[0].has(r[P]))return false;
   if(FIL[2].size&&!FIL[2].has(r[ST]))return false;
   if(FIL[1].size&&!FIL[1].has(r[PR]))return false;
@@ -981,7 +988,7 @@ function wireUsers(){
 let SB_ADMIN=false, SB_API=null;
 function normP(s){return String(s==null?'':s).toLowerCase().trim()}
 function sbMod(ct){const m=smod(ct);return (m==='sync_video'||m==='sync_phone')?'sync':m==='messaging'?'async':null}
-function sbModAgg(key,mod){let scored=0,met=0;for(const r of SLI){if(!normP(r[P]).includes(key))continue;if(sbMod(r[CT])!==mod)continue;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{scored,met,pct:scored?met/scored*100:null}}
+function sbModAgg(key,mod){let scored=0,met=0;for(const r of SLI){if(laneOf(r[CT])==='scheduled')continue;if(!normP(r[P]).includes(key))continue;if(sbMod(r[CT])!==mod)continue;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{scored,met,pct:scored?met/scored*100:null}}
 function fmtMin(m){if(m==null)return null;return (m%60===0&&m>=60)?(m/60)+' hr':m+' min'}
 function attColor(pct,floor){if(pct==null)return'var(--ink-3)';if(floor==null)return'var(--ink)';const p=pct/100;return p>=floor?'var(--good)':p>=floor-0.05?'var(--warn)':'var(--bad)'}
 window.__setSlaAdmin=function(isAdmin,api){SB_ADMIN=!!isAdmin;SB_API=isAdmin?(api||null):null;if($('#sbAdminHint'))$('#sbAdminHint').textContent=isAdmin?'· click Edit to adjust a target':'';renderScoreboard()};

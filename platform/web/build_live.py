@@ -185,6 +185,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "__setImportAdmin","wireImport",'data-tab="import"',"Refresh the data","runImport",
           "functions.invoke('ingest'","storage.from('imports')",
           "message|async|chart",  # smod: async work matched before video|urgent (so video_chat_message_followup reads async)
+          "laneOf(r[CT])==='scheduled'",  # scheduled care never folded into on-demand (inFilter)
+          "return'<1m'",  # fmtDur never emits raw seconds
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")
