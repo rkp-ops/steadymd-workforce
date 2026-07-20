@@ -1,5 +1,37 @@
 # Working notes for Claude
 
+## Design bar (standing preference — the user pays per token; waste is disrespect)
+
+Every element I put on screen must **earn its place**: it has to be readable,
+actionable, and repurposable. If a chart/panel/tile can't be read at a glance,
+drilled into, or used to make a decision, it is *space-filling* and must not
+exist. Decorative or "looks like analytics" filler is a failure — it wastes the
+user's time and money and erodes trust. Before adding any visual, I state (to
+myself) what decision it supports; if I can't, I don't build it.
+
+- **Never show raw seconds** (or any machine-unit) for a human-facing duration.
+  Wait/response/handle times are always human-readable — `12m`, `1h 10m`,
+  `2d 3h`. Seconds are a computer's unit, not a reader's. This is non-negotiable.
+- **Order lists for the human, not the machine.** Filters, dropdowns, and any
+  pick-list a person scans are **alphabetical** (or another human-sensible
+  order), never sorted by row-count/volume just because that's what the query
+  returned. Volume ranking is fine for *ranked insight lists*, not for *pickers*.
+- Concretely retired for these reasons: the Overview "SLA by day" chart
+  (unreadable, undrillable, pure filler). Don't reintroduce that class of thing.
+
+## Scheduled vs on-demand (standing rule — NEVER combine, in any scenario)
+
+Scheduled care and on-demand care are **separate populations** and must never be
+mixed in any on-demand-dominant metric — SLA adherence, VPH/productivity,
+wait/response time, coverage-vs-demand, or the contract scoreboard. Scheduled
+visits carry a *slot* time as their SLI `received` (due = received + a fixed
+~10-min grace), so "wait = completed − received" is meaningless for them — it goes
+negative when the visit runs before its slot (Noom & Futur video/scheduled consult
+types: due-offset ≈ 10 min, ~30–50% of rows complete before the slot). Scheduled is
+graded on availability / did-it-happen, in its **own tab**, never folded into
+on-demand numbers. Implement as an explicit `lane` and filter every on-demand read
+to `lane = 'on_demand'`.
+
 ## Handing off manual steps (standing preference)
 
 Whenever a task needs a step **the user has to do by hand** — anything I can't

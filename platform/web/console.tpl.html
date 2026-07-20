@@ -327,6 +327,16 @@
   </section>
 
   <!-- SHIFTS -->
+  <!-- SCHEDULED — a separate lane, never folded into on-demand -->
+  <section class="tab" data-tab="scheduled">
+    <div class="stats s4" id="schStats"></div>
+    <div class="cols2">
+      <div class="card"><div class="hd"><h2>By partner</h2><span class="desc">on-time within the scheduled slot</span></div><div class="bd"><div class="rank" id="schPartner"></div></div></div>
+      <div class="card"><div class="hd"><h2>By visit type</h2><span class="desc">on-time within the scheduled slot</span></div><div class="bd"><div class="rank" id="schType"></div></div></div>
+    </div>
+    <div class="muted" style="font-size:11.5px;line-height:1.55;margin-top:4px">Scheduled care is a separate population from on-demand — slot-based visits (Noom &amp; Futur) graded on whether they happened on time, never on queue-wait (a scheduled visit has no queue to wait in). It is deliberately excluded from every on-demand metric — SLA, wait, and the contract scoreboard.</div>
+  </section>
+
   <section class="tab" data-tab="shifts">
     <div class="stats s4" id="shStats"></div>
     <div class="card"><div class="hd"><h2>Hours by service line</h2><span class="desc">scheduled shift hours</span></div><div class="bd"><div class="rank" id="shLine"></div></div></div>
@@ -509,7 +519,9 @@ const TARGETS = /*__TGT__*/[];
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const nf=n=>Number(n).toLocaleString();
 const P=0,PR=1,ST=2,CT=3,SLA=4,W=5,DOW=6,HR=7,DT=8;
-function fmtDur(s){if(s==null)return'—';s=Math.round(s);if(s<60)return s+'s';let m=Math.round(s/60);if(m<60)return m+'m';let h=Math.floor(m/60);return h+'h'+(m%60?' '+(m%60)+'m':'')}
+// Human-readable duration — NEVER raw seconds (a computer's unit, not a reader's).
+// <1m / Nm / Nh Mm / Nd Nh; carries a sign so a stray negative reads sanely.
+function fmtDur(s){if(s==null)return'—';let m=Math.round(s/60);const neg=m<0;m=Math.abs(m);if(m<1)return'<1m';let out;if(m<60)out=m+'m';else{const h=Math.floor(m/60),mm=m%60;if(h<24)out=h+'h'+(mm?' '+mm+'m':'');else{const d=Math.floor(h/24),hh=h%24;out=d+'d'+(hh?' '+hh+'h':'')}}return(neg?'-':'')+out}
 function fmtMin(m){if(m==null)return'—';if(m<60)return Math.round(m)+'m';const h=Math.floor(m/60),mm=Math.round(m%60);return h+'h'+(mm?' '+mm+'m':'')}
 function slaHue(p){return Math.round(Math.max(0,Math.min(1,(p-85)/15))*145)}
 function slaCss(p){const h=slaHue(p);return `hsl(${h} 68% ${h>95?37:40}%)`}
@@ -524,10 +536,14 @@ const MODKIND={messaging:'async',sync_video:'sync',sync_phone:'sync',lab:'other'
 // video|urgent check so video_chat_message_followup reads async, not sync),
 // then genuinely-live video/urgent, else other.
 function smod(ct){if(!ct)return'other';if(/lab/.test(ct))return'lab';if(/critical_values_phone/.test(ct))return'sync_phone';if(/message|async|chart/.test(ct))return'messaging';if(/video|urgent/.test(ct))return'sync_video';return'other'}
+// Care lane — mirrors the SQL generated column exactly. Scheduled visits (slot-based
+// video, Noom/Futur) are a SEPARATE population and must NEVER be folded into any
+// on-demand metric (SLA, wait, scoreboard, productivity). They live in their own tab.
+function laneOf(ct){return ct&&(/video_visit/.test(ct)||/scheduled_video/.test(ct))?'scheduled':'on_demand'}
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
+const TABS=[['overview','Overview'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
 const ADMIN_TABS=new Set(['users','import']);
 function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${(ADMIN_TABS.has(k)&&!((k==='users'&&USERS_ADMIN)||(k==='import'&&IMPORT_ADMIN)))?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
 // buildNav hides the admin tabs unless the caller is already known to be admin — so a second boot()
@@ -537,6 +553,7 @@ function go(t){if(ADMIN_TABS.has(t)&&!(USERS_ADMIN||IMPORT_ADMIN))t='overview';$
 // ---------- filter engine ----------
 let FIL={0:new Set(),2:new Set(),1:new Set(),mod:new Set(),from:null,to:null,h0:0,h1:23};
 function inFilter(r){
+  if(laneOf(r[CT])==='scheduled')return false; // scheduled care is its own lane — never in on-demand views
   if(FIL[0].size&&!FIL[0].has(r[P]))return false;
   if(FIL[2].size&&!FIL[2].has(r[ST]))return false;
   if(FIL[1].size&&!FIL[1].has(r[PR]))return false;
@@ -653,6 +670,22 @@ function renderPerf(rows){
 
 // ---------- CONSULTS (modality-first, static from CD) ----------
 let cModFilter=null;
+function renderScheduled(){
+  const rows=SLI.filter(r=>laneOf(r[CT])==='scheduled');
+  let scored=0,met=0,dmin=null,dmax=null; const byP=new Map(),byT=new Map();
+  const bump=(m,k,ok)=>{k=k||'—';let o=m.get(k);if(!o){o={n:0,scored:0,met:0};m.set(k,o)}o.n++;if(ok!=null){o.scored++;if(ok)o.met++}};
+  for(const r of rows){const ok=r[SLA];if(ok!=null){scored++;if(ok)met++}bump(byP,r[P],ok);bump(byT,r[CT],ok);const dt=r[DT];if(dt){if(!dmin||dt<dmin)dmin=dt;if(!dmax||dt>dmax)dmax=dt}}
+  const ot=scored?Math.round(1000*met/scored)/10:0;
+  $('#schStats').innerHTML=[
+    {k:'Scheduled visits',v:nf(rows.length),d:'slot-based'},
+    {k:'On-time',v:scored?ot+'%':'—',d:'completed within the slot window'},
+    {k:'Partners',v:new Set(rows.map(r=>r[P]).filter(Boolean)).size||'—',d:'scheduled model'},
+    {k:'Window',v:dmin?`${dmin.slice(5)}→${dmax.slice(5)}`:'—',d:dmin?dmin.slice(0,4):''},
+  ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
+  const mk=m=>[...m.entries()].map(([name,o])=>({name,n:o.n,pct:o.scored?Math.round(1000*o.met/o.scored)/10:null})).sort((a,b)=>a.name<b.name?-1:1); // alphabetical — human-ordered
+  const rh=arr=>{const mx=Math.max(...arr.map(x=>x.n),1);return arr.length?arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}<small>${nf(x.n)} visits</small></div><div class="val">${x.pct==null?'—':slaPill(x.pct)}</div><div class="track"><i style="width:${Math.max(2,x.n/mx*100)}%;background:var(--accent)"></i></div></div>`).join(''):'<div class="empty">No scheduled visits in the data.</div>'};
+  $('#schPartner').innerHTML=rh(mk(byP)); $('#schType').innerHTML=rh(mk(byT));
+}
 function renderConsults(){
   if(!CD||!Object.keys(CD).length)return; // consult_summary arrives in the background load wave; keep the tab's placeholder until then (no undefined flash)
   $('#cdStats').innerHTML=[
@@ -981,7 +1014,7 @@ function wireUsers(){
 let SB_ADMIN=false, SB_API=null;
 function normP(s){return String(s==null?'':s).toLowerCase().trim()}
 function sbMod(ct){const m=smod(ct);return (m==='sync_video'||m==='sync_phone')?'sync':m==='messaging'?'async':null}
-function sbModAgg(key,mod){let scored=0,met=0;for(const r of SLI){if(!normP(r[P]).includes(key))continue;if(sbMod(r[CT])!==mod)continue;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{scored,met,pct:scored?met/scored*100:null}}
+function sbModAgg(key,mod){let scored=0,met=0;for(const r of SLI){if(laneOf(r[CT])==='scheduled')continue;if(!normP(r[P]).includes(key))continue;if(sbMod(r[CT])!==mod)continue;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{scored,met,pct:scored?met/scored*100:null}}
 function fmtMin(m){if(m==null)return null;return (m%60===0&&m>=60)?(m/60)+' hr':m+' min'}
 function attColor(pct,floor){if(pct==null)return'var(--ink-3)';if(floor==null)return'var(--ink)';const p=pct/100;return p>=floor?'var(--good)':p>=floor-0.05?'var(--warn)':'var(--bad)'}
 window.__setSlaAdmin=function(isAdmin,api){SB_ADMIN=!!isAdmin;SB_API=isAdmin?(api||null):null;if($('#sbAdminHint'))$('#sbAdminHint').textContent=isAdmin?'· click Edit to adjust a target':'';renderScoreboard()};
@@ -1243,7 +1276,7 @@ function wireImport(){
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
 }
-function boot(){buildNav();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
