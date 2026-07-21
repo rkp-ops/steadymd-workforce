@@ -176,6 +176,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier",
           "credClass","credClass(d.c)",'data-cfacet="pa"',"CF.pa",  # credential 6-buckets + Partner filter on Clinicians
           "localeCompare(String(b[0]))",  # pickers alphabetical, not volume-sorted
+          "function xsMiss","function byImpact","function hitRank",  # impact model: excess misses over the floor
+          "dragging it down","Programs dragging SLA",  # hit-list ranks + recursive drill by impact
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",

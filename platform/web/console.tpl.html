@@ -281,12 +281,12 @@
       <div style="overflow:auto"><table id="ptbl"><thead><tr id="phead"></tr></thead><tbody id="pbody"></tbody></table></div>
     </div>
     <div class="cols2">
-      <div class="card"><div class="hd"><h2>By program</h2><span class="desc">click to drill</span></div><div class="bd"><div class="rank" id="rkProgram"></div></div></div>
-      <div class="card"><div class="hd"><h2>By state</h2><span class="desc">click to drill</span></div><div class="bd"><div class="rank" id="rkState"></div></div></div>
+      <div class="card"><div class="hd"><h2>Programs dragging SLA</h2><span class="desc">below 95%, worst impact first · click to drill</span></div><div class="bd"><div class="rank" id="rkProgram"></div></div></div>
+      <div class="card"><div class="hd"><h2>States dragging SLA</h2><span class="desc">below 95%, worst impact first · click to drill</span></div><div class="bd"><div class="rank" id="rkState"></div></div></div>
     </div>
     <div class="cols2">
       <div class="card"><div class="hd"><h2>By modality</h2><span class="desc">sync vs async · click to drill</span></div><div class="bd"><div class="rank" id="rkMod"></div></div></div>
-      <div class="card"><div class="hd"><h2>By consult type</h2><span class="desc">click a row to see what drove it</span></div><div class="bd"><div class="rank" id="rkType"></div></div></div>
+      <div class="card"><div class="hd"><h2>Consult types dragging SLA</h2><span class="desc">below 95%, worst impact first · click to drill</span></div><div class="bd"><div class="rank" id="rkType"></div></div></div>
     </div>
     <div class="card">
       <div class="hd"><h2>SLA by day and hour</h2><span class="desc">every cell shows its SLA %</span></div>
@@ -568,7 +568,15 @@ function inFilter(r){
   return true;
 }
 function slice(extra){let rows=SLI.filter(inFilter);if(extra)rows=rows.filter(extra);return rows}
-function agg(rows,idx){const m=new Map();for(const r of rows){const k=r[idx];if(k==null)continue;let o=m.get(k);if(!o){o={name:k,n:0,met:0,scored:0,ws:0,wn:0};m.set(k,o)}o.n++;if(r[SLA]!=null){o.scored++;if(r[SLA])o.met++}if(r[W]!=null){o.ws+=r[W];o.wn++}}return[...m.values()].map(o=>({name:o.name,n:o.n,met:o.met,pct:o.scored?Math.round(1000*o.met/o.scored)/10:0,avg:o.wn?Math.round(o.ws/o.wn):null})).sort((a,b)=>b.n-a.n)}
+function agg(rows,idx){const m=new Map();for(const r of rows){const k=r[idx];if(k==null)continue;let o=m.get(k);if(!o){o={name:k,n:0,met:0,scored:0,ws:0,wn:0};m.set(k,o)}o.n++;if(r[SLA]!=null){o.scored++;if(r[SLA])o.met++}if(r[W]!=null){o.ws+=r[W];o.wn++}}return[...m.values()].map(o=>({name:o.name,n:o.n,met:o.met,scored:o.scored,pct:o.scored?Math.round(1000*o.met/o.scored)/10:0,avg:o.wn?Math.round(o.ws/o.wn):null})).sort((a,b)=>b.n-a.n)}
+// ---- impact model: what's actually dragging SLA below the 95% contractual floor ----
+// A slice's "impact" is its EXCESS misses over the line: scored x max(0, floor - rate).
+// A big partner 1pt under target outranks a tiny one 10pts under, because it costs more
+// real misses. At/above the floor => 0 impact => off the hit list. This is the ordering
+// every rank + drill uses, so the top of every list is what to actually go fix.
+const FLOOR=0.95;
+function xsMiss(x){return Math.max(0,Math.round((x.scored||0)*(FLOOR-(x.pct||0)/100)))}
+function byImpact(a,b){return xsMiss(b)-xsMiss(a)||((a.pct||0)-(b.pct||0))||((b.n||0)-(a.n||0))}
 function aggMod(rows){const m=new Map();for(const r of rows){const k=smod(r[CT]);let o=m.get(k);if(!o){o={name:k,n:0,met:0,scored:0};m.set(k,o)}o.n++;if(r[SLA]!=null){o.scored++;if(r[SLA])o.met++}}return[...m.values()].map(o=>({name:o.name,n:o.n,pct:o.scored?Math.round(1000*o.met/o.scored)/10:0})).sort((a,b)=>b.n-a.n)}
 function overall(rows){let met=0,scored=0,waits=[];for(const r of rows){if(r[SLA]!=null){scored++;if(r[SLA])met++}if(r[W]!=null)waits.push(r[W])}waits.sort((a,b)=>a-b);const q=p=>waits.length?waits[Math.min(waits.length-1,Math.floor(waits.length*p))]:0;return{n:rows.length,scored,met,pct:scored?Math.round(1000*met/scored)/10:0,avg:waits.length?Math.round(waits.reduce((a,b)=>a+b,0)/waits.length):0,p50:q(.5),p90:q(.9)}}
 
@@ -593,18 +601,25 @@ function renderChips(){const c=[];FIL[0].forEach(v=>c.push([0,v]));FIL[2].forEac
   if($('#clr'))$('#clr').onclick=()=>{FIL={0:new Set(),2:new Set(),1:new Set(),mod:new Set(),from:null,to:null,h0:0,h1:23};$('#dfrom').value='';$('#dto').value='';$('#h0').value=0;$('#h1').value=23;$$('#modseg button').forEach((x,i)=>x.classList.toggle('on',i===0));renderFiltered()}}
 
 // ---------- drill modal ----------
-function openDrill(title,rows,skipIdx){
-  const o=overall(rows);
+// Recursive RCA drill. Every level shows ONLY the sub-slices dragging SLA below the
+// floor (impact-ranked, "+N over"), and each is clickable to narrow further —
+// partner -> state -> program -> consult type -> day — so a dip resolves to exactly
+// where/what/when it's concentrated, not a wall of on-target rows.
+function openDrill(title,rows,skip){
+  skip=Array.isArray(skip)?skip:(skip==null?[]:[skip]);
+  const o=overall(rows),over=o.scored?Math.max(0,Math.round(o.scored*(FLOOR-o.pct/100))):0;
   $('#mTitle').textContent=title;
-  $('#mSub').innerHTML=`${slaPill(o.pct)} &nbsp; <b>${nf(o.scored)}</b> SLIs · avg wait ${fmtDur(o.avg)} · median ${fmtDur(o.p50)} · <b>${nf(o.scored-o.met)}</b> missed target`;
-  const dims=[[P,'Partner'],[ST,'State'],[PR,'Program'],[CT,'Consult type']].filter(d=>d[0]!==skipIdx);
+  $('#mSub').innerHTML=`${slaPill(o.pct)} &nbsp; <b>${nf(o.scored)}</b> SLIs · avg wait ${fmtDur(o.avg)} · median ${fmtDur(o.p50)} · <b>${nf(o.scored-o.met)}</b> missed${over?` · <b style="color:var(--bad)">${nf(over)} over ${Math.round(FLOOR*100)}%</b>`:''}`;
+  const DIMS=[[P,'Partner'],[ST,'State'],[PR,'Program'],[CT,'Consult type'],[DT,'Day']].filter(d=>!skip.includes(d[0]));
   let html='';
-  for(const [idx,lbl] of dims){
-    const a=agg(rows,idx).slice(0,8);if(!a.length)continue;const mx=Math.max(...a.map(x=>x.n));
-    html+=`<div class="mini"><h3>${lbl} — worst first by misses</h3><div class="rank">`+
-      [...a].sort((x,y)=>(x.pct-y.pct)||(y.n-x.n)).slice(0,8).map(x=>`<div class="rk" style="cursor:default"><div class="lab">${idx===CT?x.name+` <span class="kind ${MODKIND[smod(x.name)]}">${MODKIND[smod(x.name)]}</span>`:x.name}<small>${nf(x.n)}${x.avg!=null?' · '+fmtDur(x.avg):''}</small></div><div class="val" style="color:${toneCss(slaTone(x.pct))}">${x.pct}%</div><div class="track"><i style="width:${Math.max(2,x.n/mx*100)}%;background:${slaCss(x.pct)}"></i></div></div>`).join('')+'</div></div>';
+  for(const [idx,lbl] of DIMS){
+    const bad=agg(rows,idx).filter(x=>xsMiss(x)>0).sort(byImpact);if(!bad.length)continue;
+    const mx=Math.max(...bad.map(xsMiss),1),fmt=idx===CT?(x=>`${x.name} <span class="kind ${MODKIND[smod(x.name)]}">${MODKIND[smod(x.name)]}</span>`):(x=>x.name);
+    html+=`<div class="mini"><h3>${lbl} — dragging it down</h3><div class="rank">`+
+      bad.slice(0,10).map(x=>`<div class="rk clk" data-di="${idx}" data-dn="${String(x.name).replace(/"/g,'&quot;')}"><div class="lab">${fmt(x)}<small>${nf(x.scored)} · <b style="color:var(--bad)">+${nf(xsMiss(x))} over</b>${x.avg!=null?' · '+fmtDur(x.avg):''}</small></div><div class="val" style="color:${toneCss(slaTone(x.pct))}">${x.pct}%</div><div class="track"><i style="width:${Math.max(3,xsMiss(x)/mx*100)}%;background:${slaCss(x.pct)}"></i></div></div>`).join('')+'</div></div>';
   }
-  $('#mBody').innerHTML=html||'<div class="empty">No rows in this slice.</div>';
+  $('#mBody').innerHTML=html||`<div class="empty">${DIMS.length?`Nothing below ${Math.round(FLOOR*100)}% inside this slice — the misses here are spread thin, not concentrated in one place.`:'Finest breakdown reached.'}</div>`;
+  $$('#mBody .rk.clk').forEach(el=>el.onclick=()=>{const di=+el.dataset.di,dn=el.dataset.dn;openDrill(title+' · '+dn,rows.filter(r=>String(r[di])===dn),skip.concat(di))});
   $('#modal').classList.add('open');
 }
 $('#mClose').onclick=()=>$('#modal').classList.remove('open');
@@ -622,10 +637,10 @@ function renderOverview(rows){
   ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
   // callouts
   const co=[];
-  agg(rows,P).forEach(p=>{if(p.n>=50&&p.pct<95)co.push({sev:p.pct<90?'bad':'warn',dim:P,val:p.name,t:`${p.name} — partner`,d:`${p.pct}% SLA · avg wait ${fmtDur(p.avg)} · ${nf(p.n)} SLIs`,srt:p.pct})});
-  agg(rows,PR).forEach(p=>{if(p.n>=120&&p.pct<92)co.push({sev:p.pct<85?'bad':'warn',dim:PR,val:p.name,t:`${p.name} — program`,d:`${p.pct}% SLA · ${nf(p.n)} SLIs`,srt:p.pct})});
-  agg(rows,ST).forEach(p=>{if(p.n>=120&&p.pct<92)co.push({sev:p.pct<85?'bad':'warn',dim:ST,val:p.name,t:`${p.name} — state`,d:`${p.pct}% SLA · ${nf(p.n)} SLIs`,srt:p.pct})});
-  co.sort((a,b)=>a.srt-b.srt);
+  agg(rows,P).forEach(p=>{if(p.n>=50&&p.pct<95)co.push({sev:p.pct<90?'bad':'warn',dim:P,val:p.name,t:`${p.name} — partner`,d:`${p.pct}% SLA · +${nf(xsMiss(p))} over 95% · avg wait ${fmtDur(p.avg)} · ${nf(p.scored)} SLIs`,srt:xsMiss(p)})});
+  agg(rows,PR).forEach(p=>{if(p.n>=120&&p.pct<95)co.push({sev:p.pct<90?'bad':'warn',dim:PR,val:p.name,t:`${p.name} — program`,d:`${p.pct}% SLA · +${nf(xsMiss(p))} over 95% · ${nf(p.scored)} SLIs`,srt:xsMiss(p)})});
+  agg(rows,ST).forEach(p=>{if(p.n>=120&&p.pct<95)co.push({sev:p.pct<90?'bad':'warn',dim:ST,val:p.name,t:`${p.name} — state`,d:`${p.pct}% SLA · +${nf(xsMiss(p))} over 95% · ${nf(p.scored)} SLIs`,srt:xsMiss(p)})});
+  co.sort((a,b)=>b.srt-a.srt);
   const ic={bad:'!',warn:'▲',flag:'+'};
   $('#callouts').innerHTML=co.length?co.slice(0,7).map((c,i)=>`<div class="callout co-${c.sev}" data-i="${i}"><div class="ic">${ic[c.sev]}</div><div><div class="t">${c.t}</div><div class="d">${c.d}</div></div><div class="go">›</div></div>`).join(''):'<div class="empty">Everything inside target for this slice.</div>';
   $$('#callouts .callout').forEach(el=>el.onclick=()=>{const c=co[+el.dataset.i];FIL[c.dim].add(c.val);go('performance');renderFiltered();const r=slice();openDrill(`${c.val}`,r.filter(x=>x[c.dim]===c.val),c.dim)});
@@ -634,6 +649,17 @@ function renderOverview(rows){
 // ---------- PERFORMANCE ----------
 let PSORT={k:'n',dir:-1};
 function rankList(sel,arr,onclick,fmt){const mx=Math.max(...arr.map(x=>x.n),1);$(sel).innerHTML=arr.map((x,i)=>`<div class="rk" data-i="${i}"><div class="lab">${fmt?fmt(x):x.name}<small>${nf(x.n)}${x.avg!=null?' · '+fmtDur(x.avg):''}</small></div><div class="val" style="color:${toneCss(slaTone(x.pct))}">${x.pct}%</div><div class="track"><i style="width:${Math.max(2,x.n/mx*100)}%;background:${slaCss(x.pct)}"></i></div></div>`).join('');$$(sel+' .rk').forEach(el=>el.onclick=()=>onclick(arr[+el.dataset.i]))}
+// Impact-ranked "hit list": only the slices BELOW the 95% floor, ordered by excess
+// misses (bar width = impact, not volume), with the on-target remainder collapsed to
+// a tally. This is what makes the top of the list the thing actually worth fixing.
+function hitRank(sel,arr,fmt,onclick){
+  const rk=[...arr].sort(byImpact),bad=rk.filter(x=>xsMiss(x)>0),ok=rk.length-bad.length,mx=Math.max(...bad.map(xsMiss),1);
+  const okline=`<div style="padding:8px 4px 2px;color:var(--ink-3);font-size:12px">`;
+  let html=bad.slice(0,16).map((x,i)=>`<div class="rk clk" data-i="${i}"><div class="lab">${fmt?fmt(x):x.name}<small>${nf(x.scored||x.n)}${x.avg!=null?' · '+fmtDur(x.avg):''} · <b style="color:var(--bad)">+${nf(xsMiss(x))} over</b></small></div><div class="val" style="color:${toneCss(slaTone(x.pct))}">${x.pct}%</div><div class="track"><i style="width:${Math.max(3,xsMiss(x)/mx*100)}%;background:${slaCss(x.pct)}"></i></div></div>`).join('');
+  if(!bad.length)html=`${okline}All at or above ${Math.round(FLOOR*100)}% — nothing dragging here.</div>`;
+  else if(ok)html+=`${okline}＋ ${nf(ok)} more at or above ${Math.round(FLOOR*100)}%</div>`;
+  $(sel).innerHTML=html;
+  if(onclick)$$(sel+' .rk.clk').forEach(el=>el.onclick=()=>onclick(bad[+el.dataset.i]))}
 function renderPerf(rows){
   const o=overall(rows);
   $('#perfStats').innerHTML=[
@@ -648,10 +674,10 @@ function renderPerf(rows){
   const sorted=[...parts].sort((a,b)=>{let x=PSORT.k==='miss'?(a.n-a.met):a[PSORT.k],y=PSORT.k==='miss'?(b.n-b.met):b[PSORT.k];if(typeof x==='string')return PSORT.dir*x.localeCompare(y);return PSORT.dir*((x||0)-(y||0))});
   $('#pbody').innerHTML=sorted.map((p,i)=>`<tr class="clk" data-n="${p.name.replace(/"/g,'&quot;')}"><td><b>${p.name}</b>${p.pct<95?` <span style="color:var(--${p.pct<90?'bad':'warn'});font-weight:700">●</span>`:''}</td><td class="r tnum">${nf(p.n)}<span class="volbar" style="width:${Math.max(2,p.n/mx*90)}px"></span></td><td class="r">${slaPill(p.pct)}</td><td class="r tnum muted">${fmtDur(p.avg)}</td><td class="r tnum muted">${nf(p.scored-p.met||p.n-p.met)}</td></tr>`).join('');
   $$('#pbody tr').forEach(tr=>tr.onclick=()=>{const n=tr.dataset.n;openDrill(n+' — partner',rows.filter(r=>r[P]===n),P)});
-  rankList('#rkProgram',agg(rows,PR).slice(0,15),x=>openDrill(x.name+' — program',rows.filter(r=>r[PR]===x.name),PR));
-  rankList('#rkState',agg(rows,ST).slice(0,16),x=>openDrill(x.name+' — state',rows.filter(r=>r[ST]===x.name),ST));
+  hitRank('#rkProgram',agg(rows,PR),null,x=>openDrill(x.name+' — program',rows.filter(r=>r[PR]===x.name),PR));
+  hitRank('#rkState',agg(rows,ST),null,x=>openDrill(x.name+' — state',rows.filter(r=>r[ST]===x.name),ST));
   rankList('#rkMod',aggMod(rows),x=>{FIL.mod=new Set([x.name]);$$('#modseg button').forEach(b=>b.classList.toggle('on',b.dataset.m===x.name));renderFiltered()},x=>`${MODLABEL[x.name]||x.name} <span class="kind ${MODKIND[x.name]||'other'}">${MODKIND[x.name]||'other'}</span>`);
-  rankList('#rkType',agg(rows,CT).slice(0,14),x=>openDrill(x.name+' — consult type',rows.filter(r=>r[CT]===x.name),CT),x=>`${x.name} <span class="kind ${MODKIND[smod(x.name)]}">${MODKIND[smod(x.name)]}</span>`);
+  hitRank('#rkType',agg(rows,CT),x=>`${x.name} <span class="kind ${MODKIND[smod(x.name)]}">${MODKIND[smod(x.name)]}</span>`,x=>openDrill(x.name+' — consult type',rows.filter(r=>r[CT]===x.name),CT));
   // heatmap — every cell labeled
   const hm={};for(const r of rows){if(r[DOW]==null||r[HR]==null||r[SLA]==null)continue;const k=r[DOW]+'_'+r[HR];(hm[k]=hm[k]||{n:0,met:0}),hm[k].n++,r[SLA]&&hm[k].met++}
   const DOWL=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],present=[...new Set(Object.keys(hm).map(k=>+k.split('_')[0]))].sort();
