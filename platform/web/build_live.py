@@ -174,6 +174,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "valid session -> straight into the console",
           "__setRosterAdmin","set_roster_membership","whoami","rid:r.id","Confirm onto roster",
           "edit_clinician","tierBadge","NEEDS-CORRECTION","editbar","Coverage seats","tier:r.tier",
+          "credClass","credClass(d.c)",'data-cfacet="pa"',"CF.pa",  # credential 6-buckets + Partner filter on Clinicians
+          "localeCompare(String(b[0]))",  # pickers alphabetical, not volume-sorted
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
