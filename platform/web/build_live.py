@@ -183,6 +183,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "demand_grid","renderForecast",'data-tab="forecast"',"fcHeat","Coverage alignment",
           "sla_targets","admin_set_sla_target","renderScoreboard","Contract scoreboard",
           "__setSlaAdmin","sbOpenEdit","sbModAgg","On-demand · response time","Dedicated panel",
+          "SB_ADMIN&&t.note",  # scoreboard: internal notes hidden from non-admin (reader/admin split)
           "__setImportAdmin","wireImport",'data-tab="import"',"Refresh the data","runImport",
           "functions.invoke('ingest'","storage.from('imports')",
           "message|async|chart",  # smod: async work matched before video|urgent (so video_chat_message_followup reads async)

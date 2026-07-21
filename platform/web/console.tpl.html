@@ -264,18 +264,15 @@
   <!-- OVERVIEW -->
   <section class="tab" data-tab="overview">
     <div class="stats" id="ovStats"></div>
-    <div class="cols2">
-      <div class="card"><div class="hd"><h2>What needs attention</h2><span class="desc">click any item to open it filtered</span></div><div class="bd" id="callouts"></div></div>
-      <div class="card"><div class="hd"><h2>SLA by day</h2><span class="desc" id="trendRange"></span></div><div class="bd" id="trend"></div></div>
-    </div>
-  </section>
-
-  <!-- PERFORMANCE -->
-  <section class="tab" data-tab="performance">
     <div class="card" id="sbCard">
       <div class="hd"><h2>Contract scoreboard</h2><span class="desc">sync &amp; async attainment vs. contract SLOs · all SLIs, not filtered <span id="sbAdminHint"></span></span></div>
       <div class="bd"><div id="sbBody"></div><div class="adderr" id="sb-err" style="padding:6px 2px 0"></div></div>
     </div>
+    <div class="card"><div class="hd"><h2>What needs attention</h2><span class="desc">click any item to open it filtered</span></div><div class="bd" id="callouts"></div></div>
+  </section>
+
+  <!-- PERFORMANCE — detail behind the Overview scoreboard -->
+  <section class="tab" data-tab="performance">
     <div class="stats s4" id="perfStats"></div>
     <div class="card">
       <div class="hd"><h2>Partner performance</h2>
@@ -624,13 +621,6 @@ function renderOverview(rows){
   const ic={bad:'!',warn:'▲',flag:'+'};
   $('#callouts').innerHTML=co.length?co.slice(0,7).map((c,i)=>`<div class="callout co-${c.sev}" data-i="${i}"><div class="ic">${ic[c.sev]}</div><div><div class="t">${c.t}</div><div class="d">${c.d}</div></div><div class="go">›</div></div>`).join(''):'<div class="empty">Everything inside target for this slice.</div>';
   $$('#callouts .callout').forEach(el=>el.onclick=()=>{const c=co[+el.dataset.i];FIL[c.dim].add(c.val);go('performance');renderFiltered();const r=slice();openDrill(`${c.val}`,r.filter(x=>x[c.dim]===c.val),c.dim)});
-  // trend
-  const d=agg(rows,DT).sort((a,b)=>a.name<b.name?-1:1);
-  $('#trendRange').textContent=d.length?`${d[0].name} → ${d[d.length-1].name}`:'';
-  if(!d.length){$('#trend').innerHTML='<div class="empty">No data in this slice.</div>';return}
-  const W2=460,H=150,pad=28,xs=i=>pad+i*((W2-pad*2)/Math.max(1,d.length-1)),lo=Math.min(...d.map(x=>x.pct))-1,hi=Math.max(...d.map(x=>x.pct))+.5,ys=v=>H-pad-((v-lo)/((hi-lo)||1))*(H-pad*2);
-  const line=d.map((x,i)=>`${i?'L':'M'}${xs(i).toFixed(1)} ${ys(x.pct).toFixed(1)}`).join(' ');
-  $('#trend').innerHTML=`<svg viewBox="0 0 ${W2} ${H}" width="100%"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs><path d="M${xs(0).toFixed(1)} ${H-pad} ${d.map((x,i)=>`L${xs(i).toFixed(1)} ${ys(x.pct).toFixed(1)}`).join(' ')} L${xs(d.length-1).toFixed(1)} ${H-pad} Z" fill="url(#g)"/><path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${d.map((x,i)=>`<circle cx="${xs(i).toFixed(1)}" cy="${ys(x.pct).toFixed(1)}" r="3.2" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"><title>${x.name} · ${x.pct}% · ${nf(x.n)}</title></circle><text x="${xs(i).toFixed(1)}" y="${H-8}" font-size="9" fill="var(--ink-3)" text-anchor="middle">${x.name.slice(5)}</text><text x="${xs(i).toFixed(1)}" y="${(ys(x.pct)-9).toFixed(1)}" font-size="10" font-weight="700" fill="var(--ink)" text-anchor="middle">${x.pct}%</text>`).join('')}</svg>`;
 }
 
 // ---------- PERFORMANCE ----------
@@ -1036,7 +1026,7 @@ function sbRow(t){
   const floorTxt=t.floor!=null?`floor ${Math.round(t.floor*100)}%`:'';
   const sub=[t.basis?uH(t.basis):'',floorTxt].filter(Boolean).join(' · ');
   return `<div class="sbrow2"><div class="sbhead"><div><span class="sbname">${uH(t.label)}</span>${sub?`<div class="sbnote">${sub}</div>`:''}</div><div class="sbright"><span class="sbstatus ${pill[0]}">${pill[1]}</span>${edit}</div></div>`+
-    (lines?`<div class="sbmods">${lines}</div>`:'')+(t.note?`<div class="sbnote" style="margin-top:7px">${uH(t.note)}</div>`:'')+`</div>`;
+    (lines?`<div class="sbmods">${lines}</div>`:'')+(SB_ADMIN&&t.note?`<div class="sbnote" style="margin-top:7px">${uH(t.note)}</div>`:'')+`</div>`;
 }
 function renderScoreboard(){
   const body=$('#sbBody');if(!body)return;
@@ -1050,7 +1040,7 @@ function renderScoreboard(){
   if(onDemand.length)html+='<div class="sbsec">On-demand · response time per consult</div>'+onDemand.map(sbRow).join('');
   if(volOnly.length)html+='<div class="sbsec">Volume-only · no visit SLA</div><div class="sbnote" style="padding:1px 2px 4px">'+volOnly.map(t=>uH(t.label)).join(' · ')+' — tracked for volume, not scored.</div>';
   const unmapped=parts.filter(p=>!covered.has(p.name)&&p.n>=50);
-  if(unmapped.length)html+=`<div class="sbnote" style="padding:9px 2px 0"><b>${unmapped.length}</b> partner${unmapped.length===1?'':'s'} with volume and no entry: ${unmapped.slice(0,6).map(p=>uH(p.name)).join(', ')}${unmapped.length>6?'…':''}${SB_ADMIN?' — add below':''}.</div>`;
+  if(SB_ADMIN&&unmapped.length)html+=`<div class="sbnote" style="padding:9px 2px 0"><b>${unmapped.length}</b> partner${unmapped.length===1?'':'s'} with volume and no entry: ${unmapped.slice(0,6).map(p=>uH(p.name)).join(', ')}${unmapped.length>6?'…':''} — add below.</div>`;
   if(scheduled.length)html+='<div class="sbnote" style="padding:9px 2px 0"><b>Scheduled (out of scope here):</b> '+scheduled.map(t=>uH(t.label)).join(', ')+' — appointment-availability model, tracked separately.</div>';
   html+='<div class="sbnote" style="padding:9px 2px 0">Discontinued &amp; filtered: Astellas, Rezilient, MedZip.</div>';
   if(SB_ADMIN)html+='<div style="padding:13px 2px 2px"><button class="addbtn addbtn-lg" data-sb-add="1">＋ Add target</button></div>';
