@@ -25,6 +25,7 @@
   h1{font-size:21px;font-weight:680;letter-spacing:-.02em;margin:0}
   h2{font-size:15px;font-weight:660;letter-spacing:-.01em;margin:0}
   .sub{color:var(--ink-2);font-size:12.5px;margin-top:3px}.sub b{color:var(--ink);font-weight:600}
+  .scope{color:var(--ink-2);font-size:12px;font-weight:500;margin:0 0 12px;letter-spacing:.01em}.scope b{color:var(--ink);font-weight:600}
   .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--accent-ink)}
   .ghost{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:8px;height:32px;padding:0 12px;font:inherit;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
   .ghost:hover{color:var(--ink);border-color:var(--ink-3)}
@@ -291,14 +292,19 @@
   <!-- OVERVIEW -->
   <section class="tab" data-tab="overview">
     <div class="stats" id="ovStats"></div>
-    <div class="card" id="sbCard">
-      <div class="hd"><h2>Contract scoreboard</h2><span class="desc">sync &amp; async attainment vs. contract SLOs · all SLIs, not filtered <span id="sbAdminHint"></span></span></div>
-      <div class="bd"><div id="sbBody"></div><div class="adderr" id="sb-err" style="padding:6px 2px 0"></div></div>
-    </div>
     <div class="card"><div class="hd"><h2>What needs attention</h2><span class="desc">click any item to open it filtered</span></div><div class="bd" id="callouts"></div></div>
   </section>
 
-  <!-- PERFORMANCE — detail behind the Overview scoreboard -->
+  <!-- SCOREBOARD — Delivery lead · contract-wide, date-scopable · kept off Overview so it never sits beside a partner-filtered strip -->
+  <section class="tab" data-tab="scoreboard">
+    <div class="scope" id="sbScope">On-demand · All partners · all loaded</div>
+    <div class="card" id="sbCard">
+      <div class="hd"><h2>Contract scoreboard</h2><span class="desc">sync &amp; async attainment vs. contract SLOs · contract-wide, not partner-filtered <span id="sbAdminHint"></span></span></div>
+      <div class="bd"><div id="sbBody"></div><div class="adderr" id="sb-err" style="padding:6px 2px 0"></div></div>
+    </div>
+  </section>
+
+  <!-- PERFORMANCE — detail behind the scoreboard -->
   <section class="tab" data-tab="performance">
     <div class="stats s4" id="perfStats"></div>
     <div class="card">
@@ -574,14 +580,14 @@ function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
+const TABS=[['overview','Overview'],['scoreboard','Scoreboard'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
 const TAB_LABEL=Object.fromEntries(TABS);
 const ADMIN_TABS=new Set(['users','import']);
 // IA: the 14 tab sections are regrouped into 6 top-level SURFACES + a header settings menu. Each
 // surface owns existing tab sections (untouched here — structure only); a sub-nav shows when it
 // owns more than one. Review is its own surface (a cross-cutting queue that can't sit under the
 // filter bar); Import/Users/Guide move to the settings menu.
-const SURFACES=[['overview','Overview',['overview']],['review','Review',['review']],['delivery','Delivery',['performance','scheduled','consults']],['capacity','Capacity',['shifts','coverage','forecast']],['workforce','Workforce',['clinicians','productivity']],['incentives','Incentives',['incentives']]];
+const SURFACES=[['overview','Overview',['overview']],['review','Review',['review']],['delivery','Delivery',['scoreboard','performance','scheduled','consults']],['capacity','Capacity',['shifts','coverage','forecast']],['workforce','Workforce',['clinicians','productivity']],['incentives','Incentives',['incentives']]];
 const SETTINGS_TABS=['import','users','playbook'];
 const TAB_SURFACE={};SURFACES.forEach(([sk,,tabs])=>tabs.forEach(t=>TAB_SURFACE[t]=sk));
 let ACTIVE_SURFACE='overview';const SURF_LAST={};
@@ -604,7 +610,7 @@ function goSurface(sk){const surf=SURFACES.find(s=>s[0]===sk);if(surf)go(SURF_LA
 function go(t){if(adminHidden(t))t='overview';const sk=TAB_SURFACE[t];if(sk){ACTIVE_SURFACE=sk;SURF_LAST[sk]=t;}
   $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.s===sk));renderSubnav(sk);
   $$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));
-  $('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
+  const showFilter=(t==='overview'||t==='performance'||t==='scoreboard');$('#filterbar').style.display=showFilter?'flex':'none';$('#chips').style.display=showFilter?'flex':'none';location.hash=t}
 
 // ---------- filter engine ----------
 let FIL={0:new Set(),2:new Set(),1:new Set(),mod:new Set(),from:null,to:null,h0:0,h1:23};
@@ -785,7 +791,7 @@ function renderConsults(){
 }
 
 // ---------- render orchestration ----------
-function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);renderPerf(rows);$('#subline').innerHTML=`<b>${nf(overall(rows).scored)}</b> SLIs in view · <b>${nf(DATA.length)}</b> clinicians · SLA <b>${overall(rows).pct}%</b>`}
+function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);renderPerf(rows);renderScoreboard();$('#subline').innerHTML=`<b>${nf(overall(rows).scored)}</b> SLIs in view · <b>${nf(DATA.length)}</b> clinicians · SLA <b>${overall(rows).pct}%</b>`}
 
 // ---------- export ----------
 $('#export').onclick=()=>{const cur=(document.querySelector('section.tab.on')||{}).dataset?.tab||'performance';
@@ -1099,7 +1105,10 @@ function wireUsers(){
 let SB_ADMIN=false, SB_API=null;
 function normP(s){return String(s==null?'':s).toLowerCase().trim()}
 function sbMod(ct){const m=smod(ct);return (m==='sync_video'||m==='sync_phone')?'sync':m==='messaging'?'async':null}
-function sbModAgg(key,mod){let scored=0,met=0;for(const r of SLI){if(laneOf(r[CT])==='scheduled')continue;if(!normP(r[P]).includes(key))continue;if(sbMod(r[CT])!==mod)continue;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{scored,met,pct:scored?met/scored*100:null}}
+// Date-scopable (reads the filter bar's window) but PARTNER-LOCKED: the contract scoreboard is always
+// contract-wide, so the partner/state/hour filters are deliberately ignored here — only from/to apply.
+function sbModAgg(key,mod){let scored=0,met=0;for(const r of SLI){if(laneOf(r[CT])==='scheduled')continue;if(FIL.from&&(r[DT]||'')<FIL.from)continue;if(FIL.to&&(r[DT]||'')>FIL.to)continue;if(!normP(r[P]).includes(key))continue;if(sbMod(r[CT])!==mod)continue;if(r[SLA]!=null){scored++;if(r[SLA])met++}}return{scored,met,pct:scored?met/scored*100:null}}
+function periodLabel(){const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const f=s=>{const p=String(s).split('-');return p.length===3?M[+p[1]-1]+' '+(+p[2]):s};if(FIL.from&&FIL.to)return f(FIL.from)+' – '+f(FIL.to);if(FIL.from)return 'from '+f(FIL.from);if(FIL.to)return 'through '+f(FIL.to);return 'all loaded'}
 function fmtMin(m){if(m==null)return null;return (m%60===0&&m>=60)?(m/60)+' hr':m+' min'}
 function attColor(pct,floor){if(pct==null)return'var(--ink-3)';if(floor==null)return'var(--ink)';const p=pct/100;return p>=floor?'var(--good)':p>=floor-0.05?'var(--warn)':'var(--bad)'}
 window.__setSlaAdmin=function(isAdmin,api){SB_ADMIN=!!isAdmin;SB_API=isAdmin?(api||null):null;if($('#sbAdminHint'))$('#sbAdminHint').textContent=isAdmin?'· click Edit to adjust a target':'';renderScoreboard()};
@@ -1124,6 +1133,7 @@ function sbRow(t){
     (lines?`<div class="sbmods">${lines}</div>`:'')+(SB_ADMIN&&t.note?`<div class="sbnote" style="margin-top:7px">${uH(t.note)}</div>`:'')+`</div>`;
 }
 function renderScoreboard(){
+  const sc=$('#sbScope');if(sc)sc.innerHTML='On-demand · <b>All partners</b> · '+periodLabel();
   const body=$('#sbBody');if(!body)return;
   if(!SLI.length){body.innerHTML='<div class="empty">No SLA data loaded.</div>';return}
   const dedicated=TARGETS.filter(t=>t.panel==='dedicated'), onDemand=TARGETS.filter(t=>t.panel==='on_demand');

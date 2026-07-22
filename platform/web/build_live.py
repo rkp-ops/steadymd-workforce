@@ -180,6 +180,9 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "dragging it down","Programs dragging SLA",  # hit-list ranks + recursive drill by impact
           "Productivity is temporarily unavailable","Consults</b> column is suppressed",  # §A: suppress live-wrong SLI-attributed + stale numbers
           "const SURFACES=","renderSubnav","goSurface",'id="subnav"','id="settingsMenu"',  # IA step 1: 6-surface nav + sub-nav + settings menu
+          'data-tab="scoreboard"','id="sbScope"',"function periodLabel",  # IA step 2: scoreboard on its own Delivery surface w/ scope line
+          "['scoreboard','performance'",  # scoreboard leads the Delivery sub-nav
+          "On-demand · <b>All partners</b> ·","contract-wide, not partner-filtered",  # step 2: date-scopable, partner-locked scope
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
