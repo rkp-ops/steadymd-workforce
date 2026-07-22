@@ -178,6 +178,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "localeCompare(String(b[0]))",  # pickers alphabetical, not volume-sorted
           "function xsMiss","function byImpact","function hitRank",  # impact model: excess misses over the floor
           "dragging it down","Programs dragging SLA",  # hit-list ranks + recursive drill by impact
+          "Productivity is temporarily unavailable","Consults</b> column is suppressed",  # §A: suppress live-wrong SLI-attributed + stale numbers
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
