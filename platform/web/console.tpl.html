@@ -242,10 +242,12 @@
     <div style="display:flex;gap:8px">
       <button class="ghost" id="theme">◐ Theme</button>
       <button class="ghost" id="export">↧ Export</button>
+      <div class="facet"><button class="ghost" id="settingsBtn">⚙ Settings <span class="ar">▾</span></button><div class="pop" id="settingsMenu" style="right:0;left:auto;width:auto;min-width:150px;padding:5px"></div></div>
     </div>
   </div>
 
   <div class="nav" id="nav"></div>
+  <div class="seg subnav" id="subnav" style="margin:2px 0 14px;display:none"></div>
 
   <!-- FILTER BAR (Overview + Performance) -->
   <div class="filterbar" id="filterbar">
@@ -548,11 +550,36 @@ function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
 const TABS=[['overview','Overview'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
+const TAB_LABEL=Object.fromEntries(TABS);
 const ADMIN_TABS=new Set(['users','import']);
-function buildNav(){$('#nav').innerHTML=TABS.map(([k,l],i)=>`<button data-t="${k}"${(ADMIN_TABS.has(k)&&!((k==='users'&&USERS_ADMIN)||(k==='import'&&IMPORT_ADMIN)))?' style="display:none"':''} class="${i===0?'on':''}">${l}${k==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');$$('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t))}
-// buildNav hides the admin tabs unless the caller is already known to be admin — so a second boot()
-// (the background load wave re-rendering) doesn't re-hide Users/Import after __set*Admin revealed them.
-function go(t){if(ADMIN_TABS.has(t)&&!(USERS_ADMIN||IMPORT_ADMIN))t='overview';$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));$('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
+// IA: the 14 tab sections are regrouped into 6 top-level SURFACES + a header settings menu. Each
+// surface owns existing tab sections (untouched here — structure only); a sub-nav shows when it
+// owns more than one. Review is its own surface (a cross-cutting queue that can't sit under the
+// filter bar); Import/Users/Guide move to the settings menu.
+const SURFACES=[['overview','Overview',['overview']],['review','Review',['review']],['delivery','Delivery',['performance','scheduled','consults']],['capacity','Capacity',['shifts','coverage','forecast']],['workforce','Workforce',['clinicians','productivity']],['incentives','Incentives',['incentives']]];
+const SETTINGS_TABS=['import','users','playbook'];
+const TAB_SURFACE={};SURFACES.forEach(([sk,,tabs])=>tabs.forEach(t=>TAB_SURFACE[t]=sk));
+let ACTIVE_SURFACE='overview';const SURF_LAST={};
+function adminHidden(t){return ADMIN_TABS.has(t)&&!((t==='users'&&USERS_ADMIN)||(t==='import'&&IMPORT_ADMIN))}
+function buildNav(){
+  $('#nav').innerHTML=SURFACES.map(([sk,l])=>`<button data-s="${sk}" class="${sk===ACTIVE_SURFACE?'on':''}">${l}</button>`).join('');
+  $$('#nav button').forEach(b=>b.onclick=()=>goSurface(b.dataset.s));
+  const items=SETTINGS_TABS.filter(t=>!adminHidden(t));
+  $('#settingsMenu').innerHTML=items.map(t=>`<button data-t="${t}" style="display:block;width:100%;text-align:left;background:0;border:0;color:var(--ink);padding:8px 12px;cursor:pointer;font:inherit;font-size:13px;border-radius:7px">${TAB_LABEL[t]}</button>`).join('')||'<div class="muted" style="padding:8px 12px">No settings</div>';
+  $$('#settingsMenu button').forEach(b=>b.onclick=()=>{$('#settingsMenu').classList.remove('open');go(b.dataset.t)});
+  const sb=$('#settingsBtn');if(sb)sb.onclick=e=>{e.stopPropagation();const m=$('#settingsMenu'),was=m.classList.contains('open');$$('.pop').forEach(p=>p.classList.remove('open'));if(!was)m.classList.add('open')};
+  renderSubnav(ACTIVE_SURFACE);
+}
+function renderSubnav(sk){const sub=$('#subnav');if(!sub)return;const surf=SURFACES.find(s=>s[0]===sk),tabs=(sk&&surf)?surf[2]:[];
+  if(tabs.length<=1){sub.innerHTML='';sub.style.display='none';return}
+  const cur=SURF_LAST[sk]||tabs[0];sub.style.display='inline-flex';
+  sub.innerHTML=tabs.map(t=>`<button data-t="${t}" class="${t===cur?'on':''}">${TAB_LABEL[t]}${t==='clinicians'?`<span class="cb">${DATA.length}</span>`:''}</button>`).join('');
+  $$('#subnav button').forEach(b=>b.onclick=()=>go(b.dataset.t));}
+function goSurface(sk){const surf=SURFACES.find(s=>s[0]===sk);if(surf)go(SURF_LAST[sk]||surf[2][0]);}
+function go(t){if(adminHidden(t))t='overview';const sk=TAB_SURFACE[t];if(sk){ACTIVE_SURFACE=sk;SURF_LAST[sk]=t;}
+  $$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.s===sk));renderSubnav(sk);
+  $$('section.tab').forEach(s=>s.classList.toggle('on',s.dataset.tab===t));
+  $('#filterbar').style.display=(t==='overview'||t==='performance')?'flex':'none';$('#chips').style.display=(t==='overview'||t==='performance')?'flex':'none';location.hash=t}
 
 // ---------- filter engine ----------
 let FIL={0:new Set(),2:new Set(),1:new Set(),mod:new Set(),from:null,to:null,h0:0,h1:23};
@@ -736,7 +763,7 @@ function renderConsults(){
 function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);renderPerf(rows);$('#subline').innerHTML=`<b>${nf(overall(rows).scored)}</b> SLIs in view · <b>${nf(DATA.length)}</b> clinicians · SLA <b>${overall(rows).pct}%</b>`}
 
 // ---------- export ----------
-$('#export').onclick=()=>{const cur=($$('#nav button.on')[0]||{}).dataset?($$('#nav button.on')[0].dataset.t):'performance';
+$('#export').onclick=()=>{const cur=(document.querySelector('section.tab.on')||{}).dataset?.tab||'performance';
   const esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
   if(cur==='clinicians'){exportClin();return}
   if(cur==='productivity'){const M=vphModel();if(!M)return;const r=[['clinician','credential','tier','modality','week_of','coverage','consults','sync','async','scheduled_hours','vph'].join(',')];M.list.filter(vmatch).forEach(o=>o.series.forEach(s=>r.push([o.n,o.c,o.tier||'',o.mod,s.w,s.cov,s.c,s.sc,s.ac,s.h,s.v==null?'':s.v].map(esc).join(','))));dl(r.join('\n'),`vph_weekly_${M.list.filter(vmatch).length}_clinicians.csv`);return}
@@ -1001,7 +1028,7 @@ function renderCoverage(){
 // ---------- USERS (admin access management) ----------
 let USERS=[], USERS_ADMIN=false, USERS_API=null, USERS_WIRED=false;
 const uH=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-window.__setUsersAdmin=function(isAdmin,api,list){USERS_ADMIN=!!isAdmin;USERS_API=isAdmin?(api||null):null;USERS=Array.isArray(list)?list:[];const b=document.querySelector('#nav button[data-t="users"]');if(b)b.style.display=isAdmin?'':'none';renderUsers()};
+window.__setUsersAdmin=function(isAdmin,api,list){USERS_ADMIN=!!isAdmin;USERS_API=isAdmin?(api||null):null;USERS=Array.isArray(list)?list:[];buildNav();renderUsers()};
 function usRoleBadge(r){return r==='admin'?'<span class="tierb adm">Admin</span>':'<span class="tierb seat">Viewer</span>'}
 function usStatusPill(u){return u.status==='disabled'?'<span class="pill p-bad"><i class="dot"></i>Disabled</span>':u.claimed?'<span class="pill p-active"><i class="dot"></i>Active</span>':'<span class="pill p-flag"><i class="dot"></i>Invited</span>'}
 function usSeen(t){if(!t)return '<span class="muted">—</span>';const d=new Date(t),days=Math.floor((Date.now()-d.getTime())/86400000);return days<=0?'today':days===1?'yesterday':days<30?days+'d ago':d.toISOString().slice(0,10)}
@@ -1261,7 +1288,7 @@ function wireReview(){
 }
 // ---------- IMPORT (admin data uploader) ----------
 let IMPORT_ADMIN=false, IMPORT_API=null, IMP_FILES=[];
-window.__setImportAdmin=function(isAdmin,api){IMPORT_ADMIN=!!isAdmin;IMPORT_API=isAdmin?(api||null):null;const b=document.querySelector('#nav button[data-t="import"]');if(b)b.style.display=isAdmin?'':'none'};
+window.__setImportAdmin=function(isAdmin,api){IMPORT_ADMIN=!!isAdmin;IMPORT_API=isAdmin?(api||null):null;buildNav()};
 function fmtBytes(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':(n/1048576).toFixed(1)+' MB'}
 function renderImpList(){const el=$('#impList');if(!el)return;
   el.innerHTML=IMP_FILES.map((f,i)=>`<div class="impf ${f.status==='up'?'up':f.status==='err'?'err':''}"><span>${f.status==='up'?'✓':f.status==='err'?'✕':'📄'}</span><span class="fn">${uH(f.file.name)}</span><span class="fsz">${fmtBytes(f.file.size)}</span><button class="fx" data-imp-rm="${i}" title="remove">✕</button></div>`).join('');
