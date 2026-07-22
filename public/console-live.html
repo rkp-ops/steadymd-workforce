@@ -61,6 +61,14 @@
   .tile .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
   .tile .v{font-size:23px;font-weight:680;letter-spacing:-.02em;margin-top:5px}
   .tile .d{font-size:11.5px;color:var(--ink-2);margin-top:1px}
+  .ovhero{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;margin-bottom:16px}
+  .hero-sla{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px 20px 16px;box-shadow:var(--shadow);min-width:210px}
+  .hero-sla .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .hero-sla .v{font-size:42px;font-weight:720;letter-spacing:-.025em;line-height:1.02;margin:3px 0 4px;font-variant-numeric:tabular-nums}
+  .hero-sla .d{font-size:12.5px;color:var(--ink-2)}
+  .hero-meta{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:2px 2px}
+  .hero-meta .line{font-size:13.5px;color:var(--ink)}.hero-meta .line.muted{color:var(--ink-2);font-size:12.5px}.hero-meta b{font-weight:680}
+  .mut2{color:var(--ink-3);font-size:11px;font-weight:500;margin-left:2px}
   @media (max-width:880px){.stats,.stats.s4{grid-template-columns:repeat(2,1fr)}}
   /* cards */
   .card{background:var(--surface);border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
@@ -262,7 +270,6 @@
     <div>
       <div class="eyebrow">SteadyMD · Operational Intelligence</div>
       <h1>Operations Console</h1>
-      <div class="sub" id="subline">Loading…</div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="ghost" id="theme">◐ Theme</button>
@@ -291,7 +298,8 @@
 
   <!-- OVERVIEW -->
   <section class="tab" data-tab="overview">
-    <div class="stats" id="ovStats"></div>
+    <div class="ovhero" id="ovHero"></div>
+    <div class="card"><div class="hd"><h2>Response time by modality</h2><span class="desc">a blended median hides the mix — each modality is its own distribution, so they are never averaged together</span></div><div class="bd"><div class="rank" id="ovDist"></div></div></div>
     <div class="card"><div class="hd"><h2>What needs attention</h2><span class="desc">click any item to open it filtered</span></div><div class="bd" id="callouts"></div></div>
   </section>
 
@@ -637,6 +645,17 @@ const FLOOR=0.95;
 function xsMiss(x){return Math.max(0,Math.round((x.scored||0)*(FLOOR-(x.pct||0)/100)))}
 function byImpact(a,b){return xsMiss(b)-xsMiss(a)||((a.pct||0)-(b.pct||0))||((b.n||0)-(a.n||0))}
 function aggMod(rows){const m=new Map();for(const r of rows){const k=smod(r[CT]);let o=m.get(k);if(!o){o={name:k,n:0,met:0,scored:0};m.set(k,o)}o.n++;if(r[SLA]!=null){o.scored++;if(r[SLA])o.met++}}return[...m.values()].map(o=>({name:o.name,n:o.n,pct:o.scored?Math.round(1000*o.met/o.scored)/10:0})).sort((a,b)=>b.n-a.n)}
+// §E: p90 is a MIX artifact. Response time is computed WITHIN modality, never blended — a single
+// aggregate p90 reads as "performance" while really being a composition of very different tails.
+function modDist(rows){const m=new Map();
+  for(const r of rows){const k=smod(r[CT]);if(k==='lab'||k==='other')continue;let o=m.get(k);if(!o){o={name:k,n:0,scored:0,met:0,waits:[]};m.set(k,o)}o.n++;if(r[SLA]!=null){o.scored++;if(r[SLA])o.met++}if(r[W]!=null)o.waits.push(r[W])}
+  return[...m.values()].map(o=>{o.waits.sort((a,b)=>a-b);const q=p=>o.waits.length?o.waits[Math.min(o.waits.length-1,Math.floor(o.waits.length*p))]:null;return{name:o.name,n:o.n,scored:o.scored,pct:o.scored?Math.round(1000*o.met/o.scored)/10:null,p50:q(.5),p90:q(.9)}}).sort((a,b)=>b.n-a.n)}
+function renderModDist(rows){const d=modDist(rows).filter(x=>x.p90!=null).sort((a,b)=>b.p90-a.p90);const el=$('#ovDist');if(!el)return;
+  if(!d.length){el.innerHTML='<div class="empty">No response-time data in this slice.</div>';return}
+  const mx=Math.max(...d.map(x=>x.p90),1);
+  el.innerHTML=d.map(x=>{const miss=x.pct!=null?(Math.round((100-x.pct)*10)/10)+'% miss':'';const sub=[`median ${fmtDur(x.p50)}`,`${nf(x.n)} SLIs`,miss].filter(Boolean).join(' · ');
+    return `<div class="rk"><div class="lab">${MODLABEL[x.name]||x.name} <span class="kind ${MODKIND[x.name]||'other'}">${MODKIND[x.name]||'other'}</span><small>${sub}</small></div><div class="val tnum">${fmtDur(x.p90)}<span class="mut2">p90</span></div><div class="track"><i style="width:${Math.max(3,x.p90/mx*100)}%;background:${slaCss(x.pct==null?100:x.pct)}"></i></div></div>`}).join('')}
+function anyFilter(){return !!(FIL[0].size||FIL[2].size||FIL[1].size||FIL.mod.size||FIL.from||FIL.to||FIL.h0>0||FIL.h1<23)}
 function overall(rows){let met=0,scored=0,waits=[];for(const r of rows){if(r[SLA]!=null){scored++;if(r[SLA])met++}if(r[W]!=null)waits.push(r[W])}waits.sort((a,b)=>a-b);const q=p=>waits.length?waits[Math.min(waits.length-1,Math.floor(waits.length*p))]:0;return{n:rows.length,scored,met,pct:scored?Math.round(1000*met/scored)/10:0,avg:waits.length?Math.round(waits.reduce((a,b)=>a+b,0)/waits.length):0,p50:q(.5),p90:q(.9)}}
 
 // ---------- facets / chips ----------
@@ -687,13 +706,12 @@ $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('o
 // ---------- OVERVIEW ----------
 function renderOverview(rows){
   const o=overall(rows),parts=agg(rows,P);
-  $('#ovStats').innerHTML=[
-    {k:'SLA (filtered)',v:o.pct+'%',d:`${nf(o.met)} / ${nf(o.scored)} met`},
-    {k:'SLIs in view',v:nf(o.scored),d:`${FIL[0].size||FIL[2].size||FIL[1].size||FIL.mod.size||FIL.from||FIL.to?'filtered':'all partners'}`},
-    {k:'Median wait',v:fmtDur(o.p50),d:`p90 ${fmtDur(o.p90)}`},
-    {k:'Avg wait',v:fmtDur(o.avg),d:'received → completed'},
-    {k:'Partners in view',v:parts.length,d:'click a callout to drill'},
-  ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
+  // Hero SLA (the one number the console is about) + a demoted meta line for the counts.
+  // The blended median/avg/p90 tiles are gone — response time now lives in the per-modality module.
+  $('#ovHero').innerHTML=
+    `<div class="hero-sla"><div class="k">SLA attainment</div><div class="v" style="color:${toneCss(slaTone(o.pct))}">${o.pct}%</div><div class="d">${nf(o.met)} / ${nf(o.scored)} SLIs met · floor ${Math.round(FLOOR*100)}%</div></div>`+
+    `<div class="hero-meta"><div class="line"><b>${nf(o.scored)}</b> SLIs · <b>${parts.length}</b> partner${parts.length===1?'':'s'} in view${anyFilter()?' · <span class="muted">filtered</span>':''}</div><div class="line muted">On-demand · ${periodLabel()}</div></div>`;
+  renderModDist(rows);
   // callouts
   const co=[];
   agg(rows,P).forEach(p=>{if(p.n>=50&&p.pct<95)co.push({sev:p.pct<90?'bad':'warn',dim:P,val:p.name,t:`${p.name} — partner`,d:`${p.pct}% SLA · +${nf(xsMiss(p))} over 95% · avg wait ${fmtDur(p.avg)} · ${nf(p.scored)} SLIs`,srt:xsMiss(p)})});
@@ -791,7 +809,7 @@ function renderConsults(){
 }
 
 // ---------- render orchestration ----------
-function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);renderPerf(rows);renderScoreboard();$('#subline').innerHTML=`<b>${nf(overall(rows).scored)}</b> SLIs in view · <b>${nf(DATA.length)}</b> clinicians · SLA <b>${overall(rows).pct}%</b>`}
+function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);renderPerf(rows);renderScoreboard()}
 
 // ---------- export ----------
 $('#export').onclick=()=>{const cur=(document.querySelector('section.tab.on')||{}).dataset?.tab||'performance';
