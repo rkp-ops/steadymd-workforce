@@ -183,6 +183,9 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           'data-tab="scoreboard"','id="sbScope"',"function periodLabel",  # IA step 2: scoreboard on its own Delivery surface w/ scope line
           "['scoreboard','performance'",  # scoreboard leads the Delivery sub-nav
           "On-demand · <b>All partners</b> ·","contract-wide, not partner-filtered",  # step 2: date-scopable, partner-locked scope
+          'id="ovHero"',"hero-sla",'id="ovDist"',"function modDist","function renderModDist",  # IA step 3: hero SLA + per-modality response-time module
+          "Response time by modality","never averaged together",  # §E: p90 split within modality, never a blended aggregate on Overview
+          "SLA attainment",  # hero tile label (SLA is the one dominant number)
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
