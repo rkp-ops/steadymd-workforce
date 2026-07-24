@@ -46,11 +46,13 @@ begin
     reason_for_visit, is_return, created_at, first_worked_at, final_status, final_status_at,
     primary_clinician_id, n_touches, n_worked_touches, handle_seconds, source_upload_id,
     clinician_guid, clinician_name_raw, clinician_email_raw)
-  select consult_guid, partner, program, service_line, consult_type, modality_class,
+  select distinct on (consult_guid)
+    consult_guid, partner, program, service_line, consult_type, modality_class,
     reason_for_visit, is_return, created_at, first_worked_at, final_status, final_status_at,
     primary_clinician_id, n_touches, n_worked_touches, handle_seconds, source_upload_id,
     clinician_guid, clinician_name_raw, clinician_email_raw
   from consult_stage
+  order by consult_guid, n_touches desc nulls last, final_status_at desc nulls last
   on conflict (consult_guid) do update set
     partner=excluded.partner, program=excluded.program, service_line=excluded.service_line,
     consult_type=excluded.consult_type, modality_class=excluded.modality_class,
@@ -66,10 +68,12 @@ begin
   insert into sli_response (consult_guid, clinician_id, partner, program, state, consult_type,
     sli_received, sli_due, sli_completed, sli_status_raw, during_biz_hrs,
     source_upload_id, clinician_name_raw)
-  select consult_guid, clinician_id, partner, program, state, consult_type,
+  select distinct on (consult_guid, coalesce(consult_type,''), sli_received)
+    consult_guid, clinician_id, partner, program, state, consult_type,
     sli_received, sli_due, sli_completed, sli_status_raw, during_biz_hrs,
     source_upload_id, clinician_name_raw
   from sli_response_stage
+  order by consult_guid, coalesce(consult_type,''), sli_received, sli_completed desc nulls last
   on conflict (consult_guid, (coalesce(consult_type,'')), sli_received) do update set
     partner=excluded.partner, program=excluded.program, state=excluded.state,
     sli_due=excluded.sli_due, sli_completed=excluded.sli_completed,
@@ -79,9 +83,13 @@ begin
 
   insert into shift (clinician_id, shift_type, service_line, start_at, end_at, hours,
     source_upload_id, clinician_email_raw, clinician_name_raw, clinician_cred)
-  select clinician_id, shift_type, service_line, start_at, end_at, hours,
+  select distinct on (coalesce(clinician_email_raw,''), start_at, end_at,
+                      coalesce(service_line,''), coalesce(shift_type,''))
+    clinician_id, shift_type, service_line, start_at, end_at, hours,
     source_upload_id, clinician_email_raw, clinician_name_raw, clinician_cred
   from shift_stage
+  order by coalesce(clinician_email_raw,''), start_at, end_at,
+           coalesce(service_line,''), coalesce(shift_type,''), hours desc nulls last
   on conflict (coalesce(clinician_email_raw,''), start_at, end_at,
                coalesce(service_line,''), coalesce(shift_type,'')) do update set
     hours=excluded.hours, source_upload_id=excluded.source_upload_id,
@@ -91,10 +99,12 @@ begin
   insert into incentive (consult_guid, clinician_id, partner, program, state, consult_type,
     launched_at, amount_cents, currency, incentive_name, budget_name, source_upload_id,
     license_type, clinician_name_raw, clinician_email_raw)
-  select consult_guid, clinician_id, partner, program, state, consult_type,
+  select distinct on (consult_guid, incentive_name, launched_at, amount_cents)
+    consult_guid, clinician_id, partner, program, state, consult_type,
     launched_at, amount_cents, currency, incentive_name, budget_name, source_upload_id,
     license_type, clinician_name_raw, clinician_email_raw
   from incentive_stage
+  order by consult_guid, incentive_name, launched_at, amount_cents, source_upload_id desc nulls last
   on conflict (consult_guid, incentive_name, launched_at, amount_cents) do update set
     partner=excluded.partner, program=excluded.program, state=excluded.state,
     consult_type=excluded.consult_type, currency=excluded.currency, budget_name=excluded.budget_name,
