@@ -363,6 +363,26 @@
     <div class="muted" style="font-size:11.5px;line-height:1.55;margin-top:4px">Scheduled care is a separate population from on-demand — slot-based visits (Noom &amp; Futur) graded on whether they happened on time, never on queue-wait (a scheduled visit has no queue to wait in). It is deliberately excluded from every on-demand metric — SLA, wait, and the contract scoreboard.</div>
   </section>
 
+  <!-- GAPS — date-specific coverage vs expected demand. The Friday question: for the schedule
+       that's loaded, where exactly is this window thin, so it can be called out before it hurts. -->
+  <section class="tab" data-tab="gaps">
+    <div class="scope" id="gapScope">Shifts vs projected demand · All partners</div>
+    <div class="filterbar" style="margin-bottom:14px">
+      <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="gapFrom"><span class="muted">–</span><input type="date" class="dateinp" id="gapTo"></div>
+      <div class="fgroup" id="gapPresets">
+        <button class="qbtn" data-g="wknd">This weekend</button>
+        <button class="qbtn" data-g="7d">Next 7 days</button>
+        <button class="qbtn" data-g="loaded">Loaded schedule</button>
+      </div>
+      <div class="fgroup"><span class="fl">Demand baseline</span><select class="dateinp" id="gapBase"><option value="2">last 2 wks</option><option value="4" selected>last 4 wks</option><option value="8">last 8 wks</option></select></div>
+    </div>
+    <div class="stats s4" id="gapStats"></div>
+    <div class="card"><div class="hd"><h2>Coverage vs expected demand</h2><span class="desc">per date &amp; hour · expected = same weekday/hour average from the response log · <b>!</b> = arrivals expected, nobody scheduled</span></div>
+      <div class="bd"><div class="heat" id="gapHeat" style="display:grid;gap:3px"></div><div class="muted" id="gapNote" style="font-size:11.5px;margin-top:9px"></div></div></div>
+    <div class="card"><div class="hd"><h2>Where it's thin — call-out list</h2><span class="desc">worst hours first: uncovered, then most stretched · posted-unfilled shown when Arya has open posts</span></div>
+      <div class="bd"><div class="rank" id="gapList"></div></div></div>
+  </section>
+
   <section class="tab" data-tab="shifts">
     <div class="stats s4" id="shStats"></div>
     <div class="card"><div class="hd"><h2>Hours by service line</h2><span class="desc">scheduled shift hours</span></div><div class="bd"><div class="rank" id="shLine"></div></div></div>
@@ -576,14 +596,14 @@ function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');
 
 // ---------- theme + tabs ----------
 $('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['scoreboard','Scoreboard'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
+const TABS=[['overview','Overview'],['scoreboard','Scoreboard'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['gaps','Gaps'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
 const TAB_LABEL=Object.fromEntries(TABS);
 const ADMIN_TABS=new Set(['users','import']);
 // IA: the 14 tab sections are regrouped into 6 top-level SURFACES + a header settings menu. Each
 // surface owns existing tab sections (untouched here — structure only); a sub-nav shows when it
 // owns more than one. Review is its own surface (a cross-cutting queue that can't sit under the
 // filter bar); Import/Users/Guide move to the settings menu.
-const SURFACES=[['overview','Overview',['overview']],['review','Review',['review']],['delivery','Delivery',['scoreboard','performance','scheduled','consults']],['capacity','Capacity',['shifts','coverage','forecast']],['workforce','Workforce',['clinicians','productivity']],['incentives','Incentives',['incentives']]];
+const SURFACES=[['overview','Overview',['overview']],['review','Review',['review']],['delivery','Delivery',['scoreboard','performance','scheduled','consults']],['capacity','Capacity',['gaps','shifts','coverage','forecast']],['workforce','Workforce',['clinicians','productivity']],['incentives','Incentives',['incentives']]];
 const SETTINGS_TABS=['import','users','playbook'];
 const TAB_SURFACE={};SURFACES.forEach(([sk,,tabs])=>tabs.forEach(t=>TAB_SURFACE[t]=sk));
 let ACTIVE_SURFACE='overview';const SURF_LAST={};
@@ -818,12 +838,12 @@ function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);
 $('#export').onclick=()=>{const cur=(document.querySelector('section.tab.on')||{}).dataset?.tab||'performance';
   const esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
   if(cur==='clinicians'){exportClin();return}
-  if(cur==='productivity'){const M=vphModel();if(!M)return;const r=[['clinician','credential','tier','modality','week_of','coverage','consults','sync','async','scheduled_hours','vph'].join(',')];M.list.filter(vmatch).forEach(o=>o.series.forEach(s=>r.push([o.n,o.c,o.tier||'',o.mod,s.w,s.cov,s.c,s.sc,s.ac,s.h,s.v==null?'':s.v].map(esc).join(','))));dl(r.join('\n'),`vph_weekly_${M.list.filter(vmatch).length}_clinicians.csv`);return}
-  if(cur==='shifts'){const r=[['scope','name','hours','shifts'].join(',')];SHIFTS.by_service_line.forEach(x=>r.push(['service_line',x.name,x.hours,x.shifts].map(esc).join(',')));SHIFTS.by_cred.forEach(x=>r.push(['clinician_type',x.name,x.hours,x.shifts].map(esc).join(',')));SHIFTS.top_clin.forEach(x=>r.push(['clinician',x.name+' ('+x.cred+')',x.hours,x.shifts].map(esc).join(',')));dl(r.join('\n'),'shift_hours_2026-07-07.csv');return}
-  if(cur==='incentives'){const r=[['scope','name','usd','count'].join(',')];INC.by_license.forEach(x=>r.push(['clinician_type',x.name,x.usd,x.n].map(esc).join(',')));INC.by_partner.forEach(x=>r.push(['partner',x.name,x.usd,x.n].map(esc).join(',')));INC.by_incentive.forEach(x=>r.push(['incentive',x.name,x.usd,x.n].map(esc).join(',')));INC.top_earners.forEach(x=>r.push(['clinician',x.name+' ('+x.license+')',x.usd,x.n].map(esc).join(',')));dl(r.join('\n'),'incentives_2026-07-07.csv');return}
+  if(cur==='productivity'){const M=vphModel();if(!M)return;const r=[['clinician','credential','tier','modality','week_of','coverage','consults','sync','async','scheduled_hours','vph'].join(',')];M.list.filter(vmatch).forEach(o=>o.series.forEach(s=>r.push([o.n,credClass(o.c),o.tier||'',o.mod,s.w,s.cov,s.c,s.sc,s.ac,s.h,s.v==null?'':s.v].map(esc).join(','))));dl(r.join('\n'),`vph_weekly_${M.list.filter(vmatch).length}_clinicians.csv`);return}
+  if(cur==='shifts'){const r=[['scope','name','hours','shifts'].join(',')];SHIFTS.by_service_line.forEach(x=>r.push(['service_line',x.name,x.hours,x.shifts].map(esc).join(',')));credBucket(SHIFTS.by_cred,['hours','shifts']).forEach(x=>r.push(['clinician_type',x.name,x.hours,x.shifts].map(esc).join(',')));SHIFTS.top_clin.forEach(x=>r.push(['clinician',x.name+(credClass(x.cred)?' ('+credClass(x.cred)+')':''),x.hours,x.shifts].map(esc).join(',')));dl(r.join('\n'),`shift_hours_${(SHIFTS.range&&SHIFTS.range.max)||'export'}.csv`);return}
+  if(cur==='incentives'){const r=[['scope','name','usd','count'].join(',')];credBucket(INC.by_license,['usd','n']).forEach(x=>r.push(['clinician_type',x.name,x.usd,x.n].map(esc).join(',')));INC.by_partner.forEach(x=>r.push(['partner',x.name,x.usd,x.n].map(esc).join(',')));INC.by_incentive.forEach(x=>r.push(['incentive',x.name,x.usd,x.n].map(esc).join(',')));INC.top_earners.forEach(x=>r.push(['clinician',x.name+(credClass(x.license)?' ('+credClass(x.license)+')':''),x.usd,x.n].map(esc).join(',')));dl(r.join('\n'),`incentives_${(INC.range&&INC.range.max)||'export'}.csv`);return}
   const rows=slice(),cols=['partner','program','state','consult_type','modality','sla_met','wait_seconds','dow','hour','date'];
   const body=rows.map(r=>[r[P],r[PR],r[ST],r[CT],smod(r[CT]),r[SLA],r[W],r[DOW],r[HR],r[DT]].map(esc).join(','));
-  dl([cols.join(',')].concat(body).join('\n'),`performance_${rows.length}_2026-07-07.csv`)};
+  dl([cols.join(',')].concat(body).join('\n'),`performance_${rows.length}_${maxDate()||'export'}.csv`)};
 function dl(text,name){const b=new Blob([text],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click()}
 
 // ---------- CLINICIANS (ported) ----------
@@ -886,7 +906,7 @@ function clToggle(tr,d){if(tr.nextElementSibling&&tr.nextElementSibling.classLis
   const eerr=det.querySelector('[data-eerr]'),saveB=det.querySelector('[data-act="save"]'),remB=det.querySelector('[data-act="remove"]');
   if(saveB)saveB.onclick=()=>{const cred=det.querySelector('[data-f="cred"]').value.trim();const states=det.querySelector('[data-f="states"]').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);doEdit(d,{credential:cred||null,states:states},saveB,eerr)};
   if(remB)remB.onclick=()=>{if(confirm('Remove '+d.n+' from the roster? Remembered across refreshes.'))doEdit(d,{remove:true},remB,eerr)}}
-function exportClin(){const list=csort(DATA.filter(cmatch)),cols=['canonical_name','credential','tier','npi','email','licensed_states','active_states_90d','programs','partners','modalities','consults_touched','shift_hours','incentive_usd','last_active','status','needs_correction'],esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;const rows=[cols.join(',')].concat(list.map(d=>[d.n,d.c,d.tier||'',d.npi,d.em[0]||'',d.ls.join(' '),d.as.join(' '),d.pr.join(' | '),d.pa.join(' | '),d.mo.join(' | '),'suppressed',d.sh,d.inc,d.la,d.st,(d.needs||[]).join(' ')].map(esc).join(',')));dl(rows.join('\n'),`clinicians_${list.length}_2026-07-07.csv`)}
+function exportClin(){const list=csort(DATA.filter(cmatch)),cols=['canonical_name','credential','tier','npi','email','licensed_states','active_states_90d','programs','partners','modalities','consults_touched','shift_hours','incentive_usd','last_active','status','needs_correction'],esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;const rows=[cols.join(',')].concat(list.map(d=>[d.n,credClass(d.c),d.tier||'',d.npi,d.em[0]||'',d.ls.join(' '),d.as.join(' '),d.pr.join(' | '),d.pa.join(' | '),d.mo.join(' | '),'suppressed',d.sh,d.inc,d.la,d.st,(d.needs||[]).join(' ')].map(esc).join(',')));dl(rows.join('\n'),`clinicians_${list.length}_${maxDate()||'export'}.csv`)}
 
 // ---------- PRODUCTIVITY (weekly VPH ledger, stable-identity keyed) ----------
 let VF={q:'',mod:'all',tier:'all'},VSORT={k:'vph',dir:-1};
@@ -931,7 +951,7 @@ function vmatch(o){if(VF.mod!=='all'&&o.mod!==VF.mod)return false;if(VF.tier!=='
 const VCOLS=[{k:'n',l:'Clinician'},{k:'mod',l:'Modality'},{k:'fc',l:'Consults',r:1},{k:'fh',l:'Hours',r:1},{k:'vph',l:'VPH',r:1},{k:'pct',l:'vs peers',r:1},{k:'trend',l:'Weekly trend'},{k:'delta',l:'Δ vs norm',r:1}];
 function vDrill(o){
   $('#mTitle').textContent=o.n;
-  $('#mSub').innerHTML=`${o.c?`<span class="cred">${o.c}</span>`:''}${tierBadge(o.tier)} <span class="kind ${o.mod}">${o.mod}</span> &nbsp; ${o.vph!=null?`<b>${o.vph}</b> VPH over complete weeks · stronger than P${o.pct==null?'—':o.pct} of the ${o.mod} cohort`:'not measurable yet — needs consults and scheduled hours in the same complete week'}`;
+  $('#mSub').innerHTML=`${credClass(o.c)?`<span class="cred">${credClass(o.c)}</span>`:''}${tierBadge(o.tier)} <span class="kind ${o.mod}">${o.mod}</span> &nbsp; ${o.vph!=null?`<b>${o.vph}</b> VPH over complete weeks · stronger than P${o.pct==null?'—':o.pct} of the ${o.mod} cohort`:'not measurable yet — needs consults and scheduled hours in the same complete week'}`;
   $('#mBody').innerHTML=`<div class="mini"><h3>Week by week</h3><div style="overflow:auto"><table><thead><tr><th>Week of</th><th class="r">Consults</th><th class="r">Sync</th><th class="r">Async</th><th class="r">Scheduled h</th><th class="r">VPH</th><th>Data</th></tr></thead><tbody>${o.series.map(s=>`<tr><td class="tnum">${s.w}</td><td class="r tnum"><b>${nf(s.c)}</b></td><td class="r tnum muted">${nf(s.sc)}</td><td class="r tnum muted">${nf(s.ac)}</td><td class="r tnum">${Math.round(s.h*10)/10}</td><td class="r tnum"><b>${s.v==null?'—':s.v}</b></td><td>${s.cov==='full'?'<span class="muted">complete</span>':'<span style="color:var(--warn)">partial export week</span>'}</td></tr>`).join('')}</tbody></table></div><div class="muted" style="margin-top:10px;font-size:11.5px">Hours are <b>scheduled</b>, not clocked — a light schedule and a slow week look identical here. Use the trend and peer position to decide what to look into, not to conclude.</div></div>`;
   $('#modal').classList.add('open');
 }
@@ -971,7 +991,7 @@ function renderVph(){
   $$('#vHead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='trend')return;if(VSORT.k===k)VSORT.dir*=-1;else{VSORT.k=k;VSORT.dir=(k==='n'||k==='mod')?1:-1}renderVph()});
   const flist=list.filter(vmatch).sort((a,b)=>{let x=a[VSORT.k],y=b[VSORT.k];if(VSORT.k==='n'||VSORT.k==='mod')return VSORT.dir*String(x).localeCompare(String(y));if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return VSORT.dir*(x-y)});
   $('#vShown').textContent=flist.length;$('#vTot').textContent=list.length;
-  $('#vBody').innerHTML=flist.length?flist.slice(0,600).map((o,i)=>`<tr class="clk" data-i="${i}"><td><span class="name">${o.n}</span>${o.c?` <span class="cred">${o.c}</span>`:''}${tierBadge(o.tier)}</td><td><span class="kind ${o.mod}">${o.mod}</span></td><td class="r tnum">${nf(o.fc)}</td><td class="r tnum muted">${nf(Math.round(o.fh))}</td><td class="r tnum" style="font-weight:700;color:${pctColor(o)}">${o.vph==null?'—':o.vph}</td><td class="r">${o.pct==null?'<span class="muted">—</span>':`<span class="ptrack"><i style="left:${Math.round(o.pct*.94)}%;background:${pctColor(o)}"></i></span><span class="tnum" style="font-size:11px;color:${pctColor(o)}">P${o.pct}</span>`}</td><td>${vSpark(o.series)}</td><td class="r">${vMove(o)}</td></tr>`).join('')+(flist.length>600?`<tr><td colspan="${VCOLS.length}" class="empty" style="padding:16px">First 600 of ${flist.length}. Narrow or export.</td></tr>`:''):`<tr><td colspan="${VCOLS.length}"><div class="empty">No clinicians match.</div></td></tr>`;
+  $('#vBody').innerHTML=flist.length?flist.slice(0,600).map((o,i)=>`<tr class="clk" data-i="${i}"><td><span class="name">${o.n}</span>${credClass(o.c)?` <span class="cred">${credClass(o.c)}</span>`:''}${tierBadge(o.tier)}</td><td><span class="kind ${o.mod}">${o.mod}</span></td><td class="r tnum">${nf(o.fc)}</td><td class="r tnum muted">${nf(Math.round(o.fh))}</td><td class="r tnum" style="font-weight:700;color:${pctColor(o)}">${o.vph==null?'—':o.vph}</td><td class="r">${o.pct==null?'<span class="muted">—</span>':`<span class="ptrack"><i style="left:${Math.round(o.pct*.94)}%;background:${pctColor(o)}"></i></span><span class="tnum" style="font-size:11px;color:${pctColor(o)}">P${o.pct}</span>`}</td><td>${vSpark(o.series)}</td><td class="r">${vMove(o)}</td></tr>`).join('')+(flist.length>600?`<tr><td colspan="${VCOLS.length}" class="empty" style="padding:16px">First 600 of ${flist.length}. Narrow or export.</td></tr>`:''):`<tr><td colspan="${VCOLS.length}"><div class="empty">No clinicians match.</div></td></tr>`;
   $$('#vBody tr.clk').forEach(tr=>tr.onclick=()=>vDrill(flist[+tr.dataset.i]));
 }
 const VMODS=[['all','All modalities'],['async','Async'],['sync','Sync']],VTIERS=[['all','All tiers'],['seat','Seats'],['support','Support']];
@@ -1044,10 +1064,14 @@ function renderPlaybook(){
 
 // ---------- boot ----------
 function tileHTML(t){return `<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d||''}</div></div>`}
-function hoursRank(sel,arr){const mx=Math.max(...arr.map(x=>x.hours),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name==='—'?'<span class="muted">Not matched to roster</span>':x.name}${x.cred&&x.cred!=='—'?` <span class="cred">${x.cred}</span>`:''}<small>${nf(x.shifts)} shifts</small></div><div class="val tnum">${nf(Math.round(x.hours))} h</div><div class="track"><i style="width:${Math.max(2,x.hours/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
-function usdRank(sel,arr){const mx=Math.max(...arr.map(x=>x.usd),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}${x.license&&x.license!=='—'?` <span class="cred">${x.license}</span>`:''}<small>${nf(x.n)}×</small></div><div class="val tnum">$${nf(x.usd)}</div><div class="track"><i style="width:${Math.max(2,x.usd/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
-function renderShifts(){if(!SHIFTS.total_hours)return;const S=SHIFTS;$('#shStats').innerHTML=[{k:'Scheduled hours',v:nf(Math.round(S.total_hours)),d:nf(S.n_shifts)+' shifts'},{k:'Clinicians scheduled',v:S.n_clinicians,d:'avg '+Math.round(S.total_hours/S.n_clinicians)+' h each'},{k:'Service lines',v:S.by_service_line.length,d:'scheduled against'},{k:'Window',v:(S.range.min||'')+' → '+(S.range.max||''),d:''}].map(tileHTML).join('');hoursRank('#shLine',S.by_service_line);hoursRank('#shCred',S.by_cred);hoursRank('#shTop',S.top_clin)}
-function renderIncentives(){if(!INC.n_items)return;const I=INC;$('#inStats').innerHTML=[{k:'Incentives paid',v:'$'+nf(Math.round(I.total_usd)),d:nf(I.n_items)+' line items'},{k:'Clinicians paid',v:I.n_clinicians,d:'avg $'+Math.round(I.total_usd/I.n_clinicians)+' each'},{k:'Incentive types',v:I.by_incentive.length,d:''},{k:'Window',v:(I.range.min||'')+' → '+(I.range.max||''),d:''}].map(tileHTML).join('');usdRank('#inLicense',I.by_license);usdRank('#inPartner',I.by_partner);usdRank('#inProgram',I.by_program);usdRank('#inName',I.by_incentive);usdRank('#inTop',I.top_earners)}
+// Credentials NEVER render raw (no APRN-CNP soup): everything displayed goes through the six
+// buckets — NP · Doctor · PA · MA · GC · MS. Server lists arrive keyed by raw string, so any
+// "by clinician type" list is re-bucketed + summed here before painting.
+function credBucket(list,fields){const m=new Map();(list||[]).forEach(x=>{const b=credClass(x.name)||'Unspecified';let o=m.get(b);if(!o){o={name:b};fields.forEach(f=>o[f]=0);m.set(b,o)}fields.forEach(f=>o[f]+=(x[f]||0))});return[...m.values()].sort((a,b)=>(b[fields[0]]||0)-(a[fields[0]]||0))}
+function hoursRank(sel,arr){const mx=Math.max(...arr.map(x=>x.hours),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name==='—'?'<span class="muted">Not matched to roster</span>':x.name}${credClass(x.cred)?` <span class="cred">${credClass(x.cred)}</span>`:''}<small>${nf(x.shifts)} shifts</small></div><div class="val tnum">${nf(Math.round(x.hours))} h</div><div class="track"><i style="width:${Math.max(2,x.hours/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
+function usdRank(sel,arr){const mx=Math.max(...arr.map(x=>x.usd),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}${credClass(x.license)?` <span class="cred">${credClass(x.license)}</span>`:''}<small>${nf(x.n)}×</small></div><div class="val tnum">$${nf(x.usd)}</div><div class="track"><i style="width:${Math.max(2,x.usd/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
+function renderShifts(){if(!SHIFTS.total_hours)return;const S=SHIFTS;$('#shStats').innerHTML=[{k:'Scheduled hours',v:nf(Math.round(S.total_hours)),d:nf(S.n_shifts)+' shifts'},{k:'Clinicians scheduled',v:S.n_clinicians,d:'avg '+Math.round(S.total_hours/S.n_clinicians)+' h each'},{k:'Service lines',v:S.by_service_line.length,d:'scheduled against'},{k:'Window',v:(S.range.min||'')+' → '+(S.range.max||''),d:''}].map(tileHTML).join('');hoursRank('#shLine',S.by_service_line);hoursRank('#shCred',credBucket(S.by_cred,['hours','shifts']));hoursRank('#shTop',S.top_clin)}
+function renderIncentives(){if(!INC.n_items)return;const I=INC;$('#inStats').innerHTML=[{k:'Incentives paid',v:'$'+nf(Math.round(I.total_usd)),d:nf(I.n_items)+' line items'},{k:'Clinicians paid',v:I.n_clinicians,d:'avg $'+Math.round(I.total_usd/I.n_clinicians)+' each'},{k:'Incentive types',v:I.by_incentive.length,d:''},{k:'Window',v:(I.range.min||'')+' → '+(I.range.max||''),d:''}].map(tileHTML).join('');usdRank('#inLicense',credBucket(I.by_license,['usd','n']));usdRank('#inPartner',I.by_partner);usdRank('#inProgram',I.by_program);usdRank('#inName',I.by_incentive);usdRank('#inTop',I.top_earners)}
 // ---------- COVERAGE (day x hour clinicians-on-shift, from coverage_grid) ----------
 const DOWL7=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun']; // isodow 1..7
 function renderCoverage(){
@@ -1209,6 +1233,91 @@ function sbOpenEdit(key){
 function wireScoreboard(){
   const c=$('#sbCard');if(!c||c._wired)return;c._wired=true;
   c.addEventListener('click',e=>{const ed=e.target.closest('[data-sb-edit]'),ad=e.target.closest('[data-sb-add]');if(ed)sbOpenEdit(ed.dataset.sbEdit);else if(ad)sbOpenEdit('')});
+}
+// ---------- GAPS (date-specific coverage vs projected demand) ----------
+// The Friday question: for the schedule that's actually loaded, where is THIS window thin?
+// Coverage comes from coverage_by_date (real dates, filled + posted-unfilled); expected demand is
+// projected client-side from the SLI response log (current), as the same-weekday/hour average over a
+// user-chosen lookback. Nothing here is a typical-week composite and no window is static.
+let GAPS={range:null,rows:[]}, GW={from:null,to:null,base:4};
+window.__setGaps=function(d){GAPS=d&&d.rows?d:{range:null,rows:[]};if(!GW.from)gapDefaults();renderGaps()};
+const GMON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function gDate(s){const p=String(s).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]))}
+function gIso(d){return d.toISOString().slice(0,10)}
+function gAdd(s,n){const d=gDate(s);d.setUTCDate(d.getUTCDate()+n);return gIso(d)}
+function gDay(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+' '+GMON[d.getUTCMonth()]+' '+d.getUTCDate()}
+function gToday(){return new Date().toISOString().slice(0,10)}
+// expected arrivals per weekday×hour: on-demand, non-lab SLI arrivals averaged over the lookback
+function demandBaseline(weeks){
+  const hi=maxDate();if(!hi)return null;
+  const lo=gAdd(hi,-(weeks*7-1));
+  const cnt=new Map(),days=[new Set(),new Set(),new Set(),new Set(),new Set(),new Set(),new Set()];
+  for(const r of SLI){const dt=r[DT];if(!dt||dt<lo||dt>hi)continue;if(laneOf(r[CT])==='scheduled')continue;if(smod(r[CT])==='lab')continue;
+    const dow=gDate(dt).getUTCDay(),hr=r[HR];if(hr==null)continue;days[dow].add(dt);
+    const k=dow+'_'+hr;cnt.set(k,(cnt.get(k)||0)+1)}
+  if(!cnt.size)return null;
+  const avg=new Map();cnt.forEach((n,k)=>{const dow=+k.split('_')[0];avg.set(k,n/Math.max(1,days[dow].size))});
+  return{avg,lo,hi}
+}
+function gapDefaults(){const t=gToday(),mx=GAPS.range&&GAPS.range.max,mn=GAPS.range&&GAPS.range.min;
+  if(mx&&mx>=t){GW.from=t;GW.to=gAdd(t,6)>mx?mx:gAdd(t,6);markGapPreset('7d')}
+  else if(mx){GW.from=gAdd(mx,-6)<mn?mn:gAdd(mx,-6);GW.to=mx;markGapPreset('loaded')}
+  if($('#gapFrom'))$('#gapFrom').value=GW.from||'';if($('#gapTo'))$('#gapTo').value=GW.to||''}
+function markGapPreset(k){$$('#gapPresets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.g===k))}
+function renderGaps(){
+  const heat=$('#gapHeat');if(!heat)return;
+  const base=demandBaseline(GW.base);
+  $('#gapScope').innerHTML=`Shifts vs projected demand · <b>All partners</b> · ${GW.from&&GW.to?gDay(GW.from)+' – '+gDay(GW.to):'no window set'} · baseline last ${GW.base} wks${base?` (${base.lo} → ${base.hi})`:''}`;
+  if(!GAPS.rows.length){$('#gapStats').innerHTML='';heat.innerHTML='<div class="empty" style="grid-column:1/-1">No schedule loaded. Upload the Arya shift export via Settings → Import and this view fills in.</div>';$('#gapList').innerHTML='';$('#gapNote').textContent='';return}
+  if(!GW.from||!GW.to){$('#gapStats').innerHTML='';heat.innerHTML='<div class="empty" style="grid-column:1/-1">Pick a window above.</div>';$('#gapList').innerHTML='';return}
+  const byDH={};GAPS.rows.forEach(r=>{if(r[0]<GW.from||r[0]>GW.to)return;(byDH[r[0]]=byDH[r[0]]||{})[r[1]]={f:r[2],u:r[3]}});
+  const dates=[];for(let d=GW.from;d<=GW.to;d=gAdd(d,1)){dates.push(d);if(dates.length>31)break}
+  const shown=dates.slice(0,14);
+  const anyShift=Object.keys(byDH).length>0;
+  if(!anyShift){$('#gapStats').innerHTML='';heat.innerHTML=`<div class="empty" style="grid-column:1/-1">No shifts loaded for this window — the loaded schedule runs <b>${GAPS.range.min||'?'} → ${GAPS.range.max||'?'}</b>. Upload this window's schedule via Settings → Import.</div>`;$('#gapList').innerHTML='';$('#gapNote').textContent='';return}
+  // build slots
+  const slots=[];let expTot=0,schedHrs=0,unfTot=0;
+  dates.forEach(dt=>{const dow=gDate(dt).getUTCDay();for(let h=0;h<24;h++){
+    const c=(byDH[dt]&&byDH[dt][h])||{f:0,u:0};const exp=base?(base.avg.get(dow+'_'+h)||0):0;
+    schedHrs+=c.f;unfTot+=c.u;expTot+=exp;
+    slots.push({dt,h,f:c.f,u:c.u,exp})}});
+  const finite=slots.filter(s=>s.exp>0&&s.f>0).map(s=>s.exp/s.f).sort((a,b)=>a-b);
+  const median=finite.length?finite[Math.floor(finite.length/2)]:0;
+  const uncov=slots.filter(s=>s.exp>=1&&s.f===0);
+  $('#gapStats').innerHTML=[
+    {k:'Scheduled clinician-hours',v:nf(schedHrs),d:`${gDay(GW.from)} – ${gDay(GW.to)}`},
+    {k:'Expected consults',v:base?nf(Math.round(expTot)):'—',d:base?`projected from last ${GW.base} wks`:'no demand history'},
+    {k:'Uncovered hours',v:uncov.length,d:'arrivals expected, nobody on'},
+    {k:'Posted unfilled',v:nf(unfTot),d:'Arya “Not Assigned” shift-hours'},
+  ].map(tileHTML).join('');
+  // heatmap: rows = actual dates
+  heat.style.gridTemplateColumns='74px repeat(24,1fr)';
+  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
+  shown.forEach(dt=>{html+=`<div class="hmlab" style="white-space:nowrap">${gDay(dt)}</div>`;const dow=gDate(dt).getUTCDay();
+    for(let h=0;h<24;h++){const c=(byDH[dt]&&byDH[dt][h])||{f:0,u:0};const exp=base?(base.avg.get(dow+'_'+h)||0):0;
+      if(c.f===0&&exp<1&&c.u===0){html+='<div class="hmcell empty">·</div>';continue}
+      if(c.f===0&&exp>=1){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:#fff;font-weight:700" title="${gDay(dt)} ${h}:00 · expected ~${Math.round(exp)} consults · nobody scheduled${c.u?` · ${c.u} posted unfilled`:''}">!</div>`;continue}
+      const load=c.f>0?exp/c.f:0;const ratio=median?load/median:1;const hue=Math.round(Math.max(0,Math.min(1,(1.6-ratio)/1.1))*145);
+      html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${gDay(dt)} ${h}:00 · ${c.f} on shift · expected ~${Math.round(exp)} · load ${load.toFixed(1)}/clinician${c.u?` · ${c.u} posted unfilled`:''}">${c.f}</div>`}});
+  heat.innerHTML=html;
+  $('#gapNote').textContent=`cell = clinicians on shift · color = expected load vs the window's typical ${median?median.toFixed(1):'—'}/clinician · Central time`+(dates.length>14?` · showing first 14 of ${dates.length} days`:'');
+  // call-out list: uncovered first (by expected volume), then most stretched
+  const stretched=slots.filter(s=>s.f>0&&s.exp>0&&median&&(s.exp/s.f)>median*1.25).sort((a,b)=>(b.exp/b.f)-(a.exp/a.f));
+  const list=[...uncov.sort((a,b)=>b.exp-a.exp),...stretched].slice(0,12);
+  $('#gapList').innerHTML=list.length?list.map(s=>{const load=s.f>0?s.exp/s.f:null;
+    const need=s.f===0?'staff this hour':`+${Math.max(1,Math.ceil(s.exp/median)-s.f)} to ease`;
+    return `<div class="rk" style="cursor:default"><div class="lab">${gDay(s.dt)} · ${s.h}:00<small>expected ~${Math.round(s.exp)} · ${s.f?s.f+' on shift':'0 on shift'}${s.u?` · <b style="color:var(--warn)">${s.u} posted unfilled</b>`:''} · ${need}</small></div><div class="val tnum" style="color:${s.f===0?'var(--bad)':'var(--warn)'}">${load==null?'no cover':load.toFixed(1)+'/clin'}</div><div class="track"><i style="width:${Math.max(3,Math.min(100,(load==null?1.9*(median||1):load)/((median||1)*1.9)*100))}%;background:${s.f===0?'var(--bad)':'var(--warn)'}"></i></div></div>`}).join(''):'<div class="empty">Nothing thin in this window — coverage clears the projected demand everywhere.</div>';
+}
+function wireGaps(){
+  if($('#gapFrom')&&!$('#gapFrom')._w){$('#gapFrom')._w=1;
+    $('#gapFrom').onchange=e=>{GW.from=e.target.value||null;markGapPreset(null);renderGaps()};
+    $('#gapTo').onchange=e=>{GW.to=e.target.value||null;markGapPreset(null);renderGaps()};
+    $('#gapBase').onchange=e=>{GW.base=+e.target.value;renderGaps()};
+    $$('#gapPresets .qbtn').forEach(b=>b.onclick=()=>{const k=b.dataset.g,t=gToday();
+      if(k==='wknd'){const d=gDate(t),wd=d.getUTCDay(),toSat=(6-wd+7)%7;GW.from=gAdd(t,toSat===0&&wd!==6?0:toSat);if(wd===0)GW.from=gAdd(t,-1);GW.to=gAdd(GW.from,1)}
+      else if(k==='7d'){GW.from=t;GW.to=gAdd(t,6)}
+      else{GW.from=(GAPS.range&&GAPS.range.min)||null;GW.to=(GAPS.range&&GAPS.range.max)||null}
+      $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);renderGaps()})}
 }
 // ---------- FORECAST (demand vs coverage, next-week load) ----------
 function renderForecast(){
@@ -1455,7 +1564,7 @@ function wireImport(){
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
 }
-function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();wireGaps();renderGaps();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
