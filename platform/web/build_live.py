@@ -108,8 +108,8 @@ AUTH_JS = r"""
     // them into the already-rendered tabs. boot() is idempotent (render* rebuild from globals, wire*
     // self-guard via _wired), so this second __init just enriches. Each RPC is non-fatal: a failure
     // leaves its tab on the empty state it already shows.
-    Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks')])
-      .then(([b,g,dmd,f,rvk])=>{ window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); })
+    Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
+      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
   }
   function denied(em){ body.innerHTML='<div class="lead">You’re signed in as <b>'+H(em||'this account')+'</b>, but it isn’t provisioned for the console yet. Ask an admin to add you, then reload.</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; }
@@ -188,6 +188,9 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "SLA attainment",  # hero tile label (SLA is the one dominant number)
           "function applyDefaultWindow","lastCompletedWeek",'id="presets"','data-range="wk"','id="moreRow"',  # IA step 4: open to last completed week + presets + More disclosure
           "newest LOADED date, not the wall clock",'class="fgroup"',  # anchored default + label-stranding fix (label glued to its inputs)
+          "function credBucket","credBucket(S.by_cred","credBucket(I.by_license","credClass(x.cred)","credClass(x.license)",  # credentials NEVER raw: 6 buckets on every list, badge, export
+          "coverage_by_date","__setGaps","function renderGaps","function demandBaseline",'data-tab="gaps"','id="gapPresets"','id="gapBase"',  # Gaps view: date-specific coverage vs SLI-projected demand, window + lookback user-controlled
+          "Not Assigned","posted unfilled",  # Arya unfilled posts surfaced as their own channel
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
