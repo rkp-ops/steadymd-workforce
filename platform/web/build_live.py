@@ -186,6 +186,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           'id="ovHero"',"hero-sla",'id="ovDist"',"function modDist","function renderModDist",  # IA step 3: hero SLA + per-modality response-time module
           "Response time by modality","never averaged together",  # §E: p90 split within modality, never a blended aggregate on Overview
           "SLA attainment",  # hero tile label (SLA is the one dominant number)
+          "function applyDefaultWindow","lastCompletedWeek",'id="presets"','data-range="wk"','id="moreRow"',  # IA step 4: open to last completed week + presets + More disclosure
+          "newest LOADED date, not the wall clock",'class="fgroup"',  # anchored default + label-stranding fix (label glued to its inputs)
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
