@@ -108,6 +108,14 @@ AUTH_JS = r"""
     // them into the already-rendered tabs. boot() is idempotent (render* rebuild from globals, wire*
     // self-guard via _wired), so this second __init just enriches. Each RPC is non-fatal: a failure
     // leaves its tab on the empty state it already shows.
+    // Windowed refetch API: every summary tab's window bar goes through these (p_from/p_to null = all loaded).
+    if(window.__setRangeApi)window.__setRangeApi({
+      consults:  (f,t)=>sb.rpc('consult_summary',  {p_from:f,p_to:t}),
+      shifts:    (f,t)=>sb.rpc('shift_summary',    {p_from:f,p_to:t}),
+      coverage:  (f,t)=>sb.rpc('coverage_grid',    {p_from:f,p_to:t}),
+      demand:    (f,t)=>sb.rpc('demand_grid',      {p_from:f,p_to:t}),
+      incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
+    });
     Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
       .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
@@ -191,6 +199,10 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "function credBucket","credBucket(S.by_cred","credBucket(I.by_license","credClass(x.cred)","credClass(x.license)",  # credentials NEVER raw: 6 buckets on every list, badge, export
           "coverage_by_date","__setGaps","function renderGaps","function demandBaseline",'data-tab="gaps"','id="gapPresets"','id="gapBase"',  # Gaps view: date-specific coverage vs SLI-projected demand, window + lookback user-controlled
           "Not Assigned","posted unfilled",  # Arya unfilled posts surfaced as their own channel
+          "__setRangeApi","function winFetch","function wireWinbars",  # no-static-windows: every summary tab refetches windowed
+          'data-win="consults"','data-win="shifts"','data-win="coverage"','data-win="forecast"','data-win="incentives"',  # window bar on each summary tab
+          "No consults in this window","No shifts in this window","No incentives in this window",  # honest empty states name the loaded range
+          "90d ending at last consult load",  # Active-90d basis labeled (dynamic lookback lands with the Workforce rescope)
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
           "__setUsersAdmin","renderUsers",'data-tab="users"',"admin_provision_user",
