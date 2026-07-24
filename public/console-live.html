@@ -369,6 +369,7 @@
 
   <!-- CONSULTS -->
   <section class="tab" data-tab="consults">
+    <div class="filterbar winbar" data-win="consults" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
     <div class="stats s4" id="cdStats"></div>
     <div class="card"><div class="hd"><h2>By modality</h2><span class="desc">lab work excluded · click a card to see the consult types inside</span></div><div class="bd"><div class="rank" id="cMod"></div></div></div>
     <div class="cols2">
@@ -409,6 +410,7 @@
   </section>
 
   <section class="tab" data-tab="shifts">
+    <div class="filterbar winbar" data-win="shifts" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
     <div class="stats s4" id="shStats"></div>
     <div class="card"><div class="hd"><h2>Hours by service line</h2><span class="desc">scheduled shift hours</span></div><div class="bd"><div class="rank" id="shLine"></div></div></div>
     <div class="cols2">
@@ -419,6 +421,7 @@
 
   <!-- COVERAGE -->
   <section class="tab" data-tab="coverage">
+    <div class="filterbar winbar" data-win="coverage" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
     <div class="stats s4" id="covStats"></div>
     <div class="card">
       <div class="hd"><h2>Clinicians on shift — day &amp; hour</h2><span class="desc" id="covNote">avg across weeks · Central time</span></div>
@@ -434,6 +437,7 @@
 
   <!-- FORECAST -->
   <section class="tab" data-tab="forecast">
+    <div class="filterbar winbar" data-win="forecast" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
     <div class="stats s4" id="fcStats"></div>
     <div class="card">
       <div class="hd"><h2>Load — demand vs. who's on shift</h2><span class="desc" id="fcNote">consults per on-shift clinician · day &amp; hour · Central time</span></div>
@@ -449,6 +453,7 @@
 
   <!-- INCENTIVES -->
   <section class="tab" data-tab="incentives">
+    <div class="filterbar winbar" data-win="incentives" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
     <div class="stats s4" id="inStats"></div>
     <div class="cols2">
       <div class="card"><div class="hd"><h2>Paid by clinician type</h2><span class="desc">license</span></div><div class="bd"><div class="rank" id="inLicense"></div></div></div>
@@ -837,12 +842,17 @@ function renderScheduled(){
 }
 function renderConsults(){
   if(!CD||!Object.keys(CD).length)return; // consult_summary arrives in the background load wave; keep the tab's placeholder until then (no undefined flash)
+  if(!CD.total){ // windowed to a range with no consults — say so, never leave stale numbers up
+    $('#cdStats').innerHTML=`<div class="empty" style="grid-column:1/-1">No consults in this window${CD.loaded&&CD.loaded.min?` — loaded log runs <b>${CD.loaded.min} → ${CD.loaded.max}</b>`:''}.</div>`;
+    ['#cMod','#cPartner','#cClin'].forEach(s=>{if($(s))$(s).innerHTML=''});if($('#cRange'))$('#cRange').textContent='';return}
+  const rng=CD.range||{};
   $('#cdStats').innerHTML=[
     {k:'Consults',v:nf(CD.total),d:`${nf(CD.lab_excluded)} lab excluded`},
     {k:'Moved care forward',v:CD.worked_pct+'%',d:'non-lab'},
     {k:'Clinicians · GUID',v:CD.clinicians,d:'resolved'},
-    {k:'Window',v:'Jun 1–24',d:'2026'},
+    {k:'Window',v:(rng.min||'—')+' → '+(rng.max||'—'),d:'set above'},
   ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
+  CD.by_modality=CD.by_modality||[];CD.by_type=CD.by_type||[];CD.by_partner=CD.by_partner||[];CD.top_clin=CD.top_clin||[];
   const mx=Math.max(...CD.by_modality.map(m=>m.n),1);
   $('#cMod').innerHTML=CD.by_modality.map((m,i)=>`<div class="rk" data-i="${i}"><div class="lab">${m.label} <span class="kind ${m.kind}">${m.kind}</span><small>${nf(m.n)} · median handle ${fmtMin(m.p50)}</small></div><div class="val">${m.worked}% <span class="muted" style="font-weight:400;font-size:10px">worked</span></div><div class="track"><i style="width:${Math.max(2,m.n/mx*100)}%;background:var(--accent)"></i></div></div>`).join('');
   $$('#cMod .rk').forEach(el=>el.onclick=()=>{const m=CD.by_modality[+el.dataset.i];const types=CD.by_type.filter(t=>t.modality===m.key);
@@ -851,10 +861,39 @@ function renderConsults(){
     $('#modal').classList.add('open')});
   const pmx=Math.max(...CD.by_partner.map(p=>p.n),1);
   $('#cPartner').innerHTML=CD.by_partner.slice(0,12).map(p=>`<div class="rk" style="cursor:default"><div class="lab">${p.name}</div><div class="val tnum">${nf(p.n)}</div><div class="track"><i style="width:${Math.max(2,p.n/pmx*100)}%;background:var(--accent)"></i></div></div>`).join('');
-  $('#cRange').textContent=`${CD.range.min} → ${CD.range.max}`;
+  $('#cRange').textContent=`${rng.min||''} → ${rng.max||''}`;
   const cmx=Math.max(...CD.top_clin.map(c=>c.n),1);
   $('#cClin').innerHTML='<div class="rank">'+CD.top_clin.map(c=>`<div class="rk" style="cursor:default"><div class="lab">${c.name}<small>${c.pct}% of consults</small>${c.pct>40?' <span class="kind other" style="color:var(--bad)">attribution artifact</span>':''}</div><div class="val tnum">${nf(c.n)}</div><div class="track"><i style="width:${Math.max(2,c.n/cmx*100)}%;background:${c.pct>40?'var(--bad)':'var(--accent)'}"></i></div></div>`).join('')+'</div>';
 }
+
+// ---------- per-tab data windows (no static windows anywhere) ----------
+// Every summary the server sends (consults / shifts / coverage / forecast / incentives) is
+// windowed by the RPC's p_from/p_to. Each of those tabs carries a window bar; changing it
+// refetches that tab's summary for the picked range and re-renders. "All loaded" resets.
+let RANGE_API=null;
+window.__setRangeApi=function(api){RANGE_API=api||null};
+function replaceObj(o,d){Object.keys(o).forEach(k=>{if(k!=='_win')delete o[k]});Object.assign(o,d||{})}
+async function winFetch(key,f,t){
+  if(!RANGE_API)return;
+  const bar=document.querySelector(`.winbar[data-win="${key}"]`);if(bar)bar.style.opacity=.55;
+  try{
+    if(key==='consults'){const r=await RANGE_API.consults(f,t);if(!r.error){replaceObj(CD,r.data);CD._win=!!(f||t);renderConsults()}}
+    else if(key==='shifts'){const r=await RANGE_API.shifts(f,t);if(!r.error){replaceObj(SHIFTS,r.data);SHIFTS._win=!!(f||t);renderShifts()}}
+    else if(key==='coverage'){const r=await RANGE_API.coverage(f,t);if(!r.error){replaceObj(COV,r.data);renderCoverage()}}
+    else if(key==='forecast'){const[d1,d2]=await Promise.all([RANGE_API.demand(f,t),RANGE_API.coverage(f,t)]);if(!d1.error)replaceObj(DEM,d1.data);if(!d2.error)replaceObj(COV,d2.data);renderForecast()}
+    else if(key==='incentives'){const r=await RANGE_API.incentives(f,t);if(!r.error){replaceObj(INC,r.data);INC._win=!!(f||t);renderIncentives()}}
+  }catch(_){}
+  if(bar)bar.style.opacity='';winNotes()
+}
+function wireWinbars(){$$('.winbar').forEach(bar=>{if(bar._w)return;bar._w=1;const key=bar.dataset.win;
+  const f=bar.querySelector('[data-wfrom]'),t=bar.querySelector('[data-wto]'),all=bar.querySelector('[data-wall]');
+  const go=()=>winFetch(key,f.value||null,t.value||null);
+  f.onchange=go;t.onchange=go;
+  all.onclick=()=>{f.value='';t.value='';winFetch(key,null,null)}})}
+function winNotes(){
+  const L={consults:CD&&CD.loaded,shifts:SHIFTS&&SHIFTS.loaded,coverage:SHIFTS&&SHIFTS.loaded,forecast:CD&&CD.loaded,incentives:INC&&INC.loaded};
+  $$('.winbar').forEach(bar=>{const l=L[bar.dataset.win],n=bar.querySelector('[data-wnote]');
+    if(n)n.textContent=l&&l.min?`loaded ${l.min} → ${l.max}`:''})}
 
 // ---------- render orchestration ----------
 function renderFiltered(){renderChips();const rows=slice();renderOverview(rows);renderPerf(rows);renderScoreboard()}
@@ -890,7 +929,7 @@ function statusPill(st){const m={active:['p-active','Active'],inactive:['p-inact
 function tierBadge(t){return t==='support'?' <span class="tierb sup">Support</span>':t==='seat'?' <span class="tierb seat">Seat</span>':''}
 function needText(nd){return (nd||[]).map(x=>x==='credential'?'credential':'a state').join(' + ')}
 function renderClStats(){const seat=DATA.filter(d=>d.tier==='seat').length,sup=DATA.filter(d=>d.tier==='support').length,a=DATA.filter(d=>d.st==='active').length,needs=DATA.filter(d=>d.st==='NEEDS-CORRECTION').length,q=DATA.filter(d=>d.st==='ADD-TO-ROSTER').length;
-  $('#clStats').innerHTML=[{k:'Total roster',v:DATA.length,d:seat+' seats · '+sup+' support'},{k:'Coverage seats',v:seat,d:'MD/DO/NP/PA · support excluded'},{k:'Active · 90d',v:a,d:(a/DATA.length*100).toFixed(0)+'% of roster'},{k:'Needs correction',v:needs,d:'missing credential/state'},{k:'Add-queue',v:q,d:'working, not on roster'}].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v.toLocaleString()}</div><div class="d">${t.d}</div></div>`).join('')}
+  $('#clStats').innerHTML=[{k:'Total roster',v:DATA.length,d:seat+' seats · '+sup+' support'},{k:'Coverage seats',v:seat,d:'MD/DO/NP/PA · support excluded'},{k:'Active · 90d',v:a,d:(a/DATA.length*100).toFixed(0)+'% · 90d ending at last consult load'},{k:'Needs correction',v:needs,d:'missing credential/state'},{k:'Add-queue',v:q,d:'working, not on roster'}].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v.toLocaleString()}</div><div class="d">${t.d}</div></div>`).join('')}
 function renderClChips(){const c=[];CF.c.forEach(v=>c.push(['c',v]));CF.pa.forEach(v=>c.push(['pa',v]));CF.ls.forEach(v=>c.push(['ls',(CF.actstate?'active in ':'')+v]));CF.pr.forEach(v=>c.push(['pr',v]));$('#clchips').innerHTML=c.length?c.map(([k,v])=>`<span class="chip">${v}<button data-k="${k}" data-v="${v.replace('active in ','')}">×</button></span>`).join('')+'<button class="clearall" id="clrcl">Clear all</button>':'';$$('#clchips .chip button').forEach(b=>b.onclick=()=>{CF[b.dataset.k].delete(b.dataset.v);renderCl()});if($('#clrcl'))$('#clrcl').onclick=()=>{CF.c.clear();CF.pa.clear();CF.ls.clear();CF.pr.clear();renderCl()}}
 // admin-only writes: the live layer wires ONADD -> set_roster_membership, ONEDIT -> edit_clinician
 let IS_ADMIN=false,ONADD=null,ONEDIT=null;
@@ -1095,8 +1134,12 @@ function tileHTML(t){return `<div class="tile"><div class="k">${t.k}</div><div c
 function credBucket(list,fields){const m=new Map();(list||[]).forEach(x=>{const b=credClass(x.name)||'Unspecified';let o=m.get(b);if(!o){o={name:b};fields.forEach(f=>o[f]=0);m.set(b,o)}fields.forEach(f=>o[f]+=(x[f]||0))});return[...m.values()].sort((a,b)=>(b[fields[0]]||0)-(a[fields[0]]||0))}
 function hoursRank(sel,arr){const mx=Math.max(...arr.map(x=>x.hours),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name==='—'?'<span class="muted">Not matched to roster</span>':x.name}${credClass(x.cred)?` <span class="cred">${credClass(x.cred)}</span>`:''}<small>${nf(x.shifts)} shifts</small></div><div class="val tnum">${nf(Math.round(x.hours))} h</div><div class="track"><i style="width:${Math.max(2,x.hours/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
 function usdRank(sel,arr){const mx=Math.max(...arr.map(x=>x.usd),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}${credClass(x.license)?` <span class="cred">${credClass(x.license)}</span>`:''}<small>${nf(x.n)}×</small></div><div class="val tnum">$${nf(x.usd)}</div><div class="track"><i style="width:${Math.max(2,x.usd/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
-function renderShifts(){if(!SHIFTS.total_hours)return;const S=SHIFTS;$('#shStats').innerHTML=[{k:'Scheduled hours',v:nf(Math.round(S.total_hours)),d:nf(S.n_shifts)+' shifts'},{k:'Clinicians scheduled',v:S.n_clinicians,d:'avg '+Math.round(S.total_hours/S.n_clinicians)+' h each'},{k:'Service lines',v:S.by_service_line.length,d:'scheduled against'},{k:'Window',v:(S.range.min||'')+' → '+(S.range.max||''),d:''}].map(tileHTML).join('');hoursRank('#shLine',S.by_service_line);hoursRank('#shCred',credBucket(S.by_cred,['hours','shifts']));hoursRank('#shTop',S.top_clin)}
-function renderIncentives(){if(!INC.n_items)return;const I=INC;$('#inStats').innerHTML=[{k:'Incentives paid',v:'$'+nf(Math.round(I.total_usd)),d:nf(I.n_items)+' line items'},{k:'Clinicians paid',v:I.n_clinicians,d:'avg $'+Math.round(I.total_usd/I.n_clinicians)+' each'},{k:'Incentive types',v:I.by_incentive.length,d:''},{k:'Window',v:(I.range.min||'')+' → '+(I.range.max||''),d:''}].map(tileHTML).join('');usdRank('#inLicense',credBucket(I.by_license,['usd','n']));usdRank('#inPartner',I.by_partner);usdRank('#inProgram',I.by_program);usdRank('#inName',I.by_incentive);usdRank('#inTop',I.top_earners)}
+function renderShifts(){
+  if(!SHIFTS.total_hours){if(SHIFTS._win){$('#shStats').innerHTML=`<div class="empty" style="grid-column:1/-1">No shifts in this window${SHIFTS.loaded&&SHIFTS.loaded.min?` — loaded schedule runs <b>${SHIFTS.loaded.min} → ${SHIFTS.loaded.max}</b>`:''}.</div>`;['#shLine','#shCred','#shTop'].forEach(s=>{if($(s))$(s).innerHTML=''})}return}
+  const S=SHIFTS;$('#shStats').innerHTML=[{k:'Scheduled hours',v:nf(Math.round(S.total_hours)),d:nf(S.n_shifts)+' shifts'},{k:'Clinicians scheduled',v:S.n_clinicians,d:'avg '+Math.round(S.total_hours/S.n_clinicians)+' h each'},{k:'Service lines',v:S.by_service_line.length,d:'scheduled against'},{k:'Window',v:(S.range.min||'')+' → '+(S.range.max||''),d:''}].map(tileHTML).join('');hoursRank('#shLine',S.by_service_line);hoursRank('#shCred',credBucket(S.by_cred,['hours','shifts']));hoursRank('#shTop',S.top_clin)}
+function renderIncentives(){
+  if(!INC.n_items){if(INC._win){$('#inStats').innerHTML=`<div class="empty" style="grid-column:1/-1">No incentives in this window${INC.loaded&&INC.loaded.min?` — loaded payouts run <b>${INC.loaded.min} → ${INC.loaded.max}</b>`:''}.</div>`;['#inLicense','#inPartner','#inProgram','#inName','#inTop'].forEach(s=>{if($(s))$(s).innerHTML=''})}return}
+  const I=INC;$('#inStats').innerHTML=[{k:'Incentives paid',v:'$'+nf(Math.round(I.total_usd)),d:nf(I.n_items)+' line items'},{k:'Clinicians paid',v:I.n_clinicians,d:'avg $'+Math.round(I.total_usd/I.n_clinicians)+' each'},{k:'Incentive types',v:I.by_incentive.length,d:''},{k:'Window',v:(I.range.min||'')+' → '+(I.range.max||''),d:''}].map(tileHTML).join('');usdRank('#inLicense',credBucket(I.by_license,['usd','n']));usdRank('#inPartner',I.by_partner);usdRank('#inProgram',I.by_program);usdRank('#inName',I.by_incentive);usdRank('#inTop',I.top_earners)}
 // ---------- COVERAGE (day x hour clinicians-on-shift, from coverage_grid) ----------
 const DOWL7=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun']; // isodow 1..7
 function renderCoverage(){
@@ -1589,7 +1632,7 @@ function wireImport(){
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
 }
-function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();wireGaps();renderGaps();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();wireGaps();renderGaps();wireWinbars();winNotes();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
@@ -1663,6 +1706,14 @@ if(SLI.length||Object.keys(CD).length)boot();
     // them into the already-rendered tabs. boot() is idempotent (render* rebuild from globals, wire*
     // self-guard via _wired), so this second __init just enriches. Each RPC is non-fatal: a failure
     // leaves its tab on the empty state it already shows.
+    // Windowed refetch API: every summary tab's window bar goes through these (p_from/p_to null = all loaded).
+    if(window.__setRangeApi)window.__setRangeApi({
+      consults:  (f,t)=>sb.rpc('consult_summary',  {p_from:f,p_to:t}),
+      shifts:    (f,t)=>sb.rpc('shift_summary',    {p_from:f,p_to:t}),
+      coverage:  (f,t)=>sb.rpc('coverage_grid',    {p_from:f,p_to:t}),
+      demand:    (f,t)=>sb.rpc('demand_grid',      {p_from:f,p_to:t}),
+      incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
+    });
     Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
       .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
