@@ -115,9 +115,10 @@ AUTH_JS = r"""
       coverage:  (f,t)=>sb.rpc('coverage_grid',    {p_from:f,p_to:t}),
       demand:    (f,t)=>sb.rpc('demand_grid',      {p_from:f,p_to:t}),
       incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
+      stateCoverage:(a)=>sb.rpc('state_coverage',a),
     });
     Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
-      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); })
+      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
   }
   function denied(em){ body.innerHTML='<div class="lead">You’re signed in as <b>'+H(em||'this account')+'</b>, but it isn’t provisioned for the console yet. Ask an admin to add you, then reload.</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; }
@@ -221,6 +222,9 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           'data-tab="scheduled"', "renderScheduled",  # dedicated Scheduled lane tab
           "chunkCsvText","CHUNK_ROWS=12000","uploadParts",  # console-side row-bounded Load chunking (durable non-2xx fix)
           "reconcile_partner_snapshot",  # one clean whole-load volume snapshot after chunked Load
+          'data-tab="states"',"function renderStates","function stFetch","__setStateCov","state_coverage",  # state-license coverage view + RPC
+          "load per licensed clinician","licensure-based, not partner-routed",  # honest supply labeling (not partner-routed)
+          'id="stPresets"','id="stCred"',"All 51 states",  # capacity facets on the state view: presets, credential buckets, full-51 table
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")
