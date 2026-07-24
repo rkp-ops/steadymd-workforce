@@ -1694,7 +1694,7 @@ if(SLI.length||Object.keys(CD).length)boot();
         if(admin){
           window.__setImportAdmin(true, {
             upload: async(file)=>{ const path=`${Date.now()}-${Math.random().toString(36).slice(2)}/${file.name}`; const {error}=await sb.storage.from('imports').upload(path,file,{upsert:false,contentType:file.type||'text/csv'}); if(error) throw new Error(error.message||'upload failed'); return path; },
-            run: async(paths,mode)=>{ const {data,error}=await sb.functions.invoke('ingest',{body:{mode,paths}}); if(error) throw new Error(error.message||'ingest failed'); if(data&&data.error) throw new Error(data.error); return data; },
+            run: async(paths,mode)=>{ const {data,error}=await sb.functions.invoke('ingest',{body:{mode,paths}}); if(error){ let m=error.message||'ingest failed'; try{ const b=await error.context.json(); if(b&&b.error) m=b.error; }catch(_){} throw new Error(m); } if(data&&data.error) throw new Error(data.error); return data; },
             reconcile: async(kind)=>{ const {data,error}=await sb.rpc('reconcile_partner_snapshot',{p_kind:kind}); if(error) throw new Error(error.message||'reconcile failed'); return data||[]; },
           });
         } else { window.__setImportAdmin(false); }
