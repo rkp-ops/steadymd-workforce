@@ -38,6 +38,11 @@
   /* filter bar */
   .filterbar{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .filterbar .fl{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+  .fgroup{display:inline-flex;align-items:center;gap:6px}
+  .qbtn{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:7px;height:26px;padding:0 9px;font:inherit;font-size:11.5px;cursor:pointer}
+  .qbtn:hover{color:var(--ink);border-color:var(--ink-3)}
+  .qbtn.on{background:var(--accent-soft);color:var(--accent-ink);border-color:transparent;font-weight:600}
+  .morefilters{flex-basis:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:4px;padding-top:8px;border-top:1px dashed var(--border)}
   .facet{position:relative}
   .pop{position:absolute;z-index:40;top:38px;left:0;width:250px;background:var(--surface);border:1px solid var(--border-2);border-radius:11px;box-shadow:var(--shadow);padding:8px;max-height:340px;display:none;flex-direction:column}
   .pop.open{display:flex}
@@ -282,17 +287,25 @@
   <div class="nav" id="nav"></div>
   <div class="seg subnav" id="subnav" style="margin:2px 0 14px;display:none"></div>
 
-  <!-- FILTER BAR (Overview + Performance) -->
+  <!-- FILTER BAR (Overview · Scoreboard · Performance) -->
   <div class="filterbar" id="filterbar">
     <span class="fl">Filter</span>
     <div class="facet"><button class="ghost" data-facet="0">Partner <span class="ar">▾</span></button><div class="pop" data-pop="0"></div></div>
     <div class="facet"><button class="ghost" data-facet="2">State <span class="ar">▾</span></button><div class="pop" data-pop="2"></div></div>
     <div class="facet"><button class="ghost" data-facet="1">Program <span class="ar">▾</span></button><div class="pop" data-pop="1"></div></div>
-    <div class="seg" id="modseg"></div>
-    <span class="fl" style="margin-left:4px">Dates</span>
-    <input type="date" class="dateinp" id="dfrom"><span class="muted">–</span><input type="date" class="dateinp" id="dto">
-    <span class="fl" style="margin-left:4px">Hours</span>
-    <select class="dateinp" id="h0"></select><span class="muted">–</span><select class="dateinp" id="h1"></select>
+    <div class="fgroup"><span class="fl">Dates</span><input type="date" class="dateinp" id="dfrom"><span class="muted">–</span><input type="date" class="dateinp" id="dto"></div>
+    <div class="fgroup" id="presets">
+      <button class="qbtn" data-range="wk">Last week</button>
+      <button class="qbtn" data-range="7d">7d</button>
+      <button class="qbtn" data-range="mtd">MTD</button>
+      <button class="qbtn" data-range="lastmo">Last mo</button>
+      <button class="qbtn" data-range="all">All</button>
+    </div>
+    <button class="ghost" id="moreBtn" type="button">More <span class="ar">▾</span></button>
+    <div class="morefilters" id="moreRow" style="display:none">
+      <div class="fgroup"><span class="fl">Modality</span><div class="seg" id="modseg"></div></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="h0"></select><span class="muted">–</span><select class="dateinp" id="h1"></select></div>
+    </div>
   </div>
   <div class="chips" id="chips" style="margin-bottom:12px"></div>
 
@@ -672,7 +685,22 @@ $('#modseg').innerHTML=MODS.map(([k,l],i)=>`<button data-m="${k}" class="${i===0
 $$('#modseg button').forEach(b=>b.onclick=()=>{const m=b.dataset.m;FIL.mod=m?new Set([m]):new Set();$$('#modseg button').forEach(x=>x.classList.toggle('on',x===b));renderFiltered()});
 for(let h=0;h<24;h++){$('#h0').innerHTML+=`<option value="${h}">${h}:00</option>`;$('#h1').innerHTML+=`<option value="${h}" ${h===23?'selected':''}>${h}:59</option>`}
 $('#h0').onchange=e=>{FIL.h0=+e.target.value;renderFiltered()};$('#h1').onchange=e=>{FIL.h1=+e.target.value;renderFiltered()};
-$('#dfrom').onchange=e=>{FIL.from=e.target.value||null;renderFiltered()};$('#dto').onchange=e=>{FIL.to=e.target.value||null;renderFiltered()};
+$('#dfrom').onchange=e=>{FIL.from=e.target.value||null;markPreset(null);renderFiltered()};$('#dto').onchange=e=>{FIL.to=e.target.value||null;markPreset(null);renderFiltered()};
+// ---- date presets + open-to-last-completed-week (anchored to the newest LOADED date, not the wall clock) ----
+function maxDate(){let m='';for(const r of SLI){const d=r[DT];if(d&&d>m)m=d}return m}
+function isoUTC(d){return d.toISOString().slice(0,10)}
+function lastCompletedWeek(a){const p=a.split('-').map(Number),an=new Date(Date.UTC(p[0],p[1]-1,p[2]));const end=new Date(an);end.setUTCDate(an.getUTCDate()-an.getUTCDay());const mon=new Date(end);mon.setUTCDate(end.getUTCDate()-6);return[isoUTC(mon),isoUTC(end)]}
+function rangeFor(kind){const a=maxDate();if(!a)return[null,null];const p=a.split('-').map(Number),an=new Date(Date.UTC(p[0],p[1]-1,p[2]));
+  if(kind==='wk')return lastCompletedWeek(a);
+  if(kind==='7d'){const s=new Date(an);s.setUTCDate(an.getUTCDate()-6);return[isoUTC(s),a]}
+  if(kind==='mtd')return[a.slice(0,8)+'01',a];
+  if(kind==='lastmo'){const end=new Date(Date.UTC(p[0],p[1]-1,1));end.setUTCDate(0);const st=new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth(),1));return[isoUTC(st),isoUTC(end)]}
+  return[null,null]}
+function setWindow(f,t){FIL.from=f;FIL.to=t;if($('#dfrom'))$('#dfrom').value=f||'';if($('#dto'))$('#dto').value=t||''}
+function markPreset(kind){$$('#presets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.range===kind))}
+$$('#presets .qbtn').forEach(b=>b.onclick=()=>{const[f,t]=rangeFor(b.dataset.range);setWindow(f,t);markPreset(b.dataset.range);renderFiltered()});
+$('#moreBtn').onclick=()=>{const r=$('#moreRow'),open=r.style.display!=='none';r.style.display=open?'none':'flex';const ar=$('#moreBtn').querySelector('.ar');if(ar)ar.textContent=open?'▾':'▴'};
+function applyDefaultWindow(){const a=maxDate();if(!a)return;const[f,t]=lastCompletedWeek(a);if(!SLI.some(r=>r[DT]&&r[DT]>=f&&r[DT]<=t))return;setWindow(f,t);markPreset('wk')}
 function renderChips(){const c=[];FIL[0].forEach(v=>c.push([0,v]));FIL[2].forEach(v=>c.push([2,v]));FIL[1].forEach(v=>c.push([1,v]));if(FIL.mod.size)FIL.mod.forEach(v=>c.push(['mod',MODLABEL[v]||v]));if(FIL.from)c.push(['from','from '+FIL.from]);if(FIL.to)c.push(['to','to '+FIL.to]);if(FIL.h0>0||FIL.h1<23)c.push(['hr',`${FIL.h0}:00–${FIL.h1}:59`]);
   $('#chips').innerHTML=c.length?c.map(([k,v])=>`<span class="chip">${v}<button data-k="${k}" data-v="${String(v).replace(/"/g,'')}">×</button></span>`).join('')+'<button class="clearall" id="clr">Clear all</button>':'';
   $$('#chips .chip button').forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(k==='mod'){FIL.mod=new Set();$$('#modseg button').forEach((x,i)=>x.classList.toggle('on',i===0))}else if(k==='from'){FIL.from=null;$('#dfrom').value=''}else if(k==='to'){FIL.to=null;$('#dto').value=''}else if(k==='hr'){FIL.h0=0;FIL.h1=23;$('#h0').value=0;$('#h1').value=23}else{FIL[k].delete(b.dataset.v)}renderFiltered()});
@@ -1452,7 +1480,7 @@ function wireImport(){
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
 }
-function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
