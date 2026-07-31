@@ -74,6 +74,17 @@
   .hero-meta{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:2px 2px}
   .hero-meta .line{font-size:13.5px;color:var(--ink)}.hero-meta .line.muted{color:var(--ink-2);font-size:12.5px}.hero-meta b{font-weight:680}
   .mut2{color:var(--ink-3);font-size:11px;font-weight:500;margin-left:2px}
+  .wday{margin-bottom:18px}
+  .wday h3{font-size:13.5px;font-weight:680;margin:0 0 8px;color:var(--ink)}
+  .wrow{display:grid;grid-template-columns:52px 1fr 42px;align-items:center;gap:9px;padding:1px 0}
+  .wrow .wh{font-size:11.5px;color:var(--ink-3);text-align:right;font-variant-numeric:tabular-nums}
+  .wrow .wb{height:15px;border-radius:4px;background:var(--surface-2);display:flex;overflow:hidden}
+  .wrow .wb i{display:block;height:100%}
+  .wrow .wn{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;text-align:right}
+  .wrow.zero .wn{color:var(--ink-3);font-weight:500}
+  .wkey{display:flex;gap:13px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);margin:2px 0 14px}
+  .wkey span{display:inline-flex;align-items:center;gap:5px}
+  .wkey i{width:10px;height:10px;border-radius:3px;display:inline-block}
   @media (max-width:880px){.stats,.stats.s4{grid-template-columns:repeat(2,1fr)}}
   /* cards */
   .card{background:var(--surface);border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
@@ -391,6 +402,23 @@
 
   <!-- GAPS — date-specific coverage vs expected demand. The Friday question: for the schedule
        that's loaded, where exactly is this window thin, so it can be called out before it hurts. -->
+  <section class="tab" data-tab="whoson">
+    <div class="scope" id="woScope">Who&#39;s on the schedule</div>
+    <div class="filterbar" style="margin-bottom:12px">
+      <div class="fgroup"><span class="fl">Dates</span><input type="date" class="dateinp" id="woFrom"><span class="muted">–</span><input type="date" class="dateinp" id="woTo"></div>
+      <div class="fgroup" id="woPresets">
+        <button class="qbtn" data-g="wknd">This weekend</button>
+        <button class="qbtn" data-g="7d">Next 7 days</button>
+        <button class="qbtn" data-g="loaded">All loaded</button>
+      </div>
+      <div class="fgroup"><span class="fl">Credential</span><div class="seg" id="woCred" style="flex-wrap:wrap"></div></div>
+      <div class="facet"><button class="ghost" id="woCalBtn" type="button">Calendars: <b id="woCalLbl">All</b> <span class="ar">▾</span></button><div class="pop" id="woCalPop" style="width:288px;overflow:auto"></div></div>
+    </div>
+    <div class="stats s4" id="woStats"></div>
+    <div class="wkey" id="woKey"></div>
+    <div class="card"><div class="bd" id="woBody"></div></div>
+  </section>
+
   <section class="tab" data-tab="gaps">
     <div class="scope" id="gapScope">Shifts vs projected demand · All partners</div>
     <div class="filterbar" style="margin-bottom:14px">
@@ -422,7 +450,7 @@
       <div class="fgroup"><span class="fl">Show</span><div class="seg" id="stMod">
         <button data-m="all" class="on">Combined</button><button data-m="sync">Sync</button><button data-m="async">Async</button></div></div>
       <div class="fgroup"><span class="fl">Demand baseline</span><select class="dateinp" id="stBase"><option value="2">last 2 wks</option><option value="4" selected>last 4 wks</option><option value="8">last 8 wks</option></select></div>
-      <div class="fgroup" style="flex-basis:100%"><span class="fl">Calendars</span><div class="seg" id="stSvc" style="flex-wrap:wrap"></div></div>
+      <div class="facet"><button class="ghost" id="stSvcBtn" type="button">Calendars: <b id="stSvcLbl">All</b> <span class="ar">▾</span></button><div class="pop" id="stSvcPop" style="width:288px;overflow:auto"></div></div>
       <button class="ghost" id="stMoreBtn" type="button">More <span class="ar">▾</span></button>
       <div class="morefilters" id="stMore" style="display:none">
         <div class="fgroup"><span class="fl">Credential</span><div class="seg" id="stCred" style="flex-wrap:wrap"></div></div>
@@ -658,15 +686,19 @@ function laneOf(ct){return ct&&(/video_visit/.test(ct)||/scheduled_video/.test(c
 function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');if(!c)return'';if(c==='MD'||c==='DO')return'Doctor';if(c==='PA'||c==='PAC')return'PA';if(c==='MA')return'MA';if(c==='GC')return'GC';if(c==='MS')return'MS';return'NP'}
 
 // ---------- theme + tabs ----------
-$('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
-const TABS=[['overview','Overview'],['scoreboard','Scoreboard'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['gaps','Gaps'],['states','State coverage'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
+// Theme is remembered across reloads: a picked theme is stored and re-applied on
+// load, so refreshing (or anything that reloads the page) never snaps it back.
+(function(){try{const t=localStorage.getItem('cons-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(_){}})();
+$('#theme').onclick=()=>{const r=document.documentElement,cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  const next=cur==='dark'?'light':'dark';r.setAttribute('data-theme',next);try{localStorage.setItem('cons-theme',next)}catch(_){}};
+const TABS=[['overview','Overview'],['scoreboard','Scoreboard'],['performance','Performance'],['scheduled','Scheduled'],['review','Review'],['consults','Consults'],['whoson','Who\'s on'],['gaps','Gaps'],['states','State coverage'],['shifts','Shifts'],['coverage','Coverage'],['forecast','Forecast'],['incentives','Incentives'],['productivity','Productivity'],['clinicians','Clinicians'],['import','Import'],['users','Users'],['playbook','Guide']];
 const TAB_LABEL=Object.fromEntries(TABS);
 const ADMIN_TABS=new Set(['users','import']);
 // IA: the 14 tab sections are regrouped into 6 top-level SURFACES + a header settings menu. Each
 // surface owns existing tab sections (untouched here — structure only); a sub-nav shows when it
 // owns more than one. Review is its own surface (a cross-cutting queue that can't sit under the
 // filter bar); Import/Users/Guide move to the settings menu.
-const SURFACES=[['overview','Overview',['overview']],['review','Review',['review']],['delivery','Delivery',['scoreboard','performance','scheduled','consults']],['capacity','Capacity',['gaps','states','shifts','coverage','forecast']],['workforce','Workforce',['clinicians','productivity']],['incentives','Incentives',['incentives']]];
+const SURFACES=[['overview','Overview',['overview']],['review','Review',['review']],['delivery','Delivery',['scoreboard','performance','scheduled','consults']],['capacity','Capacity',['whoson','gaps','states','shifts','coverage','forecast']],['workforce','Workforce',['clinicians','productivity']],['incentives','Incentives',['incentives']]];
 const SETTINGS_TABS=['import','users','playbook'];
 const TAB_SURFACE={};SURFACES.forEach(([sk,,tabs])=>tabs.forEach(t=>TAB_SURFACE[t]=sk));
 let ACTIVE_SURFACE='overview';const SURF_LAST={};
@@ -1420,6 +1452,82 @@ function wireGaps(){
       else{GW.from=(GAPS.range&&GAPS.range.min)||null;GW.to=(GAPS.range&&GAPS.range.max)||null}
       $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);renderGaps()})}
 }
+// ---------- WHO'S ON — the plain read: bodies per hour + which states have nobody ----------
+// No demand, no scoring, no heatmap. Bars you can read at a glance.
+let WO={}, WOF={from:null,to:null,cal:new Set(),cred:new Set(),_init:0};
+const WCOL={Doctor:'var(--accent)',NP:'var(--good)',PA:'#7c6bd6',MA:'#d69b2b',GC:'#3aa6a6',MS:'#b06bd6'};
+window.__kickWhosOn=function(){if(WOF._init)return;WOF._init=1;woDefaults();woFetch()};
+async function woFetch(){
+  if(!RANGE_API||!RANGE_API.whosOn){renderWhosOn();return}
+  try{const r=await RANGE_API.whosOn({p_from:WOF.from,p_to:WOF.to,
+      p_service_line:WOF.cal.size?[...WOF.cal]:null,p_cred:WOF.cred.size?[...WOF.cred]:null});
+    if(r&&!r.error)WO=r.data||{};}catch(_){}
+  renderWhosOn()}
+function woDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
+  if(hi&&hi>=t){WOF.from=t;WOF.to=gAdd(t,2)>hi?hi:gAdd(t,2)}else if(hi){WOF.from=gAdd(hi,-2);WOF.to=hi}
+  if($('#woFrom'))$('#woFrom').value=WOF.from||'';if($('#woTo'))$('#woTo').value=WOF.to||''}
+function renderWhosOn(){
+  const bodyEl=$('#woBody');if(!bodyEl)return;
+  const rows=WO.rows||[];
+  $('#woScope').innerHTML=`Who's on the schedule · <b>${WOF.cal.size?[...WOF.cal].join(' + '):'All calendars'}</b> · `
+    +(WOF.from&&WOF.to?gDay(WOF.from)+' – '+gDay(WOF.to):'all loaded')
+    +(WOF.cred.size?' · '+[...WOF.cred].join(', '):'');
+  $('#woKey').innerHTML=CREDS6.map(c=>`<span><i style="background:${WCOL[c]}"></i>${c}</span>`).join('')
+    +'<span class="muted">· hours are the schedule’s own clock</span>';
+  if(!rows.length){$('#woStats').innerHTML='';bodyEl.innerHTML='<div class="empty">No shifts scheduled in this window'
+    +(WO.loaded&&WO.loaded.min?` — the loaded schedule runs <b>${WO.loaded.min} → ${WO.loaded.max}</b>.`:'.')+'</div>';return}
+  const peak=WO.peak||Math.max(...rows.map(r=>r[2]),1);
+  const covered=rows.filter(r=>r[2]>0).length, gapHrs=rows.filter(r=>r[9]>0).length;
+  $('#woStats').innerHTML=[
+    {k:'People on the schedule',v:nf(WO.total_bodies||0),d:'distinct clinicians in this window'},
+    {k:'Busiest hour',v:peak,d:'most on at once'},
+    {k:'Hours with anyone on',v:nf(covered),d:'of '+nf(rows.length)+' hours listed'},
+    {k:'Hours with a state gap',v:nf(gapHrs),d:'some state has nobody licensed on'},
+  ].map(tileHTML).join('');
+  const cals=(WO.calendars||[]).map(c=>c[0]);
+  if(cals.length)calPop('#woCalBtn','#woCalPop','#woCalLbl',cals,WOF.cal,()=>woFetch());
+  const byDay={};rows.forEach(r=>{(byDay[r[0]]=byDay[r[0]]||[]).push(r)});
+  bodyEl.innerHTML=Object.keys(byDay).sort().map(d=>{
+    const hrs=byDay[d];const seen={};hrs.forEach(r=>seen[r[1]]=r);
+    return `<div class="wday"><h3>${gDay(d)}</h3>`+Array.from({length:24},(_,h)=>{
+      const r=seen[h];const tot=r?r[2]:0;
+      const segs=r?CREDS6.map((c,i)=>r[3+i]?`<i style="width:${r[3+i]/peak*100}%;background:${WCOL[c]}" title="${r[3+i]} ${c}"></i>`:'').join(''):'';
+      const gap=r&&r[9]>0?`<span style="color:var(--bad);font-size:11px;margin-left:7px" title="No licensed clinician on for: ${r[10]}">${r[9]} states uncovered</span>`:'';
+      return `<div class="wrow${tot?'':' zero'}"><div class="wh">${h}:00</div>`+
+        `<div class="wb">${segs}</div><div class="wn">${tot||'·'}${''}</div></div>`+
+        (gap?`<div class="wrow" style="padding:0"><div></div><div style="line-height:1">${gap}</div><div></div></div>`:'')}).join('')+`</div>`}).join('');
+}
+function wireWhosOn(){
+  if($('#woFrom')&&!$('#woFrom')._w){$('#woFrom')._w=1;
+    $('#woFrom').onchange=e=>{WOF.from=e.target.value||null;$$('#woPresets .qbtn').forEach(b=>b.classList.remove('on'));woFetch()};
+    $('#woTo').onchange=e=>{WOF.to=e.target.value||null;$$('#woPresets .qbtn').forEach(b=>b.classList.remove('on'));woFetch()};
+    $$('#woPresets .qbtn').forEach(b=>b.onclick=()=>{const k=b.dataset.g,t=gToday();
+      if(k==='wknd'){const wd=gDate(t).getUTCDay();let sat=gAdd(t,(6-wd+7)%7);if(wd===0)sat=gAdd(t,-1);WOF.from=sat;WOF.to=gAdd(sat,1)}
+      else if(k==='7d'){WOF.from=t;WOF.to=gAdd(t,6)}
+      else{WOF.from=(WO.loaded&&WO.loaded.min)||null;WOF.to=(WO.loaded&&WO.loaded.max)||null}
+      $('#woFrom').value=WOF.from||'';$('#woTo').value=WOF.to||'';
+      $$('#woPresets .qbtn').forEach(x=>x.classList.toggle('on',x===b));woFetch()});
+    $('#woCred').innerHTML=CREDS6.map(c=>`<button class="qbtn" data-c="${c}" style="margin:2px">${c}</button>`).join('');
+    $$('#woCred .qbtn').forEach(b=>b.onclick=()=>{const c=b.dataset.c;WOF.cred.has(c)?WOF.cred.delete(c):WOF.cred.add(c);b.classList.toggle('on');woFetch()})}
+  const cals=(WO.calendars||[]).map(c=>c[0]);
+  if(cals.length)calPop('#woCalBtn','#woCalPop','#woCalLbl',cals,WOF.cal,()=>woFetch());
+}
+// A compact multi-pick popover: one button, a scrollable checkbox list, All/None.
+// Long option lists (17+ shift calendars) must never render as inline chips —
+// that buries the actual content under a wall of filter chrome.
+function calPop(btnSel,popSel,lblSel,names,sel,onChange){
+  const btn=$(btnSel),pop=$(popSel),lbl=$(lblSel);if(!btn||!pop)return;
+  const paint=()=>{lbl.textContent=!sel.size?'All':(sel.size===1?[...sel][0]:sel.size+' selected');
+    $$(popSel+' [data-cv]').forEach(b=>b.classList.toggle('on',sel.has(b.dataset.cv)))};
+  pop.innerHTML='<div style="display:flex;gap:6px;padding:2px 4px 7px"><button class="qbtn" data-call="1">All</button><button class="qbtn" data-cnone="1">None</button></div>'+
+    names.map(n=>`<button class="qbtn" data-cv="${String(n).replace(/"/g,'&quot;')}" style="display:block;width:100%;text-align:left;margin:2px 0;border:0;background:0">${n}</button>`).join('');
+  paint();
+  if(!btn._w){btn._w=1;btn.onclick=e=>{e.stopPropagation();const was=pop.classList.contains('open');$$('.pop').forEach(x=>x.classList.remove('open'));if(!was)pop.classList.add('open')};
+    pop.onclick=e=>e.stopPropagation()}
+  $$(popSel+' [data-cv]').forEach(b=>b.onclick=()=>{const v=b.dataset.cv;sel.has(v)?sel.delete(v):sel.add(v);paint();onChange()});
+  $(popSel+' [data-call]').onclick=()=>{sel.clear();paint();onChange()};
+  $(popSel+' [data-cnone]').onclick=()=>{sel.clear();names.forEach(n=>sel.add(n));paint();onChange()};
+}
 // ---------- STAFFING COVERAGE (bodies on the schedule vs observed demand) ----------
 // Server-side (staffing_coverage RPC): needs individual shift rows + licensure the
 // browser doesn't hold. Everything here is BODIES. Verdicts: Covered / Stretched /
@@ -1534,12 +1642,10 @@ function wireStates(){
     $('#stSyncMin').onchange=e=>{SW.syncMin=+e.target.value||17.3;stFetch()};
     $('#stOff').onchange=e=>{SW.off=Math.min(99,Math.max(0,+e.target.value||0));stFetch()};
   }
-  const sv=$('#stSvc');
-  if(sv&&SHIFTS&&SHIFTS.by_service_line&&!sv.children.length){
-    sv.innerHTML=[...SHIFTS.by_service_line].sort((a,b)=>String(a.name).localeCompare(String(b.name)))
-      .map(x=>`<button class="qbtn" data-sv="${String(x.name).replace(/"/g,'&quot;')}" style="margin:2px">${x.name}</button>`).join('');
-    $$('#stSvc .qbtn').forEach(b=>b.onclick=()=>{const v=b.dataset.sv;
-      if(SW.svc.has(v))SW.svc.delete(v);else SW.svc.add(v);b.classList.toggle('on');stFetch()})}
+  if(SHIFTS&&SHIFTS.by_service_line&&SHIFTS.by_service_line.length){
+    calPop('#stSvcBtn','#stSvcPop','#stSvcLbl',
+      [...SHIFTS.by_service_line].map(x=>x.name).sort((a,b)=>String(a).localeCompare(String(b))),
+      SW.svc, ()=>stFetch())}
 }
 function stSyncDow(){$$('#stDow .qbtn').forEach(b=>b.classList.toggle('on',SW.dow.has(+b.dataset.d)))}
 // ---------- FORECAST (demand vs coverage, next-week load) ----------
@@ -1787,7 +1893,7 @@ function wireImport(){
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
 }
-function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();wireGaps();renderGaps();wireStates();renderStates();wireWinbars();winNotes();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();wireGaps();renderGaps();wireWhosOn();renderWhosOn();wireStates();renderStates();wireWinbars();winNotes();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>
@@ -1870,9 +1976,10 @@ if(SLI.length||Object.keys(CD).length)boot();
       incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
       staffing:(a)=>sb.rpc('staffing_coverage',a),
       staffingEntities:(a)=>sb.rpc('staffing_entities',a),
+      whosOn:(a)=>sb.rpc('whos_on',a),
     });
     Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
-      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); })
+      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); if(window.__kickWhosOn)window.__kickWhosOn(); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
   }
   function denied(em){ body.innerHTML='<div class="lead">You’re signed in as <b>'+H(em||'this account')+'</b>, but it isn’t provisioned for the console yet. Ask an admin to add you, then reload.</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; }

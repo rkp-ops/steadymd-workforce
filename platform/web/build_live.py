@@ -117,9 +117,10 @@ AUTH_JS = r"""
       incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
       staffing:(a)=>sb.rpc('staffing_coverage',a),
       staffingEntities:(a)=>sb.rpc('staffing_entities',a),
+      whosOn:(a)=>sb.rpc('whos_on',a),
     });
     Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
-      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); })
+      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); if(window.__kickWhosOn)window.__kickWhosOn(); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
   }
   function denied(em){ body.innerHTML='<div class="lead">You’re signed in as <b>'+H(em||'this account')+'</b>, but it isn’t provisioned for the console yet. Ask an admin to add you, then reload.</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; }
@@ -231,6 +232,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "Bodies on shift, by hour","const CREDS6=",  # by-hour x credential staffing grid
           "staffing_entities","Hours counted — by calendar",'id="stEntBody"',  # verifiable calendar provenance
           "never averaged",  # whole people per day; averaging across days (0.5 of a person) is banned
+          'data-tab="whoson"',"function renderWhosOn","whos_on","states uncovered","function calPop",  # plain coverage read + per-hour state gaps + compact calendar picker
+          "cons-theme",  # theme choice survives reload (no more snapping back on refresh)
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")
