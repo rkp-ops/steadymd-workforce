@@ -115,7 +115,7 @@ AUTH_JS = r"""
       coverage:  (f,t)=>sb.rpc('coverage_grid',    {p_from:f,p_to:t}),
       demand:    (f,t)=>sb.rpc('demand_grid',      {p_from:f,p_to:t}),
       incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
-      stateCoverage:(a)=>sb.rpc('state_coverage',a),
+      staffing:(a)=>sb.rpc('staffing_coverage',a),
     });
     Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
       .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); })
@@ -222,9 +222,12 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           'data-tab="scheduled"', "renderScheduled",  # dedicated Scheduled lane tab
           "chunkCsvText","CHUNK_ROWS=12000","uploadParts",  # console-side row-bounded Load chunking (durable non-2xx fix)
           "reconcile_partner_snapshot",  # one clean whole-load volume snapshot after chunked Load
-          'data-tab="states"',"function renderStates","function stFetch","__setStateCov","state_coverage",  # state-license coverage view + RPC
-          "load per licensed clinician","licensure-based, not partner-routed",  # honest supply labeling (not partner-routed)
-          'id="stPresets"','id="stCred"',"All 51 states",  # capacity facets on the state view: presets, credential buckets, full-51 table
+          'data-tab="states"',"function renderStates","function stFetch","staffing_coverage","__setStaffing",  # staffing coverage view + RPC
+          "Covered","Stretched","Exposed","rests on off-shift pickup",  # calibrated verdicts + the discretionary-labour dependency
+          "Sync gets no staffing band",  # sync: concurrency only, no invented band
+          "is ONE body",  # shared-pool rule stated in the UI (no per-state capacity double-count)
+          'id="stDow"','id="stMod"','id="stCred"','id="stClr"',  # day picker, sync/async toggle, credential buckets, rate overrides
+          "Bodies on shift, by hour","const CREDS6=",  # by-hour x credential staffing grid
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
 print("checks ok")

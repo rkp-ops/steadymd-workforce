@@ -385,7 +385,7 @@
   </section>
 
   <section class="tab" data-tab="states">
-    <div class="scope" id="stScope">State-license coverage · licensed &amp; scheduled vs observed demand</div>
+    <div class="scope" id="stScope">Staffing coverage · bodies on the schedule vs observed demand</div>
     <div class="filterbar" id="stBar" style="margin-bottom:14px">
       <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="stFrom"><span class="muted">–</span><input type="date" class="dateinp" id="stTo"></div>
       <div class="fgroup" id="stPresets">
@@ -393,19 +393,26 @@
         <button class="qbtn" data-g="7d">Next 7 days</button>
         <button class="qbtn" data-g="loaded">Loaded schedule</button>
       </div>
+      <div class="fgroup"><span class="fl">Days</span><div class="seg" id="stDow" style="flex-wrap:wrap"></div></div>
+      <div class="fgroup"><span class="fl">Show</span><div class="seg" id="stMod">
+        <button data-m="all" class="on">Combined</button><button data-m="sync">Sync</button><button data-m="async">Async</button></div></div>
       <div class="fgroup"><span class="fl">Demand baseline</span><select class="dateinp" id="stBase"><option value="2">last 2 wks</option><option value="4" selected>last 4 wks</option><option value="8">last 8 wks</option></select></div>
       <button class="ghost" id="stMoreBtn" type="button">More <span class="ar">▾</span></button>
       <div class="morefilters" id="stMore" style="display:none">
-        <div class="fgroup"><span class="fl">Service line</span><select class="dateinp" id="stSvc"><option value="">All service lines</option></select></div>
+        <div class="fgroup"><span class="fl">Service line</span><select class="dateinp" id="stSvc"><option value="">All (coverage-counted)</option></select></div>
         <div class="fgroup"><span class="fl">Credential</span><div class="seg" id="stCred" style="flex-wrap:wrap"></div></div>
         <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="stH0"></select><span class="muted">–</span><select class="dateinp" id="stH1"></select></div>
+        <div class="fgroup"><span class="fl">Clears/hr</span><input class="dateinp" id="stClr" type="number" min="1" step="0.5" style="width:66px"></div>
+        <div class="fgroup"><span class="fl">Sync min</span><input class="dateinp" id="stSyncMin" type="number" min="1" step="0.1" style="width:66px"></div>
+        <div class="fgroup"><span class="fl">Off-shift %</span><input class="dateinp" id="stOff" type="number" min="0" max="99" step="1" style="width:60px"></div>
       </div>
     </div>
-    <div class="stats s4" id="stStats"></div>
-    <div class="card"><div class="hd"><h2>Where it's thin — states by load per licensed clinician</h2><span class="desc">demand ÷ licensed-and-scheduled · <b>uncovered</b> = demand with zero licensed clinician on shift · licensure-based, not partner-routed</span></div>
-      <div class="bd"><div class="rank" id="stList"></div></div></div>
-    <div class="card"><div class="hd"><h2>All 51 states</h2><span class="desc">avg daily demand (baseline) vs licensed clinicians scheduled (window) · gaps first, then busiest</span></div>
-      <div style="overflow:auto"><table id="stTbl"><thead><tr><th>State</th><th class="r">Avg daily demand</th><th class="r">Licensed &amp; scheduled</th><th class="r">Load / clinician</th><th class="r">Status</th></tr></thead><tbody id="stBody"></tbody></table></div></div>
+    <div class="ovhero" id="stHero"></div>
+    <div class="card"><div class="hd"><h2>Bodies on shift, by hour</h2><span class="desc" id="stGridDesc">clinicians scheduled in each hour, by credential</span></div>
+      <div style="overflow:auto"><table id="stHrTbl"><thead><tr id="stHrHead"></tr></thead><tbody id="stHrBody"></tbody></table></div>
+      <div class="bd"><div class="heat" id="stHeat" style="display:grid;gap:3px"></div><div class="muted" id="stHeatNote" style="font-size:11.5px;margin-top:9px"></div></div></div>
+    <div class="card"><div class="hd"><h2>By state</h2><span class="desc">bodies licensed <b>and</b> scheduled vs arrivals · <b>gap</b> = demand with zero licensed body on shift · one clinician licensed in N states is ONE body, so this is not per-state capacity</span></div>
+      <div style="overflow:auto"><table id="stTbl"><thead><tr id="stStHead"></tr></thead><tbody id="stBody"></tbody></table></div></div>
   </section>
 
   <section class="tab" data-tab="shifts">
@@ -1386,43 +1393,87 @@ function wireGaps(){
       else{GW.from=(GAPS.range&&GAPS.range.min)||null;GW.to=(GAPS.range&&GAPS.range.max)||null}
       $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);renderGaps()})}
 }
-// ---------- STATE-LICENSE COVERAGE (all 51 states: licensed+scheduled supply vs observed demand) ----------
-// Server-side (state_coverage RPC): the licensure join needs individual shift rows the browser
-// doesn't hold. Every filter refetches — the window is never static.
-let STC={rows:[]}, SW={from:null,to:null,base:4,svc:new Set(),cred:new Set(),h0:0,h1:23,_init:0};
-window.__setStateCov=function(d){STC=d&&d.rows?d:{rows:[]};renderStates()};
+// ---------- STAFFING COVERAGE (bodies on the schedule vs observed demand) ----------
+// Server-side (staffing_coverage RPC): needs individual shift rows + licensure the
+// browser doesn't hold. Everything here is BODIES. Verdicts: Covered / Stretched /
+// Exposed, calibrated from this operation's own history. Every control refetches.
+let STC={}, SW={from:null,to:null,base:4,svc:new Set(),cred:new Set(),dow:new Set(),
+              h0:0,h1:23,mod:'all',clr:7,syncMin:17.3,off:69,_init:0};
+const SDOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];   // isodow 1..7
+const CREDS6=['Doctor','NP','PA','MA','GC','MS'];
+window.__setStaffing=function(d){STC=d||{};renderStates()};
 window.__kickStateCov=function(){if(SW._init)return;SW._init=1;stDefaults();stFetch()};
 async function stFetch(){
-  if(!RANGE_API||!RANGE_API.stateCoverage){renderStates();return}
+  if(!RANGE_API||!RANGE_API.staffing){renderStates();return}
   const bar=$('#stBar');if(bar)bar.style.opacity=.55;
-  try{const r=await RANGE_API.stateCoverage({p_from:SW.from,p_to:SW.to,p_base_weeks:SW.base,
-      p_service_line:SW.svc.size?[...SW.svc]:null,p_cred:SW.cred.size?[...SW.cred]:null,p_hour0:SW.h0,p_hour1:SW.h1});
-    if(r&&!r.error){STC=r.data&&r.data.rows?r.data:{rows:[]};renderStates()}}
+  try{const r=await RANGE_API.staffing({p_from:SW.from,p_to:SW.to,p_base_weeks:SW.base,
+      p_service_line:SW.svc.size?[...SW.svc]:null,p_cred:SW.cred.size?[...SW.cred]:null,
+      p_hour0:SW.h0,p_hour1:SW.h1,p_dow:SW.dow.size?[...SW.dow]:null,
+      p_clear_per_hr:SW.clr,p_sync_min:SW.syncMin,p_offshift:SW.off/100});
+    if(r&&!r.error)STC=r.data||{};}
   catch(_){}
-  if(bar)bar.style.opacity=''}
+  if(bar)bar.style.opacity='';renderStates()}
 function stDefaults(){const lo=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.min,hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
   if(hi&&hi>=t){SW.from=t;SW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markStPreset('7d')}
   else if(hi){SW.from=gAdd(hi,-6)<lo?lo:gAdd(hi,-6);SW.to=hi;markStPreset('loaded')}
-  if($('#stFrom'))$('#stFrom').value=SW.from||'';if($('#stTo'))$('#stTo').value=SW.to||''}
+  if($('#stFrom'))$('#stFrom').value=SW.from||'';if($('#stTo'))$('#stTo').value=SW.to||'';
+  if($('#stClr'))$('#stClr').value=SW.clr;if($('#stSyncMin'))$('#stSyncMin').value=SW.syncMin;if($('#stOff'))$('#stOff').value=SW.off}
 function markStPreset(k){$$('#stPresets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.g===k))}
+function vTone(v){return v==='Covered'?'good':v==='Stretched'?'warn':'bad'}
 function renderStates(){
-  const list=$('#stList');if(!list)return;
-  const rows=STC.rows||[],bl=STC.baseline;
-  $('#stScope').innerHTML=`State-license coverage · <b>All partners</b> · ${SW.from&&SW.to?gDay(SW.from)+' – '+gDay(SW.to):'all loaded'}${bl?` · demand baseline last ${bl.weeks} wks (${bl.from} → ${bl.to})`:''}`;
-  if(!rows.length){$('#stStats').innerHTML='';list.innerHTML='<div class="empty">No schedule loaded — upload the Arya shift export via Settings → Import and this fills in.</div>';if($('#stBody'))$('#stBody').innerHTML='';return}
-  const X=rows.map(r=>({st:r[0],dem:+r[1],sup:+r[2],gap:!!r[3],load:(+r[2])>0?(+r[1])/(+r[2]):((+r[1])>0?Infinity:0)}));
-  const demSt=X.filter(x=>x.dem>0),gaps=X.filter(x=>x.gap),ranked=[...demSt].sort((a,b)=>b.load-a.load),thin=ranked[0];
-  const totDem=X.reduce((s,x)=>s+x.dem,0);
-  $('#stStats').innerHTML=[
-    {k:'States with demand',v:demSt.length,d:'of 51'},
-    {k:'Hard gaps',v:gaps.length,d:'demand · zero licensed on shift'},
-    {k:'Thinnest state',v:thin?thin.st:'—',d:thin?(isFinite(thin.load)?`${thin.load.toFixed(1)} consults / licensed clinician`:'no licensed coverage'):''},
-    {k:'Avg daily demand',v:nf(Math.round(totDem)),d:'across all states'},
-  ].map(tileHTML).join('');
-  const weak=ranked.filter(x=>x.gap||x.load>=2).slice(0,14),mx=Math.max(...weak.filter(x=>isFinite(x.load)).map(x=>x.load),1);
-  list.innerHTML=weak.length?weak.map(x=>{const val=x.gap?'no cover':x.load.toFixed(1)+'/clin',col=x.gap||x.load>=5?'var(--bad)':'var(--warn)';
-    return `<div class="rk" style="cursor:default"><div class="lab">${x.st}<small>${x.dem.toFixed(1)}/day demand · ${x.sup} licensed on shift${x.gap?' · <b style="color:var(--bad)">uncovered</b>':''}</small></div><div class="val tnum" style="color:${col}">${val}</div><div class="track"><i style="width:${x.gap?100:Math.max(3,Math.min(100,x.load/mx*100))}%;background:${col}"></i></div></div>`}).join(''):'<div class="empty">Every state with demand has licensed clinicians scheduled — nothing thin in this window.</div>';
-  if($('#stBody'))$('#stBody').innerHTML=X.map(x=>`<tr><td><b>${x.st}</b></td><td class="r tnum">${x.dem.toFixed(1)}</td><td class="r tnum">${x.sup}</td><td class="r tnum">${x.dem>0&&x.sup>0?x.load.toFixed(1):(x.gap?'<span style="color:var(--bad)">∞</span>':'—')}</td><td class="r">${x.gap?'<span style="color:var(--bad);font-weight:700">gap</span>':x.sup>0?'<span class="muted">ok</span>':'<span class="muted">—</span>'}</td></tr>`).join('');
+  const hero=$('#stHero');if(!hero)return;
+  const P=STC.pool,bl=STC.baseline,W=STC.window||{},as=STC.assumptions||{};
+  const dowTxt=SW.dow.size?[...SW.dow].sort().map(d=>SDOW[d-1]).join(' '):'all days';
+  $('#stScope').innerHTML=`Staffing coverage · <b>${SW.svc.size?[...SW.svc].join(', '):'All coverage-counted'}</b> · ${SW.from&&SW.to?gDay(SW.from)+' – '+gDay(SW.to):'all loaded'} · ${dowTxt}`
+    +(bl?` · demand baseline last ${bl.weeks} wks (${bl.from} → ${bl.to})`:'');
+  if(!P||!P.bodies){hero.innerHTML='<div class="empty" style="flex-basis:100%">No schedule loaded for this window. Upload the Arya export covering it via Settings → Import.</div>';
+    $('#stHrHead').innerHTML='';$('#stHrBody').innerHTML='';$('#stHeat').innerHTML='';$('#stHeatNote').textContent='';
+    $('#stStHead').innerHTML='';$('#stBody').innerHTML='';return}
+  const showA=SW.mod!=='sync', showS=SW.mod!=='async';
+  const gap=Math.max(0,(P.async_per_day||0)-(P.sched_capacity_per_day||0));
+  hero.innerHTML=
+    `<div class="hero-sla"><div class="k">Coverage</div><div class="v" style="color:var(--${vTone(P.verdict)})">${P.verdict}</div>`+
+    `<div class="d">${nf(P.bodies)} bodies · ${nf(P.body_hours)} scheduled hours</div></div>`+
+    `<div class="hero-meta">`+
+      (showA?`<div class="line"><b>${nf(P.async_per_day)}</b> async arrivals/day vs <b>${nf(P.sched_capacity_per_day)}</b> the schedule covers`+
+        (gap>0?` · <span style="color:var(--${vTone(P.verdict)})">${nf(gap)}/day rests on off-shift pickup</span>`:'')+`</div>`:'')+
+      (showA?`<div class="line muted">${P.load_per_body_hour} async per scheduled body-hour · SLA historically slips past ~13.5</div>`:'')+
+      (showS?`<div class="line"><b>${nf(P.sync_per_day)}</b> sync arrivals/day · <b>${P.sync_bodies_needed}</b> bodies tied up at once (${as.sync_min||17.3}m each)</div>`:'')+
+      (showS?`<div class="line muted">Sync gets no staffing band — adding bodies has not moved sync attainment; the misses are structural.</div>`:'')+
+    `</div>`;
+  // ---- bodies by hour x credential (averaged across the selected days) ----
+  const byH=STC.by_hour||[],days=new Set(byH.map(r=>r[0]));
+  const agg={};byH.forEach(r=>{const h=r[1];const a=agg[h]=agg[h]||{n:0,tot:0,c:[0,0,0,0,0,0]};
+    a.n++;a.tot+=r[2];for(let i=0;i<6;i++)a.c[i]+=r[3+i]});
+  const nd=Math.max(days.size,1),avg=nd>1;
+  $('#stGridDesc').textContent=`clinicians scheduled in each hour, by credential${avg?` · average across the ${nd} selected days`:''} · Central time`;
+  $('#stHrHead').innerHTML=['Hour',...CREDS6,'Total'].map((c,i)=>`<th class="${i?'r':''}">${c}</th>`).join('');
+  const hrs=Object.keys(agg).map(Number).sort((a,b)=>a-b);
+  $('#stHrBody').innerHTML=hrs.length?hrs.map(h=>{const a=agg[h],d=x=>avg?Math.round(x/nd*10)/10:x;
+    return `<tr><td><b>${h}:00</b></td>`+a.c.map(v=>`<td class="r tnum${v?'':' muted'}">${d(v)||'—'}</td>`).join('')+
+      `<td class="r tnum"><b>${d(a.tot)}</b></td></tr>`}).join(''):'<tr><td colspan="8" class="muted">No scheduled hours in this slice.</td></tr>';
+  // ---- day x hour heatmap of bodies (never hides a per-day dip behind an average) ----
+  const heat=$('#stHeat'),dows=[...days].sort((a,b)=>a-b),mx=Math.max(...byH.map(r=>r[2]),1);
+  heat.style.gridTemplateColumns='52px repeat(24,1fr)';
+  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
+  dows.forEach(dw=>{html+=`<div class="hmlab">${SDOW[dw-1]}</div>`;
+    for(let h=0;h<24;h++){const c=byH.find(r=>r[0]===dw&&r[1]===h);
+      if(!c||!c[2]){html+='<div class="hmcell empty">·</div>';continue}
+      const hue=Math.round(Math.min(1,c[2]/mx)*145);
+      html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${SDOW[dw-1]} ${h}:00 · ${c[2]} on shift (${CREDS6.map((n,i)=>c[3+i]?c[3+i]+' '+n:'').filter(Boolean).join(', ')||'—'})">${c[2]}</div>`}});
+  heat.innerHTML=dows.length?html:'<div class="empty" style="grid-column:1/-1">No scheduled hours in this slice.</div>';
+  $('#stHeatNote').textContent='cell = bodies on shift that hour · hover for the credential split';
+  // ---- by state ----
+  const rows=STC.by_state||[];
+  const cols=['State',...(showA?['Async/day']:[]),...(showS?['Sync/day']:[]),'Licensed & scheduled','Status'];
+  $('#stStHead').innerHTML=cols.map((c,i)=>`<th class="${i?'r':''}">${c}</th>`).join('');
+  $('#stBody').innerHTML=rows.length?rows.map(r=>{const [st,a,s,b,hg]=r;
+    if(!showA&&!s&&!b&&!hg)return '';
+    return `<tr><td><b>${st}</b></td>`+
+      (showA?`<td class="r tnum">${a||'—'}</td>`:'')+(showS?`<td class="r tnum">${s||'—'}</td>`:'')+
+      `<td class="r tnum">${b}</td>`+
+      `<td class="r">${hg?'<span style="color:var(--bad);font-weight:700">gap</span>':(b>0?'<span class="muted">staffed</span>':'<span class="muted">—</span>')}</td></tr>`}).join(''):
+    '<tr><td colspan="5" class="muted">No demand or licensure in this slice.</td></tr>';
 }
 function wireStates(){
   if($('#stFrom')&&!$('#stFrom')._w){$('#stFrom')._w=1;
@@ -1434,15 +1485,24 @@ function wireStates(){
       if(k==='wknd'){const wd=gDate(t).getUTCDay();let sat=gAdd(t,(6-wd+7)%7);if(wd===0)sat=gAdd(t,-1);SW.from=sat;SW.to=gAdd(sat,1)}
       else if(k==='7d'){SW.from=t;SW.to=gAdd(t,6)}
       else{SW.from=(SHIFTS.loaded&&SHIFTS.loaded.min)||null;SW.to=(SHIFTS.loaded&&SHIFTS.loaded.max)||null}
-      $('#stFrom').value=SW.from||'';$('#stTo').value=SW.to||'';markStPreset(k);stFetch()});
+      $('#stFrom').value=SW.from||'';$('#stTo').value=SW.to||'';SW.dow=new Set();stSyncDow();markStPreset(k);stFetch()});
+    $('#stDow').innerHTML=SDOW.map((d,i)=>`<button class="qbtn" data-d="${i+1}" style="margin:2px">${d}</button>`).join('');
+    $$('#stDow .qbtn').forEach(b=>b.onclick=()=>{const d=+b.dataset.d;if(SW.dow.has(d))SW.dow.delete(d);else SW.dow.add(d);b.classList.toggle('on');stFetch()});
+    $$('#stMod button').forEach(b=>b.onclick=()=>{SW.mod=b.dataset.m;$$('#stMod button').forEach(x=>x.classList.toggle('on',x===b));renderStates()});
     $('#stMoreBtn').onclick=()=>{const r=$('#stMore'),open=r.style.display!=='none';r.style.display=open?'none':'flex';const a=$('#stMoreBtn').querySelector('.ar');if(a)a.textContent=open?'▾':'▴'};
-    $('#stCred').innerHTML=['Doctor','NP','PA','MA','GC','MS'].map(c=>`<button class="qbtn" data-c="${c}" style="margin:2px">${c}</button>`).join('');
+    $('#stCred').innerHTML=CREDS6.map(c=>`<button class="qbtn" data-c="${c}" style="margin:2px">${c}</button>`).join('');
     $$('#stCred .qbtn').forEach(b=>b.onclick=()=>{const c=b.dataset.c;if(SW.cred.has(c))SW.cred.delete(c);else SW.cred.add(c);b.classList.toggle('on');stFetch()});
     for(let h=0;h<24;h++){$('#stH0').innerHTML+=`<option value="${h}">${h}:00</option>`;$('#stH1').innerHTML+=`<option value="${h}" ${h===23?'selected':''}>${h}:59</option>`}
     $('#stH0').onchange=e=>{SW.h0=+e.target.value;stFetch()};$('#stH1').onchange=e=>{SW.h1=+e.target.value;stFetch()};
+    $('#stClr').onchange=e=>{SW.clr=+e.target.value||7;stFetch()};
+    $('#stSyncMin').onchange=e=>{SW.syncMin=+e.target.value||17.3;stFetch()};
+    $('#stOff').onchange=e=>{SW.off=Math.min(99,Math.max(0,+e.target.value||0));stFetch()};
   }
-  const sv=$('#stSvc');if(sv&&SHIFTS&&SHIFTS.by_service_line&&sv.options.length<=1){[...SHIFTS.by_service_line].sort((a,b)=>String(a.name).localeCompare(String(b.name))).forEach(s=>{const o=document.createElement('option');o.value=s.name;o.textContent=s.name;sv.appendChild(o)})}
+  const sv=$('#stSvc');if(sv&&SHIFTS&&SHIFTS.by_service_line&&sv.options.length<=1){
+    [...SHIFTS.by_service_line].sort((a,b)=>String(a.name).localeCompare(String(b.name))).forEach(s=>{
+      const o=document.createElement('option');o.value=s.name;o.textContent=s.name;sv.appendChild(o)})}
 }
+function stSyncDow(){$$('#stDow .qbtn').forEach(b=>b.classList.toggle('on',SW.dow.has(+b.dataset.d)))}
 // ---------- FORECAST (demand vs coverage, next-week load) ----------
 function renderForecast(){
   const dg=DEM.grid||[], cg=COV.grid||[];
