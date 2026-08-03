@@ -113,6 +113,14 @@
   .rk .drill{color:var(--ink-3);font-size:11px}
   /* tables */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
+  /* 3.4 One numeric treatment for every table. .r is the pre-existing spelling and
+     stays as an alias so no markup has to change to get the behaviour. */
+  .num,td.num,th.num,td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+  tbody td.num,tbody td.r{font-weight:500}
+  /* Pinned columns. Every column gets an explicit width except the single text
+     column left to absorb the slack, which is what kills the dead gap mid-table. */
+  table.fx{table-layout:fixed}
+  table.fx td,table.fx th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   thead th{position:sticky;top:0;background:var(--surface-2);z-index:2;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);padding:8px 12px;border-bottom:1px solid var(--border-2);white-space:nowrap;cursor:pointer;user-select:none}
   thead th.r{text-align:right}thead th:hover{color:var(--ink)}th .ar{opacity:.55;font-size:9px}
   tbody td{padding:8px 12px;height:36px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -470,7 +478,7 @@
     </div>
     <div class="ovhero" id="stHero"></div>
     <div class="card"><div class="hd"><h2>Hours counted — by calendar</h2><span class="desc">exactly which shift calendars feed the numbers above, and what was left out. If this doesn't say what you expect, the filter is wrong.</span></div>
-      <div style="overflow:auto"><table id="stEntTbl"><thead><tr><th>Calendar</th><th class="r">Bodies</th><th class="r">Scheduled hours</th><th>Counted?</th></tr></thead><tbody id="stEntBody"></tbody></table></div></div>
+      <div style="overflow:auto"><table id="stEntTbl" class="fx"><colgroup><col><col style="width:90px"><col style="width:130px"><col style="width:320px"></colgroup><thead><tr><th>Calendar</th><th class="r">Bodies</th><th class="r">Scheduled hours</th><th>Counted?</th></tr></thead><tbody id="stEntBody"></tbody></table></div></div>
     <div class="card"><div class="hd"><h2>Bodies on shift, by hour</h2><span class="desc" id="stGridDesc">whole clinicians scheduled in each hour, by credential — one row per day, never averaged</span></div>
       <div style="overflow:auto"><table id="stHrTbl"><thead><tr id="stHrHead"></tr></thead><tbody id="stHrBody"></tbody></table></div>
       <div class="bd"><div class="heat" id="stHeat" style="display:grid;gap:3px"></div><div class="muted" id="stHeatNote" style="font-size:11.5px;margin-top:9px"></div></div></div>
@@ -636,7 +644,7 @@
     <div class="card" style="margin-bottom:0">
       <div class="hd"><h2>People with access</h2><span class="desc" id="usCount"></span></div>
       <div class="bd" style="padding-top:4px">
-        <div class="tscroll"><table id="usTable"><thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Last seen</th><th class="r">Views</th><th class="r">Manage</th></tr></thead><tbody id="usBody"></tbody></table></div>
+        <div class="tscroll"><table id="usTable" class="fx"><colgroup><col><col style="width:120px"><col style="width:110px"><col style="width:130px"><col style="width:90px"></colgroup><thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Last seen</th><th class="r">Views</th><th class="r">Manage</th></tr></thead><tbody id="usBody"></tbody></table></div>
         <div class="adderr" id="us-lerr" style="padding:8px 2px 0"></div>
       </div>
     </div>
@@ -871,7 +879,8 @@ function renderPerf(rows){
     {k:'P90 wait',v:fmtDur(o.p90),d:'9 in 10 faster'},
     {k:'SLIs in view',v:nf(o.scored),d:'after filters'},
   ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
-  const parts=agg(rows,P),mx=Math.max(...parts.map(p=>p.n),1),cols=[['name','Partner',0],['n','Volume',1],['pct','SLA %',1],['avg','Avg wait',1],['miss','Missed',1]];
+  const parts=agg(rows,P),mx=Math.max(...parts.map(p=>p.n),1),cols=[['name','Partner',0,''],['n','Volume',1,'110px'],['pct','SLA %',1,'90px'],['avg','Avg wait',1,'110px'],['miss','Missed',1,'90px']];
+  clFix('#phead',cols.map(c=>({w:c[3]})));
   $('#phead').innerHTML=cols.map(c=>`<th class="${c[2]?'r':''}" data-k="${c[0]}">${c[1]} ${PSORT.k===c[0]?`<span class="ar">${PSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');
   $$('#phead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(PSORT.k===k)PSORT.dir*=-1;else{PSORT.k=k;PSORT.dir=k==='name'?1:-1}renderPerf(slice())});
   const sorted=[...parts].sort((a,b)=>{let x=PSORT.k==='miss'?(a.n-a.met):a[PSORT.k],y=PSORT.k==='miss'?(b.n-b.met):b[PSORT.k];if(typeof x==='string')return PSORT.dir*x.localeCompare(y);return PSORT.dir*((x||0)-(y||0))});
@@ -986,7 +995,12 @@ function dl(text,name){const b=new Blob([text],{type:'text/csv'}),a=document.cre
 // ---------- CLINICIANS (ported) ----------
 const STATUS=[{k:'all',l:'All',c:'var(--ink-3)'},{k:'active',l:'Active',c:'var(--good)'},{k:'inactive',l:'Inactive',c:'var(--warn)'},{k:'NEEDS-CORRECTION',l:'Needs fix',c:'var(--bad)'},{k:'ADD-TO-ROSTER',l:'Add-queue',c:'var(--flag)'}];
 const TIERS=[{k:'all',l:'All tiers'},{k:'seat',l:'Seats'},{k:'support',l:'Support'}];
-const COLS=[{k:'n',l:'Clinician'},{k:'c',l:'Cred'},{k:'npi',l:'NPI'},{k:'ls',l:'States',r:1,num:x=>x.ls.length},{k:'pr',l:'Programs',sm:1},{k:'ct',l:'Consults',r:1,num:x=>x.ct},{k:'la',l:'Last active',r:1},{k:'st',l:'Status'}];
+const COLS=[{k:'n',l:'Clinician',w:'220px'},{k:'c',l:'Cred',w:'120px'},{k:'npi',l:'NPI',w:'120px'},{k:'ls',l:'States',r:1,w:'90px',num:x=>x.ls.length},{k:'pr',l:'Programs',sm:1},{k:'ct',l:'Consults',r:1,w:'90px',num:x=>x.ct},{k:'la',l:'Last active',r:1,w:'110px'},{k:'st',l:'Status',w:'90px'}];
+// Programs has no width on purpose: it is the one text column that absorbs the slack.
+function clFix(headSel,cols){const tr=$(headSel);if(!tr)return;const t=tr.closest('table');if(!t)return;
+  t.classList.add('fx');const old=t.querySelector('colgroup');if(old)old.remove();
+  t.insertAdjacentHTML('afterbegin',colgroup(cols));}
+function colgroup(cols){return '<colgroup>'+cols.map(c=>`<col${c.w?` style="width:${c.w}"`:''}>`).join('')+'</colgroup>'}
 let CF={q:'',status:'all',tier:'all',ls:new Set(),c:new Set(),pr:new Set(),pa:new Set(),actstate:false},CSORT={k:'la',dir:-1};
 function fc(key){const m=new Map();DATA.forEach(d=>{const v=key==='c'?credClass(d.c):d[key];(Array.isArray(v)?v:[v]).forEach(x=>{if(x)m.set(x,(m.get(x)||0)+1)})});return[...m.entries()].sort((a,b)=>String(a[0]).localeCompare(String(b[0])))}
 function buildCPop(key){const pop=$(`[data-cpop="${key}"]`),opts=fc(key);pop.innerHTML='<input placeholder="Filter…"><div class="opts"></div>';const box=pop.querySelector('.opts');const draw=(t='')=>{box.innerHTML='';opts.filter(([v])=>v.toLowerCase().includes(t.toLowerCase())).forEach(([v,c])=>{const o=document.createElement('label');o.className='opt';o.innerHTML=`<input type="checkbox" ${CF[key].has(v)?'checked':''}><span>${v}</span><span class="ct">${c}</span>`;o.querySelector('input').onchange=e=>{e.target.checked?CF[key].add(v):CF[key].delete(v);renderCl()};box.appendChild(o)})};draw();pop.querySelector('input').oninput=e=>draw(e.target.value)}
@@ -1030,7 +1044,7 @@ async function doAdd(d,confirm,btn,errEl){
     if(errEl){errEl.textContent=msg}else{btn.title=msg;btn.textContent='Retry';btn.classList.add('addbtn-err')}
   }
 }
-function renderCl(){renderClStats();renderClChips();$('#head').innerHTML=COLS.map(c=>`<th class="${c.r?'r':''} ${c.sm?'hide-sm':''}" data-k="${c.k}">${c.l} ${CSORT.k===c.k?`<span class="ar">${CSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');$$('#head th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='ct')return;if(CSORT.k===k)CSORT.dir*=-1;else{CSORT.k=k;CSORT.dir=(k==='n'||k==='c'||k==='la'||k==='st')?1:-1}renderCl()});
+function renderCl(){renderClStats();renderClChips();clFix('#head',COLS);$('#head').innerHTML=COLS.map(c=>`<th class="${c.r?'r':''} ${c.sm?'hide-sm':''}" data-k="${c.k}">${c.l} ${CSORT.k===c.k?`<span class="ar">${CSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');$$('#head th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='ct')return;if(CSORT.k===k)CSORT.dir*=-1;else{CSORT.k=k;CSORT.dir=(k==='n'||k==='c'||k==='la'||k==='st')?1:-1}renderCl()});
   const list=csort(DATA.filter(cmatch));$('#shown').textContent=list.length;$('#tot2').textContent=DATA.length;const body=$('#body');
   if(!list.length){body.innerHTML=`<tr><td colspan="${COLS.length}"><div class="empty">No clinicians match.</div></td></tr>`;return}
   body.innerHTML=list.slice(0,600).map(d=>{const active=d.as.length;return `<tr data-id="${(d.npi||d.n).replace(/"/g,'&quot;')}"><td><span class="name">${d.n}</span></td><td>${(cc=>cc?`<span class="cred">${cc}</span>`:'<span class="muted">—</span>')(credClass(d.c))}${tierBadge(d.tier)}</td><td class="mono muted" style="font-size:11px">${d.npi||'—'}</td><td class="r"><span class="sc tnum"><b>${d.ls.length}</b>${active?`<span>· ${active} active</span>`:''}</span></td><td class="hide-sm"><span class="prog" title="${d.pr.join(', ')}">${d.pr.slice(0,2).join(', ')||'—'}${d.pr.length>2?` +${d.pr.length-2}`:''}</span></td><td class="r tnum muted" title="Per-clinician consult counts are suppressed — they were derived from the SLI clinician field, which replicates one name per consult and cannot attribute per responder. Returns with the Workforce rescope.">—</td><td class="r muted tnum" style="font-size:11.5px">${d.la||'—'}</td><td>${statusPill(d.st)}${d.st==='ADD-TO-ROSTER'&&IS_ADMIN?` <button class="addbtn" data-add="1">＋ Add</button>`:''}</td></tr>`}).join('')+(list.length>600?`<tr><td colspan="${COLS.length}" class="empty" style="padding:16px">First 600 of ${list.length}. Narrow with filters or export the full set.</td></tr>`:'');
@@ -1085,7 +1099,7 @@ function vSpark(series){
 }
 function vMove(o){if(o.delta==null)return'<span class="mv fl">—</span>';if(o.delta<=-20)return`<span class="mv dn">▼ ${o.delta}%</span>`;if(o.delta>=20)return`<span class="mv up">▲ +${o.delta}%</span>`;return`<span class="mv fl">${o.delta>0?'+':''}${o.delta}%</span>`}
 function vmatch(o){if(VF.mod!=='all'&&o.mod!==VF.mod)return false;if(VF.tier!=='all'&&(o.tier||'none')!==VF.tier)return false;if(VF.q&&!o.n.toLowerCase().includes(VF.q))return false;return true}
-const VCOLS=[{k:'n',l:'Clinician'},{k:'mod',l:'Modality'},{k:'fc',l:'Consults',r:1},{k:'fh',l:'Hours',r:1},{k:'vph',l:'VPH',r:1},{k:'pct',l:'vs peers',r:1},{k:'trend',l:'Weekly trend'},{k:'delta',l:'Δ vs norm',r:1}];
+const VCOLS=[{k:'n',l:'Clinician'},{k:'mod',l:'Modality',w:'130px'},{k:'fc',l:'Consults',r:1,w:'90px'},{k:'fh',l:'Hours',r:1,w:'90px'},{k:'vph',l:'VPH',r:1,w:'80px'},{k:'pct',l:'vs peers',r:1,w:'90px'},{k:'trend',l:'Weekly trend',w:'120px'},{k:'delta',l:'Δ vs norm',r:1,w:'100px'}];
 function vDrill(o){
   $('#mTitle').textContent=o.n;
   $('#mSub').innerHTML=`${credClass(o.c)?`<span class="cred">${credClass(o.c)}</span>`:''}${tierBadge(o.tier)} <span class="kind ${o.mod}">${o.mod}</span> &nbsp; ${o.vph!=null?`<b>${o.vph}</b> VPH over complete weeks · stronger than P${o.pct==null?'—':o.pct} of the ${o.mod} cohort`:'not measurable yet — needs consults and scheduled hours in the same complete week'}`;
@@ -1124,6 +1138,7 @@ function renderVph(){
     $('#vTrend').innerHTML=`<svg viewBox="0 0 ${W2} ${H}" width="100%"><path d="M${xs(0).toFixed(1)} ${H-pad} ${wkPts.map((x,i)=>`L${xs(i).toFixed(1)} ${ys(x.v).toFixed(1)}`).join(' ')} L${xs(wkPts.length-1).toFixed(1)} ${H-pad} Z" fill="var(--accent)" opacity=".12"/><path d="${wkPts.map((x,i)=>`${i?'L':'M'}${xs(i).toFixed(1)} ${ys(x.v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${wkPts.map((x,i)=>`<circle cx="${xs(i).toFixed(1)}" cy="${ys(x.v).toFixed(1)}" r="3.2" fill="${x.cov==='full'?'var(--accent)':'var(--surface)'}" stroke="var(--accent)" stroke-width="2"><title>week of ${x.w}${x.cov==='partial'?' (partial)':''} · ${x.v} VPH</title></circle><text x="${xs(i).toFixed(1)}" y="${H-8}" font-size="9" fill="var(--ink-3)" text-anchor="middle">${x.w.slice(5)}</text><text x="${xs(i).toFixed(1)}" y="${(ys(x.v)-9).toFixed(1)}" font-size="10" font-weight="700" fill="var(--ink)" text-anchor="middle">${x.cov==='partial'?'~':''}${x.v}</text>`).join('')}</svg>`}
   $('#vMethod').innerHTML=`VPH is <b>consults ÷ scheduled hours</b>, per ISO week, from a ledger keyed on each clinician's stable identity — so history survives roster reloads. Only <b>complete</b> weeks (fully inside the consult export) count toward totals; the export-edge week shows hollow. Hours are <b>scheduled, not worked</b> — someone under-scheduled and someone slow look the same — so treat this as <b>where to look, not what to conclude</b>. Peer colors compare within the same modality cohort: async messaging naturally runs ~3× sync video. The old tool's fixed bands (sync 2.5–3.5, async 6–9) are kept in the Playbook as reference, not verdicts.`;
   // table
+  clFix('#vHead',VCOLS);
   $('#vHead').innerHTML=VCOLS.map(c=>`<th class="${c.r?'r':''}" data-k="${c.k}">${c.l} ${VSORT.k===c.k?`<span class="ar">${VSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');
   $$('#vHead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='trend')return;if(VSORT.k===k)VSORT.dir*=-1;else{VSORT.k=k;VSORT.dir=(k==='n'||k==='mod')?1:-1}renderVph()});
   const flist=list.filter(vmatch).sort((a,b)=>{let x=a[VSORT.k],y=b[VSORT.k];if(VSORT.k==='n'||VSORT.k==='mod')return VSORT.dir*String(x).localeCompare(String(y));if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return VSORT.dir*(x-y)});
@@ -1592,6 +1607,7 @@ function renderStates(){
   // hides the day that is actually thin.
   const byH=STC.by_hour||[];
   $('#stGridDesc').textContent='whole clinicians scheduled in each hour, by credential — one row per day, never averaged · Central time';
+  clFix('#stHrHead',[{w:'70px'},{w:'70px'},...CREDS6.map(()=>({w:'80px'})),{w:'80px'}]);
   $('#stHrHead').innerHTML=['Day','Hour',...CREDS6,'Total'].map((c,i)=>`<th class="${i>1?'r':''}">${c}</th>`).join('');
   const sorted=[...byH].sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
   $('#stHrBody').innerHTML=sorted.length?sorted.map(r=>
@@ -1619,6 +1635,7 @@ function renderStates(){
   // ---- by state ----
   const rows=STC.by_state||[];
   const cols=['State',...(showA?['Async/day']:[]),...(showS?['Sync/day']:[]),'Licensed & scheduled','Status'];
+  clFix('#stStHead',cols.map((c,i)=>({w:i===0?'90px':(i===cols.length-1?'110px':'130px')})));
   $('#stStHead').innerHTML=cols.map((c,i)=>`<th class="${i?'r':''}">${c}</th>`).join('');
   $('#stBody').innerHTML=rows.length?rows.map(r=>{const [st,a,s,b,hg]=r;
     if(!showA&&!s&&!b&&!hg)return '';
