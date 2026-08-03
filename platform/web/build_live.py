@@ -8,12 +8,12 @@ tpl = open(os.path.join(ROOT, "platform/web/console.tpl.html")).read()
 AUTH_CSS = """
   .authgate{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}
   .authgate.hide{display:none}
-  .authcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:28px 28px 24px;width:100%;max-width:378px}
+  .authcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px 28px 24px;width:100%;max-width:378px}
   .authcard h2{font-size:20px;font-weight:680;letter-spacing:-.02em;margin:5px 0 3px}
   .authcard .lead{color:var(--ink-2);font-size:12.5px;margin-bottom:16px;line-height:1.5}
   .authcard label{display:block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin:12px 0 5px}
-  .authcard input{width:100%;height:38px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:9px;padding:0 12px;font:inherit;font-size:14px}
-  .authbtn{width:100%;height:40px;margin-top:18px;border:0;border-radius:9px;background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:650;cursor:pointer}
+  .authcard input{width:100%;height:38px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:var(--radius);padding:0 12px;font:inherit;font-size:14px}
+  .authbtn{width:100%;height:40px;margin-top:18px;border:0;border-radius:var(--radius);background:var(--accent);color:var(--on-accent);font:inherit;font-size:14px;font-weight:650;cursor:pointer}
   .authbtn:hover{filter:brightness(1.06)}.authbtn:disabled{opacity:.55;cursor:default}
   .autherr{color:var(--bad);font-size:12.5px;margin-top:12px;min-height:16px;line-height:1.4}
   .linkbtn{appearance:none;background:0;border:0;color:var(--accent-ink);font:inherit;font-size:12.5px;cursor:pointer;padding:10px 0 0;text-decoration:underline;display:inline-block}
