@@ -119,7 +119,7 @@
   /* Pinned columns. Every column gets an explicit width except the single text
      column left to absorb the slack, which is what kills the dead gap mid-table. */
   table.fx{table-layout:fixed}
-  table.fx td,table.fx th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  table.fx td:not(.r):not(.num),table.fx th:not(.r):not(.num){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   thead th{position:sticky;top:0;background:var(--surface-2);z-index:2;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);padding:8px 12px;border-bottom:1px solid var(--border-2);white-space:nowrap;cursor:pointer;user-select:none}
   thead th.r{text-align:right}thead th:hover{color:var(--ink)}th .ar{opacity:.55;font-size:9px}
   tbody td{padding:8px 12px;height:36px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -854,7 +854,7 @@ function renderPerf(rows){
     {k:'P90 wait',v:fmtDur(o.p90),d:'9 in 10 faster'},
     {k:'SLIs in view',v:nf(o.scored),d:'after filters'},
   ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
-  const parts=agg(rows,P),mx=Math.max(...parts.map(p=>p.n),1),cols=[['name','Partner',0,''],['n','Volume',1,'110px'],['pct','SLA %',1,'90px'],['avg','Avg wait',1,'110px'],['miss','Missed',1,'90px']];
+  const parts=agg(rows,P),mx=Math.max(...parts.map(p=>p.n),1),cols=[['name','Partner',0,''],['n','Volume',1,'140px'],['pct','SLA %',1,'110px'],['avg','Avg wait',1,'110px'],['miss','Missed',1,'90px']];
   clFix('#phead',cols.map(c=>({w:c[3]})));
   $('#phead').innerHTML=cols.map(c=>`<th class="${c[2]?'r':''}" data-k="${c[0]}">${c[1]} ${PSORT.k===c[0]?`<span class="ar">${PSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');
   $$('#phead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(PSORT.k===k)PSORT.dir*=-1;else{PSORT.k=k;PSORT.dir=k==='name'?1:-1}renderPerf(slice())});
@@ -970,7 +970,7 @@ function dl(text,name){const b=new Blob([text],{type:'text/csv'}),a=document.cre
 // ---------- CLINICIANS (ported) ----------
 const STATUS=[{k:'all',l:'All',c:'var(--ink-3)'},{k:'active',l:'Active',c:'var(--good)'},{k:'inactive',l:'Inactive',c:'var(--warn)'},{k:'NEEDS-CORRECTION',l:'Needs fix',c:'var(--bad)'},{k:'ADD-TO-ROSTER',l:'Add-queue',c:'var(--flag)'}];
 const TIERS=[{k:'all',l:'All tiers'},{k:'seat',l:'Seats'},{k:'support',l:'Support'}];
-const COLS=[{k:'n',l:'Clinician',w:'220px'},{k:'c',l:'Cred',w:'120px'},{k:'npi',l:'NPI',w:'120px'},{k:'ls',l:'States',r:1,w:'90px',num:x=>x.ls.length},{k:'pr',l:'Programs',sm:1},{k:'ct',l:'Consults',r:1,w:'90px',num:x=>x.ct},{k:'la',l:'Last active',r:1,w:'110px'},{k:'st',l:'Status',w:'90px'}];
+const COLS=[{k:'n',l:'Clinician',w:'220px'},{k:'c',l:'Cred',w:'120px'},{k:'npi',l:'NPI',w:'120px'},{k:'ls',l:'States',r:1,w:'90px',num:x=>x.ls.length},{k:'pr',l:'Programs',sm:1},{k:'ct',l:'Consults',r:1,w:'90px',num:x=>x.ct},{k:'la',l:'Last active',r:1,w:'120px'},{k:'st',l:'Status',w:'130px'}];
 // Programs has no width on purpose: it is the one text column that absorbs the slack.
 function clFix(headSel,cols){const tr=$(headSel);if(!tr)return;const t=tr.closest('table');if(!t)return;
   t.classList.add('fx');const old=t.querySelector('colgroup');if(old)old.remove();
