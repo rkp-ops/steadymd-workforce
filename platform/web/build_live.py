@@ -118,9 +118,10 @@ AUTH_JS = r"""
       staffing:(a)=>sb.rpc('staffing_coverage',a),
       staffingEntities:(a)=>sb.rpc('staffing_entities',a),
       whosOn:(a)=>sb.rpc('whos_on',a),
+      stateGaps:(a)=>sb.rpc('state_gap_windows',a),
     });
-    Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks'),sb.rpc('coverage_by_date')])
-      .then(([b,g,dmd,f,rvk,gp])=>{ if(gp&&!gp.error&&window.__setGaps)window.__setGaps(gp.data); window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); if(window.__kickWhosOn)window.__kickWhosOn(); })
+    Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks')])
+      .then(([b,g,dmd,f,rvk])=>{ window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); if(window.__kickWhosOn)window.__kickWhosOn(); if(window.__kickGaps)window.__kickGaps(); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
   }
   function denied(em){ body.innerHTML='<div class="lead">You’re signed in as <b>'+H(em||'this account')+'</b>, but it isn’t provisioned for the console yet. Ask an admin to add you, then reload.</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; }
@@ -200,8 +201,8 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "function applyDefaultWindow","lastCompletedWeek",'id="presets"','data-range="wk"','id="moreRow"',  # IA step 4: open to last completed week + presets + More disclosure
           "newest LOADED date, not the wall clock",'class="fgroup"',  # anchored default + label-stranding fix (label glued to its inputs)
           "function credBucket","credBucket(S.by_cred","credBucket(I.by_license","credClass(x.cred)","credClass(x.license)",  # credentials NEVER raw: 6 buckets on every list, badge, export
-          "coverage_by_date","__setGaps","function renderGaps","function demandBaseline",'data-tab="gaps"','id="gapPresets"','id="gapBase"',  # Gaps view: date-specific coverage vs SLI-projected demand, window + lookback user-controlled
-          "Not Assigned","posted unfilled",  # Arya unfilled posts surfaced as their own channel
+          "function renderGaps",'data-tab="gaps"','id="gapPresets"',  # Gaps view: state-coverage exceptions on a time axis
+          "still unfilled",  # Arya unfilled posts surfaced as a leading indicator beside realised gaps
           "__setRangeApi","function winFetch","function wireWinbars",  # no-static-windows: every summary tab refetches windowed
           'data-win="consults"','data-win="shifts"','data-win="coverage"','data-win="forecast"','data-win="incentives"',  # window bar on each summary tab
           "No consults in this window","No shifts in this window","No incentives in this window",  # honest empty states name the loaded range
@@ -232,7 +233,9 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "Bodies on shift, by hour","const CREDS6=",  # by-hour x credential staffing grid
           "staffing_entities","Hours counted — by calendar",'id="stEntBody"',  # verifiable calendar provenance
           "never averaged",  # whole people per day; averaging across days (0.5 of a person) is banned
-          'data-tab="whoson"',"function renderWhosOn","whos_on","states uncovered","function calPop",  # plain coverage read + per-hour state gaps + compact calendar picker
+          'data-tab="whoson"',"function renderWhosOn","whos_on","function calPop",  # plain coverage read + compact calendar picker
+          "state_gap_windows","function renderGaps",".gttrack{",".whenbars{",'id="gapRows"','id="gapWhen"',"gtseg",  # state-gap timeline: exceptions on a time axis
+          "Every state is covered for every hour",  # empty state collapses to one line
           "cons-theme",  # theme choice survives reload (no more snapping back on refresh)
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k

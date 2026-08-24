@@ -92,6 +92,25 @@
   .wkey{display:flex;gap:13px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);margin:2px 0 14px}
   .wkey span{display:inline-flex;align-items:center;gap:5px}
   .wkey i{width:10px;height:10px;border-radius:var(--radius);display:inline-block}
+  /* ---- state-gap timeline: exceptions on a time axis, not a grid of cells ---- */
+  .gapwrap{--lab:104px}
+  .gtrow{display:grid;grid-template-columns:var(--lab) 1fr;align-items:center;gap:10px;height:22px}
+  .gtlab{font-size:11.5px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:6px;overflow:hidden}
+  .gtlab small{color:var(--ink-3);font-weight:500}
+  .gttrack{display:grid;height:14px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+  .gtseg{grid-row:1;height:100%;border-radius:2px;background:var(--bad);transition:transform .12s ease,filter .12s ease}
+  .gtseg:hover{transform:scaleY(1.3);filter:brightness(1.15)}
+  .gtday{grid-row:1;height:100%;border-left:1px solid var(--border)}
+  .gthead{display:grid;grid-template-columns:var(--lab) 1fr;gap:10px;align-items:end;margin-bottom:7px}
+  .gtticks{display:grid;font-size:10px;color:var(--ink-3)}
+  .gtticks span{border-left:1px solid var(--border);padding-left:5px;white-space:nowrap;overflow:hidden}
+  .gtrows{display:flex;flex-direction:column;gap:3px}
+  .whenbars{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px}
+  .whenbar{background:var(--surface-2);border-radius:3px 3px 0 0;display:flex;align-items:flex-end;height:100%}
+  .whenbar i{display:block;width:100%;background:var(--bad);border-radius:3px 3px 0 0;transition:height .18s ease}
+  .whenlabs{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;font-size:9.5px;color:var(--ink-3);margin-top:5px;text-align:center}
+  .gapclear{display:flex;align-items:center;gap:9px;padding:10px 2px;font-size:13px}
+  .gapclear .pipdot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
   @media (max-width:880px){.stats,.stats.s4{grid-template-columns:repeat(2,1fr)}}
   /* cards */
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px}
@@ -411,21 +430,24 @@
   </section>
 
   <section class="tab" data-tab="gaps">
-    <div class="scope" id="gapScope">Shifts vs projected demand · All partners</div>
-    <div class="filterbar" style="margin-bottom:14px">
-      <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="gapFrom"><span class="muted">–</span><input type="date" class="dateinp" id="gapTo"></div>
+    <div class="scope" id="gapScope">State coverage gaps</div>
+    <div class="filterbar" style="margin-bottom:12px">
+      <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="gapFrom"><span class="muted">-</span><input type="date" class="dateinp" id="gapTo"></div>
       <div class="fgroup" id="gapPresets">
         <button class="qbtn" data-g="wknd">This weekend</button>
         <button class="qbtn" data-g="7d">Next 7 days</button>
-        <button class="qbtn" data-g="loaded">Loaded schedule</button>
+        <button class="qbtn" data-g="loaded">All loaded</button>
       </div>
-      <div class="fgroup"><span class="fl">Demand baseline</span><select class="dateinp" id="gapBase"><option value="2">last 2 wks</option><option value="4" selected>last 4 wks</option><option value="8">last 8 wks</option></select></div>
+      <div class="facet"><button class="ghost" id="gapCalBtn" type="button">Calendars: <b id="gapCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="gapCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="gapH0"></select><span class="muted">-</span><select class="dateinp" id="gapH1"></select></div>
     </div>
-    <div class="stats s4" id="gapStats"></div>
-    <div class="card"><div class="hd"><h2>Coverage vs expected demand</h2><span class="desc">per date &amp; hour · expected = same weekday/hour average from the response log · <b>!</b> = arrivals expected, nobody scheduled</span></div>
-      <div class="bd"><div class="heat" id="gapHeat" style="display:grid;gap:3px"></div><div class="muted" id="gapNote" style="font-size:11.5px;margin-top:9px"></div></div></div>
-    <div class="card"><div class="hd"><h2>Where it's thin — call-out list</h2><span class="desc">worst hours first: uncovered, then most stretched · posted-unfilled shown when Arya has open posts</span></div>
-      <div class="bd"><div class="rank" id="gapList"></div></div></div>
+    <div class="ovhero" id="gapHero"></div>
+    <div class="card"><div class="hd"><h2>When gaps happen</h2><span class="desc">uncovered state-hours by hour of day, across the whole window</span></div>
+      <div class="bd"><div class="whenbars" id="gapWhen"></div><div class="whenlabs" id="gapWhenLabs"></div></div></div>
+    <div class="card"><div class="hd"><h2>Where, and exactly when</h2><span class="desc" id="gapTlDesc">one row per state that goes uncovered, worst first &#183; hover a bar for the exact window</span></div>
+      <div class="bd gapwrap"><div class="gthead"><div></div><div class="gtticks" id="gapTicks"></div></div>
+        <div class="gtrows" id="gapRows"></div>
+        <div class="muted" id="gapNote" style="font-size:11.5px;margin-top:10px"></div></div></div>
   </section>
 
   <section class="tab" data-tab="states">
@@ -1370,85 +1392,101 @@ function wireScoreboard(){
 // Coverage comes from coverage_by_date (real dates, filled + posted-unfilled); expected demand is
 // projected client-side from the SLI response log (current), as the same-weekday/hour average over a
 // user-chosen lookback. Nothing here is a typical-week composite and no window is static.
-let GAPS={range:null,rows:[]}, GW={from:null,to:null,base:4};
-window.__setGaps=function(d){GAPS=d&&d.rows?d:{range:null,rows:[]};if(!GW.from)gapDefaults();renderGaps()};
+// ---------- STATE COVERAGE GAPS (exceptions on a time axis) ----------
+// A 51-state x 24-hour grid is unreadable as a list and the signal is sparse: on
+// live data ~1% of state-hours are uncovered. So render only the exceptions, as
+// contiguous windows positioned on a shared time axis. Server does the island
+// merging (state_gap_windows); this draws it.
+let GAPS={rows:[]}, GW={from:null,to:null,cal:new Set(),h0:0,h1:23,_init:0};
 const GMON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function gDate(s){const p=String(s).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]))}
 function gIso(d){return d.toISOString().slice(0,10)}
 function gAdd(s,n){const d=gDate(s);d.setUTCDate(d.getUTCDate()+n);return gIso(d)}
 function gDay(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+' '+GMON[d.getUTCMonth()]+' '+d.getUTCDate()}
+function gShort(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+' '+d.getUTCDate()}
 function gToday(){return new Date().toISOString().slice(0,10)}
-// expected arrivals per weekday×hour: on-demand, non-lab SLI arrivals averaged over the lookback
-function demandBaseline(weeks){
-  const hi=maxDate();if(!hi)return null;
-  const lo=gAdd(hi,-(weeks*7-1));
-  const cnt=new Map(),days=[new Set(),new Set(),new Set(),new Set(),new Set(),new Set(),new Set()];
-  for(const r of SLI){const dt=r[DT];if(!dt||dt<lo||dt>hi)continue;if(laneOf(r[CT])==='scheduled')continue;if(smod(r[CT])==='lab')continue;
-    const dow=gDate(dt).getUTCDay(),hr=r[HR];if(hr==null)continue;days[dow].add(dt);
-    const k=dow+'_'+hr;cnt.set(k,(cnt.get(k)||0)+1)}
-  if(!cnt.size)return null;
-  const avg=new Map();cnt.forEach((n,k)=>{const dow=+k.split('_')[0];avg.set(k,n/Math.max(1,days[dow].size))});
-  return{avg,lo,hi}
-}
-function gapDefaults(){const t=gToday(),mx=GAPS.range&&GAPS.range.max,mn=GAPS.range&&GAPS.range.min;
-  if(mx&&mx>=t){GW.from=t;GW.to=gAdd(t,6)>mx?mx:gAdd(t,6);markGapPreset('7d')}
-  else if(mx){GW.from=gAdd(mx,-6)<mn?mn:gAdd(mx,-6);GW.to=mx;markGapPreset('loaded')}
+function gDiff(a,b){return Math.round((gDate(b)-gDate(a))/86400000)}
+function hh(n){return String(n).padStart(2,'0')+':00'}
+window.__kickGaps=function(){if(GW._init)return;GW._init=1;gapDefaults();gapFetch()};
+async function gapFetch(){
+  if(!RANGE_API||!RANGE_API.stateGaps){renderGaps();return}
+  const bar=document.querySelector('[data-tab="gaps"] .filterbar');if(bar)bar.style.opacity=.55;
+  try{const r=await RANGE_API.stateGaps({p_from:GW.from,p_to:GW.to,
+      p_service_line:GW.cal.size?[...GW.cal]:null,p_hour0:GW.h0,p_hour1:GW.h1});
+    if(r&&!r.error)GAPS=r.data||{rows:[]};}catch(_){}
+  if(bar)bar.style.opacity='';renderGaps()}
+function gapDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
+  if(hi&&hi>=t){GW.from=t;GW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markGapPreset('7d')}
+  else if(hi){GW.from=gAdd(hi,-6);GW.to=hi;markGapPreset('loaded')}
   if($('#gapFrom'))$('#gapFrom').value=GW.from||'';if($('#gapTo'))$('#gapTo').value=GW.to||''}
 function markGapPreset(k){$$('#gapPresets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.g===k))}
+// Arya posts nobody claimed: a gap that has not happened yet.
+function unfTxt(){const u=GAPS.unfilled;return (u&&u.hours)?(' '+nf(u.hours)+' posted shift-hours in this window are still unfilled.'):''}
+function unf(){const u=GAPS.unfilled;return (u&&u.hours)?
+  ('<div class="line" style="color:var(--warn)"><b>'+nf(u.hours)+'</b> posted shift-hours still unfilled ('+nf(u.posts)+' open posts) - gaps that have not happened yet</div>'):''}
 function renderGaps(){
-  const heat=$('#gapHeat');if(!heat)return;
-  const base=demandBaseline(GW.base);
-  $('#gapScope').innerHTML=`Shifts vs projected demand · <b>All partners</b> · ${GW.from&&GW.to?gDay(GW.from)+' – '+gDay(GW.to):'no window set'} · baseline last ${GW.base} wks${base?` (${base.lo} → ${base.hi})`:''}`;
-  if(!GAPS.rows.length){$('#gapStats').innerHTML='';heat.innerHTML='<div class="empty" style="grid-column:1/-1">No schedule loaded. Upload the Arya shift export via Settings → Import and this view fills in.</div>';$('#gapList').innerHTML='';$('#gapNote').textContent='';return}
-  if(!GW.from||!GW.to){$('#gapStats').innerHTML='';heat.innerHTML='<div class="empty" style="grid-column:1/-1">Pick a window above.</div>';$('#gapList').innerHTML='';return}
-  const byDH={};GAPS.rows.forEach(r=>{if(r[0]<GW.from||r[0]>GW.to)return;(byDH[r[0]]=byDH[r[0]]||{})[r[1]]={f:r[2],u:r[3]}});
-  const dates=[];for(let d=GW.from;d<=GW.to;d=gAdd(d,1)){dates.push(d);if(dates.length>31)break}
-  const shown=dates.slice(0,14);
-  const anyShift=Object.keys(byDH).length>0;
-  if(!anyShift){$('#gapStats').innerHTML='';heat.innerHTML=`<div class="empty" style="grid-column:1/-1">No shifts loaded for this window — the loaded schedule runs <b>${GAPS.range.min||'?'} → ${GAPS.range.max||'?'}</b>. Upload this window's schedule via Settings → Import.</div>`;$('#gapList').innerHTML='';$('#gapNote').textContent='';return}
-  // build slots
-  const slots=[];let expTot=0,schedHrs=0,unfTot=0;
-  dates.forEach(dt=>{const dow=gDate(dt).getUTCDay();for(let h=0;h<24;h++){
-    const c=(byDH[dt]&&byDH[dt][h])||{f:0,u:0};const exp=base?(base.avg.get(dow+'_'+h)||0):0;
-    schedHrs+=c.f;unfTot+=c.u;expTot+=exp;
-    slots.push({dt,h,f:c.f,u:c.u,exp})}});
-  const finite=slots.filter(s=>s.exp>0&&s.f>0).map(s=>s.exp/s.f).sort((a,b)=>a-b);
-  const median=finite.length?finite[Math.floor(finite.length/2)]:0;
-  const uncov=slots.filter(s=>s.exp>=1&&s.f===0);
-  $('#gapStats').innerHTML=[
-    {k:'Scheduled clinician-hours',v:nf(schedHrs),d:`${gDay(GW.from)} – ${gDay(GW.to)}`},
-    {k:'Expected consults',v:base?nf(Math.round(expTot)):'—',d:base?`projected from last ${GW.base} wks`:'no demand history'},
-    {k:'Uncovered hours',v:uncov.length,d:'arrivals expected, nobody on'},
-    {k:'Posted unfilled',v:nf(unfTot),d:'Arya “Not Assigned” shift-hours'},
-  ].map(tileHTML).join('');
-  // heatmap: rows = actual dates
-  heat.style.gridTemplateColumns='74px repeat(24,1fr)';
-  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
-  shown.forEach(dt=>{html+=`<div class="hmlab" style="white-space:nowrap">${gDay(dt)}</div>`;const dow=gDate(dt).getUTCDay();
-    for(let h=0;h<24;h++){const c=(byDH[dt]&&byDH[dt][h])||{f:0,u:0};const exp=base?(base.avg.get(dow+'_'+h)||0):0;
-      if(c.f===0&&exp<1&&c.u===0){html+='<div class="hmcell empty">·</div>';continue}
-      if(c.f===0&&exp>=1){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:var(--on-accent);font-weight:700" title="${gDay(dt)} ${h}:00 · expected ~${Math.round(exp)} consults · nobody scheduled${c.u?` · ${c.u} posted unfilled`:''}">!</div>`;continue}
-      const load=c.f>0?exp/c.f:0;const ratio=median?load/median:1;const hue=Math.round(Math.max(0,Math.min(1,(1.6-ratio)/1.1))*145);
-      html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${gDay(dt)} ${h}:00 · ${c.f} on shift · expected ~${Math.round(exp)} · load ${load.toFixed(1)}/clinician${c.u?` · ${c.u} posted unfilled`:''}">${c.f}</div>`}});
-  heat.innerHTML=html;
-  $('#gapNote').textContent=`cell = clinicians on shift · color = expected load vs the window's typical ${median?median.toFixed(1):'—'}/clinician · Central time`+(dates.length>14?` · showing first 14 of ${dates.length} days`:'');
-  // call-out list: uncovered first (by expected volume), then most stretched
-  const stretched=slots.filter(s=>s.f>0&&s.exp>0&&median&&(s.exp/s.f)>median*1.25).sort((a,b)=>(b.exp/b.f)-(a.exp/a.f));
-  const list=[...uncov.sort((a,b)=>b.exp-a.exp),...stretched].slice(0,12);
-  $('#gapList').innerHTML=list.length?list.map(s=>{const load=s.f>0?s.exp/s.f:null;
-    const need=s.f===0?'staff this hour':`+${Math.max(1,Math.ceil(s.exp/median)-s.f)} to ease`;
-    return `<div class="rk" style="cursor:default"><div class="lab">${gDay(s.dt)} · ${s.h}:00<small>expected ~${Math.round(s.exp)} · ${s.f?s.f+' on shift':'0 on shift'}${s.u?` · <b style="color:var(--warn)">${s.u} posted unfilled</b>`:''} · ${need}</small></div><div class="val tnum" style="color:${s.f===0?'var(--bad)':'var(--warn)'}">${load==null?'no cover':load.toFixed(1)+'/clin'}</div><div class="track"><i style="width:${Math.max(3,Math.min(100,(load==null?1.9*(median||1):load)/((median||1)*1.9)*100))}%;background:${s.f===0?'var(--bad)':'var(--warn)'}"></i></div></div>`}).join(''):'<div class="empty">Nothing thin in this window — coverage clears the projected demand everywhere.</div>';
+  const rowsEl=$('#gapRows');if(!rowsEl)return;
+  const W=GAPS.window||{},rows=GAPS.rows||[];
+  const lo=W.from||GW.from,hi=W.to||GW.to,h0=W.h0==null?GW.h0:W.h0,h1=W.h1==null?GW.h1:W.h1;
+  $('#gapScope').innerHTML='State coverage gaps &#183; <b>'+(GW.cal.size?[...GW.cal].join(' + '):'All calendars')
+    +'</b> &#183; '+(lo&&hi?gDay(lo)+' to '+gDay(hi):'all loaded')+(h0>0||h1<23?' &#183; '+hh(h0)+'-'+hh(h1):'');
+  if(!lo||GAPS.no_schedule){$('#gapHero').innerHTML='<div class="empty" style="flex-basis:100%">No schedule loaded. Upload the Arya export via Settings &#8250; Import.</div>';
+    rowsEl.innerHTML='';$('#gapWhen').innerHTML='';$('#gapWhenLabs').innerHTML='';$('#gapTicks').innerHTML='';$('#gapNote').textContent='';return}
+  const nd=gDiff(lo,hi)+1, H=h1-h0+1, N=nd*H;
+  const totalHrs=rows.reduce((a,r)=>a+r[1],0), totalDem=rows.reduce((a,r)=>a+r[2],0);
+  const worst=GAPS.worst;
+  // ---- hero: the answer in one line ----
+  $('#gapHero').innerHTML=rows.length?
+    '<div class="hero-sla"><div class="k">States going uncovered</div><div class="v" style="color:var(--bad)">'+rows.length+'</div>'+
+    '<div class="d">of 51 &#183; '+nf(totalHrs)+' uncovered state-hours</div></div>'+
+    '<div class="hero-meta"><div class="line">Worst single window: <b>'+(worst?worst[0]+' '+gDay(worst[1])+' '+hh(worst[2])+'-'+hh(worst[3]+1)+' ('+worst[4]+'h)':'-')+'</b></div>'+
+    '<div class="line">Highest exposure: <b>'+rows[0][0]+'</b> - '+rows[0][1]+'h uncovered, about '+rows[0][2]+' arrivals/day normally land there</div>'+
+    '<div class="line muted">'+nf(Math.round(totalDem))+' arrivals/day of normal volume sits in a state with at least one uncovered hour</div>'+unf()+'</div>'
+    :'<div class="gapclear" style="flex-basis:100%"><span class="pipdot"></span><b>Every state is covered for every hour in this window.</b><span class="muted">No licensed-coverage gaps to escalate.'+unfTxt()+'</span></div>';
+  // ---- when: uncovered state-hours by hour of day ----
+  // (unf/unfTxt defined below render so both hero branches can use them)
+  const byHour=new Array(24).fill(0);
+  rows.forEach(r=>r[3].forEach(w=>{const s0=gDiff(lo,w[0])*H+(w[1]-h0);
+    for(let k=0;k<w[4];k++){const c=s0+k;byHour[h0+(c%H)]++}}));
+  const mxH=Math.max(...byHour,1);
+  $('#gapWhen').innerHTML=Array.from({length:24},(_,i)=>{
+    const on=i>=h0&&i<=h1,v=byHour[i];
+    return '<div class="whenbar" title="'+hh(i)+' &#183; '+v+' uncovered state-hours">'+
+      (on?'<i style="height:'+(v?Math.max(6,v/mxH*100):0)+'%"></i>':'')+'</div>'}).join('');
+  $('#gapWhenLabs').innerHTML=Array.from({length:24},(_,i)=>'<div>'+(i%3===0?i:'')+'</div>').join('');
+  // ---- ticks: one label per day ----
+  $('#gapTicks').style.gridTemplateColumns='repeat('+nd+',1fr)';
+  $('#gapTicks').innerHTML=Array.from({length:nd},(_,i)=>'<span>'+gShort(gAdd(lo,i))+'</span>').join('');
+  // ---- timeline rows ----
+  const mxDem=Math.max(...rows.map(r=>r[2]),1);
+  rowsEl.innerHTML=rows.length?rows.map(r=>{
+    const [st,hrs,dem,wins]=r;
+    const segs=wins.map(w=>{
+      const s0=gDiff(lo,w[0])*H+(w[1]-h0), e0=gDiff(lo,w[2])*H+(w[3]-h0), span=Math.max(1,e0-s0+1);
+      const inten=.42+.58*Math.min(1,(w[5]||0)/(mxDem||1));
+      const t=st+' uncovered '+gDay(w[0])+' '+hh(w[1])+'-'+hh(w[3]+1)+' ('+w[4]+'h)'+(w[5]?' &#183; about '+w[5]+' arrivals/day normally':'');
+      return '<i class="gtseg" style="grid-column:'+(s0+1)+'/span '+span+';opacity:'+inten.toFixed(2)+'" title="'+t+'"></i>'}).join('');
+    const days=Array.from({length:nd-1},(_,i)=>'<i class="gtday" style="grid-column:'+((i+1)*H+1)+'/span 1"></i>').join('');
+    return '<div class="gtrow"><div class="gtlab"><b>'+st+'</b><small>'+hrs+'h</small></div>'+
+      '<div class="gttrack" style="grid-template-columns:repeat('+N+',1fr)">'+days+segs+'</div></div>'}).join(''):'';
+  $('#gapNote').textContent=rows.length?('bar position = when, bar shade = how much normal volume sits in that state '
+    +'· '+nd+' days × '+H+' hours · schedule clock'):'';
 }
 function wireGaps(){
   if($('#gapFrom')&&!$('#gapFrom')._w){$('#gapFrom')._w=1;
-    $('#gapFrom').onchange=e=>{GW.from=e.target.value||null;markGapPreset(null);renderGaps()};
-    $('#gapTo').onchange=e=>{GW.to=e.target.value||null;markGapPreset(null);renderGaps()};
-    $('#gapBase').onchange=e=>{GW.base=+e.target.value;renderGaps()};
+    $('#gapFrom').onchange=e=>{GW.from=e.target.value||null;markGapPreset(null);gapFetch()};
+    $('#gapTo').onchange=e=>{GW.to=e.target.value||null;markGapPreset(null);gapFetch()};
     $$('#gapPresets .qbtn').forEach(b=>b.onclick=()=>{const k=b.dataset.g,t=gToday();
-      if(k==='wknd'){const d=gDate(t),wd=d.getUTCDay(),toSat=(6-wd+7)%7;GW.from=gAdd(t,toSat===0&&wd!==6?0:toSat);if(wd===0)GW.from=gAdd(t,-1);GW.to=gAdd(GW.from,1)}
+      if(k==='wknd'){const wd=gDate(t).getUTCDay();let sat=gAdd(t,(6-wd+7)%7);if(wd===0)sat=gAdd(t,-1);GW.from=sat;GW.to=gAdd(sat,1)}
       else if(k==='7d'){GW.from=t;GW.to=gAdd(t,6)}
-      else{GW.from=(GAPS.range&&GAPS.range.min)||null;GW.to=(GAPS.range&&GAPS.range.max)||null}
-      $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);renderGaps()})}
+      else{GW.from=(SHIFTS.loaded&&SHIFTS.loaded.min)||null;GW.to=(SHIFTS.loaded&&SHIFTS.loaded.max)||null}
+      $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);gapFetch()});
+    for(let h=0;h<24;h++){$('#gapH0').innerHTML+='<option value="'+h+'">'+hh(h)+'</option>';
+      $('#gapH1').innerHTML+='<option value="'+h+'"'+(h===23?' selected':'')+'>'+hh(h)+'</option>'}
+    $('#gapH0').onchange=e=>{GW.h0=+e.target.value;gapFetch()};
+    $('#gapH1').onchange=e=>{GW.h1=+e.target.value;gapFetch()}}
+  if(SHIFTS&&SHIFTS.by_service_line&&SHIFTS.by_service_line.length)
+    calPop('#gapCalBtn','#gapCalPop','#gapCalLbl',[...SHIFTS.by_service_line].map(x=>x.name).sort((a,b)=>String(a).localeCompare(String(b))),GW.cal,()=>gapFetch());
 }
 // ---------- WHO'S ON — the plain read: bodies per hour + which states have nobody ----------
 // No demand, no scoring, no heatmap. Bars you can read at a glance.
