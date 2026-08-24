@@ -7,9 +7,24 @@
 -- them on a time axis instead of enumerating cells.
 --
 -- Coverage = at least one clinician licensed in that state on shift that hour.
--- Hours are the schedule own clock (UTC extraction), matching whos_on.
+-- Hours are the schedule's own clock (UTC extraction), matching whos_on.
 -- Windows are ranked by demand at risk, from the trailing 4-week arrival rate,
 -- so an uncovered hour in a high-volume state outranks one in a quiet state.
+--
+-- SILO RULE (non-negotiable): with no explicit calendar selection, supply and
+-- demand both run through service_line_map. Calendars with count_in_coverage
+-- =false are NOT coverage for the on-demand pool and must never mask a gap:
+--   * Transcarent (x3) - analyzed strictly separately, never an aggregate
+--     addition or influencer
+--   * Thirty Madison (x3) - staffing-only; those bodies work on the partner's
+--     own platform, so they cannot answer one of our on-demand states
+--   * MA P2 Calls - routing, not clinician coverage
+--   * Sanofi-ixlayer / Sanofi Skinlink / ixlayer J&J - tracked only
+--   * Rezilient - discontinued partner
+-- Counting them was understating exposure by more than half (Aug 29-30 read as
+-- 16 uncovered state-hours across 9 states; the correct read is 35 across 11).
+-- Naming a calendar explicitly in p_service_line still honors that selection
+-- exactly, so a siloed population can be inspected alone.
 -- ============================================================================
 create or replace function public.state_gap_windows(
     p_from date default null, p_to date default null,
@@ -30,10 +45,12 @@ begin
 
   drop table if exists _cov; drop table if exists _gap; drop table if exists _dm;
 
-  -- states genuinely covered in each hour: at least one licensed body on shift
+  -- states genuinely covered in each hour: at least one licensed body on shift,
+  -- on a calendar that actually counts as on-demand coverage (see SILO RULE).
   create temp table _cov on commit drop as
   select distinct (h)::date d, extract(hour from h)::int hr, ls.st
   from shift s
+  left join service_line_map m on m.entity = s.service_line
   join clinician_roster r on lower(s.clinician_email_raw)=any(array(select lower(x) from unnest(r.emails) x))
   cross join lateral unnest(r.license_states) ls(st)
   cross join lateral generate_series(date_trunc('hour', s.start_at at time zone 'UTC'),
@@ -42,15 +59,26 @@ begin
     and s.start_at is not null and s.end_at is not null and s.end_at > s.start_at
     and (h)::date between lo and hi
     and extract(hour from h)::int between p_hour0 and p_hour1
-    and (p_service_line is null or s.service_line = any(p_service_line))
+    and (case when p_service_line is not null then s.service_line = any(p_service_line)
+              else coalesce(m.count_in_coverage,true) end)
     and (p_cred is null or coalesce(public.cred_bucket(r.credential),'-') = any(p_cred));
 
+  -- demand follows the same silo: a siloed partner's arrivals never inflate the
+  -- pooled demand-at-risk, and naming its calendar reports it alone.
   create temp table _dm on commit drop as
-  select nullif(trim(state),'') st, extract(hour from sli_received at time zone 'UTC')::int hr,
+  select nullif(trim(sr.state),'') st, extract(hour from sr.sli_received at time zone 'UTC')::int hr,
          count(*)::numeric/nd per_day
-  from sli_response
-  where lane='on_demand' and state is not null
-    and (sli_received at time zone 'UTC')::date between d_from and coalesce(d_to,current_date)
+  from sli_response sr
+  where sr.lane='on_demand' and sr.state is not null
+    and (sr.sli_received at time zone 'UTC')::date between d_from and coalesce(d_to,current_date)
+    and not exists (select 1 from service_line_map m
+                    where m.demand_match is not null and not m.count_in_sla
+                      and sr.partner ilike '%'||m.demand_match||'%'
+                      and (p_service_line is null or not (m.entity = any(p_service_line))))
+    and (p_service_line is null or exists (
+          select 1 from service_line_map m
+          where m.entity = any(p_service_line)
+            and (m.demand_match is null or sr.partner ilike '%'||m.demand_match||'%')))
   group by 1,2;
 
   -- every (hour, state) slot the window contains, minus the covered ones
@@ -72,9 +100,23 @@ begin
     'slots_total', (select count(*) from (select generate_series(lo,hi,interval '1 day')) x)*(p_hour1-p_hour0+1)*51,
     'gap_slots', (select count(*) from _gap),
     'states_with_gap', (select count(distinct st) from _gap),
+    -- what "All" actually means here, named rather than assumed
+    'excluded', case when p_service_line is not null then '[]'::jsonb else
+      coalesce((select jsonb_agg(entity order by entity) from service_line_map
+                where not count_in_coverage), '[]'::jsonb) end,
+    -- Arya posts nobody claimed, on coverage-counting calendars only. A leading
+    -- indicator: an open post is a gap that has not happened yet.
+    'unfilled', (select jsonb_build_object(
+        'hours', coalesce(round(sum(u.hours))::int,0), 'posts', count(*))
+      from shift u
+      left join service_line_map um on um.entity = u.service_line
+      where lower(coalesce(u.clinician_email_raw,''))='not assigned'
+        and (u.start_at at time zone 'UTC')::date between lo and hi
+        and (case when p_service_line is not null then u.service_line = any(p_service_line)
+                  else coalesce(um.count_in_coverage,true) end)),
     -- one row per state: its contiguous uncovered windows, worst first
     'rows', coalesce((select jsonb_agg(jsonb_build_array(st, gap_hours, round(dem_at_risk,1), wins)
-                              order by dem_at_risk desc, gap_hours desc, st), '[]'::jsonb)
+                              order by dem_at_risk desc, gap_hours desc, st)
       from (
         select st, sum(len)::int gap_hours, sum(dem_sum) dem_at_risk,
                jsonb_agg(jsonb_build_array(to_char(d0,'YYYY-MM-DD'), h0, to_char(d1,'YYYY-MM-DD'), h1, len, round(dem_sum,1))
@@ -83,7 +125,7 @@ begin
           select st, count(*)::int len, min(d) d0, min(hr) h0, max(d) d1, max(hr) h1, sum(dem) dem_sum
           from (select *, hnum - row_number() over (partition by st order by hnum) grp from _gap) z
           group by st, grp) w
-        group by st) q),
+        group by st) q), '[]'::jsonb),
     'worst', (select jsonb_build_array(st, to_char(d0,'YYYY-MM-DD'), h0, h1, len)
               from (select st, min(d) d0, min(hr) h0, max(hr) h1, count(*) len, sum(dem) ds
                     from (select *, hnum - row_number() over (partition by st order by hnum) grp from _gap) z

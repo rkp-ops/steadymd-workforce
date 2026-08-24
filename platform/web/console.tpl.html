@@ -105,8 +105,14 @@
   .gtticks{display:grid;font-size:10px;color:var(--ink-3)}
   .gtticks span{border-left:1px solid var(--border);padding-left:5px;white-space:nowrap;overflow:hidden}
   .gtrows{display:flex;flex-direction:column;gap:3px}
-  .whenbars{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px}
-  .whenbar{background:var(--surface-2);border-radius:3px 3px 0 0;display:flex;align-items:flex-end;height:100%}
+  /* Bars carry the signal; the axis is a hairline. A full-height track per hour
+     gave a 1-gap hour the same visual mass as a 6-gap hour. Only hours the hour
+     filter excludes get a tinted block, so "out of scope" stays distinguishable
+     from "no gaps here". */
+  .whenbars{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px;
+            border-bottom:1px solid var(--border-2)}
+  .whenbar{border-radius:3px 3px 0 0;display:flex;align-items:flex-end;height:100%}
+  .whenbar.off{background:var(--surface-2)}
   .whenbar i{display:block;width:100%;background:var(--bad);border-radius:3px 3px 0 0;transition:height .18s ease}
   .whenlabs{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;font-size:9.5px;color:var(--ink-3);margin-top:5px;text-align:center}
   .gapclear{display:flex;align-items:center;gap:9px;padding:10px 2px;font-size:13px}
@@ -1428,8 +1434,15 @@ function renderGaps(){
   const rowsEl=$('#gapRows');if(!rowsEl)return;
   const W=GAPS.window||{},rows=GAPS.rows||[];
   const lo=W.from||GW.from,hi=W.to||GW.to,h0=W.h0==null?GW.h0:W.h0,h1=W.h1==null?GW.h1:W.h1;
-  $('#gapScope').innerHTML='State coverage gaps &#183; <b>'+(GW.cal.size?[...GW.cal].join(' + '):'All calendars')
-    +'</b> &#183; '+(lo&&hi?gDay(lo)+' to '+gDay(hi):'all loaded')+(h0>0||h1<23?' &#183; '+hh(h0)+'-'+hh(h1):'');
+  // "All" means every calendar that actually staffs on-demand care. Siloed and
+  // staffing-only calendars (Transcarent, Thirty Madison, MA P2, tracked-only)
+  // are excluded by the engine, so name them rather than letting "All" imply
+  // they were counted.
+  const exc=GAPS.excluded||[];
+  $('#gapScope').innerHTML='State coverage gaps &#183; <b'+(GW.cal.size?'':(exc.length?' title="Excludes '+exc.join(', ').replace(/"/g,'&quot;')+' - siloed or staffing-only, so they never count as on-demand coverage"':''))+'>'
+    +(GW.cal.size?[...GW.cal].join(' + '):'All on-demand calendars')
+    +'</b> &#183; '+(lo&&hi?gDay(lo)+' to '+gDay(hi):'all loaded')+(h0>0||h1<23?' &#183; '+hh(h0)+'-'+hh(h1):'')
+    +(GW.cal.size||!exc.length?'':' <span class="muted">('+exc.length+' siloed calendars excluded)</span>');
   if(!lo||GAPS.no_schedule){$('#gapHero').innerHTML='<div class="empty" style="flex-basis:100%">No schedule loaded. Upload the Arya export via Settings &#8250; Import.</div>';
     rowsEl.innerHTML='';$('#gapWhen').innerHTML='';$('#gapWhenLabs').innerHTML='';$('#gapTicks').innerHTML='';$('#gapNote').textContent='';return}
   const nd=gDiff(lo,hi)+1, H=h1-h0+1, N=nd*H;
@@ -1451,8 +1464,8 @@ function renderGaps(){
   const mxH=Math.max(...byHour,1);
   $('#gapWhen').innerHTML=Array.from({length:24},(_,i)=>{
     const on=i>=h0&&i<=h1,v=byHour[i];
-    return '<div class="whenbar" title="'+hh(i)+' &#183; '+v+' uncovered state-hours">'+
-      (on?'<i style="height:'+(v?Math.max(6,v/mxH*100):0)+'%"></i>':'')+'</div>'}).join('');
+    return '<div class="whenbar'+(on?'':' off')+'" title="'+hh(i)+' &#183; '+(on?v+' uncovered state-hours':'outside the hour filter')+'">'+
+      (on&&v?'<i style="height:'+Math.max(6,v/mxH*100)+'%"></i>':'')+'</div>'}).join('');
   $('#gapWhenLabs').innerHTML=Array.from({length:24},(_,i)=>'<div>'+(i%3===0?i:'')+'</div>').join('');
   // ---- ticks: one label per day ----
   $('#gapTicks').style.gridTemplateColumns='repeat('+nd+',1fr)';

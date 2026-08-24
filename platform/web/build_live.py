@@ -203,6 +203,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "function credBucket","credBucket(S.by_cred","credBucket(I.by_license","credClass(x.cred)","credClass(x.license)",  # credentials NEVER raw: 6 buckets on every list, badge, export
           "function renderGaps",'data-tab="gaps"','id="gapPresets"',  # Gaps view: state-coverage exceptions on a time axis
           "still unfilled",  # Arya unfilled posts surfaced as a leading indicator beside realised gaps
+          "All on-demand calendars","siloed calendars excluded",  # SILO: "All" never silently counts TC/30M/MA-P2 as coverage
           "__setRangeApi","function winFetch","function wireWinbars",  # no-static-windows: every summary tab refetches windowed
           'data-win="consults"','data-win="shifts"','data-win="coverage"','data-win="forecast"','data-win="incentives"',  # window bar on each summary tab
           "No consults in this window","No shifts in this window","No incentives in this window",  # honest empty states name the loaded range
