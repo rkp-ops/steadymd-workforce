@@ -82,6 +82,26 @@
   .hero-meta{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:2px 2px}
   .hero-meta .line{font-size:13.5px;color:var(--ink)}.hero-meta .line.muted{color:var(--ink-2);font-size:12.5px}.hero-meta b{font-weight:680}
   .mut2{color:var(--ink-3);font-size:11px;font-weight:500;margin-left:2px}
+  /* Who's on: one row per DAY on a shared 24-hour axis, not one row per hour.
+     A week used to render 168 rows and ~5,400px of scroll; this is 7 rows on
+     one screen, and days sit above each other so they are comparable. Bars are
+     stacked by credential. Deliberately not a heatmap. */
+  .wgrid{display:grid;grid-template-columns:96px 1fr 52px;gap:10px;align-items:center;margin-bottom:7px}
+  .wgrid .wdlab{font-size:12px;font-weight:650;color:var(--ink)}
+  .wgrid .wdtot{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  /* The bar is the data; the track is not. 24 filled boxes per row x 7 rows
+     out-weighed the bars sitting inside them, so the track is now just a
+     baseline and the hour ruler does the locating. */
+  .wstrip{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:56px;
+          border-bottom:1px solid var(--border-2)}
+  .wcell{height:100%;display:flex;flex-direction:column-reverse;background:0;
+         border-radius:2px 2px 0 0;overflow:hidden;position:relative}
+  .wcell:hover{background:var(--surface-2)}
+  .wcell.none{background:0}
+  .wcell i{display:block;width:100%;min-height:2px}
+  .wruler{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;font-size:10px;
+          color:var(--ink-3);font-variant-numeric:tabular-nums;margin-top:3px}
+  .wruler span{text-align:center}
   .wday{margin-bottom:18px}
   .wday h3{font-size:13.5px;font-weight:680;margin:0 0 8px;color:var(--ink)}
   .wrow{display:grid;grid-template-columns:52px 1fr 42px;align-items:center;gap:9px;padding:1px 0}
@@ -1683,9 +1703,12 @@ function woDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday
 function renderWhosOn(){
   const bodyEl=$('#woBody');if(!bodyEl)return;
   const rows=WO.rows||[];
-  $('#woScope').innerHTML=`Who's on the schedule · <b>${WOF.cal.size?[...WOF.cal].join(' + '):'All calendars'}</b> · `
-    +(WOF.from&&WOF.to?gDay(WOF.from)+' – '+gDay(WOF.to):'all loaded')
-    +(WOF.cred.size?' · '+[...WOF.cred].join(', '):'');
+  // label the data that came back, not the request that went out - they differ
+  // whenever a fetch is in flight or the server clamped the window
+  const WW=WO.window||{},wlo=WW.from||WOF.from,whi=WW.to||WOF.to;
+  $('#woScope').innerHTML=`Who's on the schedule &#183; <b>${WOF.cal.size?[...WOF.cal].join(' + '):'All calendars'}</b> &#183; `
+    +(wlo&&whi?gDay(wlo)+' to '+gDay(whi):'all loaded')
+    +(WOF.cred.size?' &#183; '+[...WOF.cred].join(', '):'');
   $('#woKey').innerHTML=CREDS6.map(c=>`<span><i style="background:${WCOL[c]}"></i>${c}</span>`).join('')
     +'<span class="muted">· hours are the schedule’s own clock</span>';
   // A failed read is never allowed to look like "nobody is scheduled".
@@ -1697,25 +1720,40 @@ function renderWhosOn(){
   if(!rows.length){$('#woStats').innerHTML='';bodyEl.innerHTML='<div class="empty">No shifts scheduled in this window'
     +(WO.loaded&&WO.loaded.min?` — the loaded schedule runs <b>${WO.loaded.min} → ${WO.loaded.max}</b>.`:'.')+'</div>';return}
   const peak=WO.peak||Math.max(...rows.map(r=>r[2]),1);
-  const covered=rows.filter(r=>r[2]>0).length, gapHrs=rows.filter(r=>r[9]>0).length;
+  const covered=rows.filter(r=>r[2]>0).length, bare=rows.length-covered;
+  const bodyHrs=rows.reduce((a,r)=>a+(r[2]||0),0);
+  // "hours with a state gap" moved out: the Gaps tab answers which states are
+  // uncovered and when, properly. Repeating it per hour here was the noise that
+  // made this tab a wall.
   $('#woStats').innerHTML=[
     {k:'People on the schedule',v:nf(WO.total_bodies||0),d:'distinct clinicians in this window'},
     {k:'Busiest hour',v:peak,d:'most on at once'},
-    {k:'Hours with anyone on',v:nf(covered),d:'of '+nf(rows.length)+' hours listed'},
-    {k:'Hours with a state gap',v:nf(gapHrs),d:'some state has nobody licensed on'},
+    {k:'Body-hours scheduled',v:nf(bodyHrs),d:'across '+nf(covered)+' staffed hours'},
+    {k:'Hours with nobody on',v:nf(bare),d:'of '+nf(rows.length)+' hours in this window'},
   ].map(tileHTML).join('');
   const cals=(WO.calendars||[]).map(c=>c[0]);
   if(cals.length)calPop('#woCalBtn','#woCalPop','#woCalLbl',cals,WOF.cal,()=>woFetch());
   const byDay={};rows.forEach(r=>{(byDay[r[0]]=byDay[r[0]]||[]).push(r)});
-  bodyEl.innerHTML=Object.keys(byDay).sort().map(d=>{
-    const hrs=byDay[d];const seen={};hrs.forEach(r=>seen[r[1]]=r);
-    return `<div class="wday"><h3>${gDay(d)}</h3>`+Array.from({length:24},(_,h)=>{
-      const r=seen[h];const tot=r?r[2]:0;
-      const segs=r?CREDS6.map((c,i)=>r[3+i]?`<i style="width:${r[3+i]/peak*100}%;background:${WCOL[c]}" title="${r[3+i]} ${c}"></i>`:'').join(''):'';
-      const gap=r&&r[9]>0?`<span style="color:var(--bad);font-size:11px;margin-left:7px" title="No licensed clinician on for: ${r[10]}">${r[9]} states uncovered</span>`:'';
-      return `<div class="wrow${tot?'':' zero'}"><div class="wh">${h}:00</div>`+
-        `<div class="wb">${segs}</div><div class="wn">${tot||'·'}${''}</div></div>`+
-        (gap?`<div class="wrow" style="padding:0"><div></div><div style="line-height:1">${gap}</div><div></div></div>`:'')}).join('')+`</div>`}).join('');
+  const days=Object.keys(byDay).sort();
+  // one shared scale across every day, so a thin Sunday reads as thin next to
+  // a full Tuesday instead of being re-normalised to look the same height
+  const scale=Math.max(peak,1);
+  bodyEl.innerHTML=days.map(d=>{
+    const seen={};byDay[d].forEach(r=>seen[r[1]]=r);
+    const dayTot=Array.from({length:24},(_,h)=>seen[h]?seen[h][2]:0).reduce((a,b)=>a+b,0);
+    const cells=Array.from({length:24},(_,h)=>{
+      const r=seen[h],tot=r?r[2]:0;
+      if(!tot)return '<div class="wcell none" title="'+gDay(d)+' '+hh(h)+' &#183; nobody on"></div>';
+      const parts=CREDS6.map((c,i)=>({c,n:r[3+i]||0})).filter(x=>x.n);
+      const segs=parts.map(x=>'<i style="flex:0 0 '+(x.n/scale*100)+'%;background:'+WCOL[x.c]+'"></i>').join('');
+      const who=parts.map(x=>x.n+' '+x.c).join(', ');
+      return '<div class="wcell" title="'+gDay(d)+' '+hh(h)+' &#183; '+tot+' on'+(who?' ('+who+')':'')+'">'+segs+'</div>'}).join('');
+    return '<div class="wgrid"><div class="wdlab">'+gDay(d)+'</div>'
+      +'<div class="wstrip">'+cells+'</div>'
+      +'<div class="wdtot" title="body-hours scheduled this day">'+nf(dayTot)+'h</div></div>'}).join('')
+    +'<div class="wgrid"><div></div><div class="wruler">'
+      +Array.from({length:24},(_,h)=>'<span>'+(h%3===0?h:'')+'</span>').join('')
+      +'</div><div></div></div>';
 }
 function wireWhosOn(){
   if($('#woFrom')&&!$('#woFrom')._w){$('#woFrom')._w=1;
