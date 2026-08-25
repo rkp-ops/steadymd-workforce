@@ -201,7 +201,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "function applyDefaultWindow","lastCompletedWeek",'id="presets"','data-range="wk"','id="moreRow"',  # IA step 4: open to last completed week + presets + More disclosure
           "newest LOADED date, not the wall clock",'class="fgroup"',  # anchored default + label-stranding fix (label glued to its inputs)
           "function credBucket","credBucket(S.by_cred","credBucket(I.by_license","credClass(x.cred)","credClass(x.license)",  # credentials NEVER raw: 6 buckets on every list, badge, export
-          "function renderGaps",'data-tab="gaps"','id="gapPresets"',  # Gaps view: state-coverage exceptions on a time axis
+          "function renderGaps",'data-tab="gaps"','id="gapPresets"',  # Gaps view: state-coverage exceptions
           "still unfilled",  # Arya unfilled posts surfaced as a leading indicator beside realised gaps
           "All on-demand calendars","siloed calendars excluded",  # SILO: "All" never silently counts TC/30M/MA-P2 as coverage
           "Coverage could not be checked","_st==='err'","gapRetry",  # a failed coverage read NEVER renders as an all-clear
@@ -242,7 +242,14 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "staffing_entities","Hours counted — by calendar",'id="stEntBody"',  # verifiable calendar provenance
           "never averaged",  # whole people per day; averaging across days (0.5 of a person) is banned
           'data-tab="whoson"',"function renderWhosOn","whos_on","function calPop",  # plain coverage read + compact calendar picker
-          "state_gap_windows","function renderGaps",".gttrack{",".whenbars{",'id="gapRows"','id="gapWhen"',"gtseg",  # state-gap timeline: exceptions on a time axis
+          # Gaps is a TABLE, not a chart. A 7-day window compressed 168 hour-columns
+          # into ~1000px, so a 1-hour gap was a 6px splotch and every fact -
+          # which day, what hour, how long, who was on - needed a hover to read.
+          # The engine already merges contiguous hours into ~30 discrete windows;
+          # 30 rows of text is the readable form of that.
+          "state_gap_windows","function renderGaps",'id="gapTbl"','id="gapTblBody"',
+          "Every gap, worst first","Who is on shift then","none licensed in",
+          "click a column to sort","GAPS.windows",
           "Every state is covered for every hour",  # empty state collapses to one line
           "cons-theme",  # theme choice survives reload (no more snapping back on refresh)
           "guideSel","Keeping the data current","Is this real-time?"):

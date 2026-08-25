@@ -21,7 +21,7 @@ declare j jsonb; t0 timestamptz; ms numeric; missing text;
     'coverage_grid', jsonb_build_array('weeks','bodies','excluded','grid'),
     'demand_grid',   jsonb_build_array('weeks','arrivals','loaded','source','grid'),
     'state_gap_windows', jsonb_build_array('window','baseline','slots_total','gap_slots',
-                                           'states_with_gap','excluded','unfilled','rows','worst'),
+                                           'states_with_gap','excluded','unfilled','by_hour','windows'),
     'whos_on', jsonb_build_array('window','loaded','calendars','rows','peak','total_bodies'));
   fname text; want text;
 begin

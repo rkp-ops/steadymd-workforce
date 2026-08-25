@@ -1,30 +1,30 @@
 -- ============================================================================
--- 29_state_gap_windows.sql - the "when and where will I be uncovered" engine.
+-- 29_state_gap_windows.sql - when and where will we be uncovered
 --
--- A 51-state x 24-hour grid is unreadable as a list, but the signal is sparse:
--- most states are covered most hours. So this returns only the EXCEPTIONS, and
--- returns them as contiguous WINDOWS rather than loose hours, so the UI can draw
--- them on a time axis instead of enumerating cells.
+-- The signal is sparse: most states are covered most hours. So this returns
+-- only the EXCEPTIONS, and returns them as contiguous WINDOWS rather than loose
+-- hours - about 30 of them for a week.
 --
--- Coverage = at least one clinician licensed in that state on shift that hour.
+-- Thirty discrete events is a TABLE, not a chart. An earlier UI drew these as
+-- 168 hour-columns across ~1000px, which made a one-hour gap a six-pixel mark
+-- and forced a hover to read which day it was, what hour it started, how long
+-- it ran, or who was working. `windows` is therefore returned FLAT and
+-- worst-first so the console can print each one as a row of plain text.
+--
+-- Each window also carries who IS on shift during it and their credential mix.
+-- That separates a licensure problem ("6 people working, none licensed in NC")
+-- from a staffing problem ("nobody is on at all") - a different fix each time.
+--
+-- Coverage = at least one clinician licensed in that state on shift that hour,
+-- derived from the on-shift set rather than expanded a second time.
 -- Hours are the schedule's own clock (UTC extraction), matching whos_on.
--- Windows are ranked by demand at risk, from the trailing 4-week arrival rate,
--- so an uncovered hour in a high-volume state outranks one in a quiet state.
+-- Windows are ranked by demand at risk from the trailing 4-week arrival rate.
 --
--- SILO RULE (non-negotiable): with no explicit calendar selection, supply and
--- demand both run through service_line_map. Calendars with count_in_coverage
--- =false are NOT coverage for the on-demand pool and must never mask a gap:
---   * Transcarent (x3) - analyzed strictly separately, never an aggregate
---     addition or influencer
---   * Thirty Madison (x3) - staffing-only; those bodies work on the partner's
---     own platform, so they cannot answer one of our on-demand states
---   * MA P2 Calls - routing, not clinician coverage
---   * Sanofi-ixlayer / Sanofi Skinlink / ixlayer J&J - tracked only
---   * Rezilient - discontinued partner
--- Counting them was understating exposure by more than half (Aug 29-30 read as
--- 16 uncovered state-hours across 9 states; the correct read is 35 across 11).
--- Naming a calendar explicitly in p_service_line still honors that selection
--- exactly, so a siloed population can be inspected alone.
+-- SILO RULE: with no explicit calendar selection, supply and demand both run
+-- through service_line_map. Calendars with count_in_coverage=false are NOT
+-- coverage for the on-demand pool and must never mask a gap (Transcarent,
+-- Thirty Madison, MA P2 Calls, Sanofi/ixlayer, Rezilient). Counting them
+-- understated exposure by more than half.
 -- ============================================================================
 create or replace function public.state_gap_windows(
     p_from date default null, p_to date default null,
@@ -36,20 +36,19 @@ begin
   if not public.is_active_app_user() then raise exception 'not authorized' using errcode='42501'; end if;
   select coalesce(p_from, min((start_at at time zone 'UTC')::date)),
          coalesce(p_to,   max((start_at at time zone 'UTC')::date)) into lo, hi from shift;
-  if lo is null then return jsonb_build_object('rows','[]'::jsonb,'no_schedule',true); end if;
+  if lo is null then return jsonb_build_object('windows','[]'::jsonb,'no_schedule',true); end if;
 
-  -- demand baseline: last 4 weeks of on-demand arrivals, by state and hour-of-day
   select max((sli_received at time zone 'UTC')::date) into d_to from sli_response where lane='on_demand';
   d_from := coalesce(d_to,current_date) - 27;
   nd := greatest((coalesce(d_to,current_date) - d_from) + 1, 1);
 
-  drop table if exists _gr; drop table if exists _cov; drop table if exists _gap; drop table if exists _dm;
+  drop table if exists _gr; drop table if exists _oh; drop table if exists _cov;
+  drop table if exists _gap; drop table if exists _dm;
 
   -- one row per lowercased email. The correlated form of this join
   --   lower(s.clinician_email_raw) = any(array(select lower(x) from unnest(r.emails) x))
   -- forces a nested loop re-running the unnest per (shift x roster) pair and
-  -- took 4,263ms for a seven-day window, on a tab where every filter change
-  -- refetches. Flattened and hash-joined it is ~1,100ms. Do not inline it back.
+  -- cost 4,263ms for a seven-day window. Do not inline it back.
   create temp table _gr on commit drop as
   select distinct on (lower(e)) lower(e) em,
          coalesce(public.cred_bucket(r.credential),'-') cred, r.license_states ls
@@ -57,14 +56,16 @@ begin
   order by lower(e), r.id;
   create index on _gr(em);
 
-  -- states genuinely covered in each hour: at least one licensed body on shift,
-  -- on a calendar that actually counts as on-demand coverage (see SILO RULE).
-  create temp table _cov on commit drop as
-  select distinct (h)::date d, extract(hour from h)::int hr, ls.st
+  -- THE single hour expansion. Everyone on shift each hour. Expanding a second
+  -- time to build coverage separately cost 5,416ms; coverage is derivable from
+  -- this set, since a state is covered iff somebody on then is licensed for it.
+  create temp table _oh on commit drop as
+  select distinct (((h)::date - date '2026-01-01')*24 + extract(hour from h)::int) hnum,
+         (h)::date d, extract(hour from h)::int hr,
+         lower(s.clinician_email_raw) em, coalesce(rt.cred,'-') cred
   from shift s
   left join service_line_map m on m.entity = s.service_line
-  join _gr rt on rt.em = lower(s.clinician_email_raw)
-  cross join lateral unnest(rt.ls) ls(st)
+  left join _gr rt on rt.em = lower(s.clinician_email_raw)
   cross join lateral generate_series(date_trunc('hour', s.start_at at time zone 'UTC'),
         (s.end_at at time zone 'UTC') - interval '1 second', interval '1 hour') h
   where lower(coalesce(s.clinician_email_raw,''))<>'not assigned'
@@ -73,10 +74,15 @@ begin
     and extract(hour from h)::int between p_hour0 and p_hour1
     and (case when p_service_line is not null then s.service_line = any(p_service_line)
               else coalesce(m.count_in_coverage,true) end)
-    and (p_cred is null or rt.cred = any(p_cred));
+    and (p_cred is null or coalesce(rt.cred,'-') = any(p_cred));
+  create index on _oh(hnum);
 
-  -- demand follows the same silo: a siloed partner's arrivals never inflate the
-  -- pooled demand-at-risk, and naming its calendar reports it alone.
+  create temp table _cov on commit drop as
+  select distinct o.d, o.hr, ls.st
+  from _oh o join _gr rt on rt.em = o.em
+  cross join lateral unnest(rt.ls) ls(st);
+  create index on _cov(d, hr, st);
+
   create temp table _dm on commit drop as
   select nullif(trim(sr.state),'') st, extract(hour from sr.sli_received at time zone 'UTC')::int hr,
          count(*)::numeric/nd per_day
@@ -93,13 +99,11 @@ begin
             and (m.demand_match is null or sr.partner ilike '%'||m.demand_match||'%')))
   group by 1,2;
 
-  -- every (hour, state) slot the window contains, minus the covered ones.
-  -- EVERY hour reference below is table-qualified on purpose. An unqualified
-  -- `hr` inside the NOT EXISTS binds to the SUBQUERY's _cov.hr, not to the
-  -- outer hour, so `c.hr = hr` silently degrades to `c.hr = c.hr` (always
-  -- true) and the whole hour dimension drops out - a state covered for one
-  -- hour then reads as covered for all 24. That shipped once and reported a
-  -- week with 55 uncovered state-hours as fully covered. Do not un-qualify.
+  -- EVERY hour reference is table-qualified on purpose. An unqualified `hr`
+  -- inside the NOT EXISTS binds to the subquery's own _cov.hr, so `c.hr = hr`
+  -- degrades to `c.hr = c.hr` and the hour dimension drops out entirely. That
+  -- shipped once and reported a week with 55 uncovered state-hours as fully
+  -- covered. Do not un-qualify.
   create temp table _gap on commit drop as
   select g.d, hs.hr, s.st,
          ((g.d - date '2026-01-01')*24 + hs.hr) hnum,
@@ -112,18 +116,28 @@ begin
   left join _dm dm on dm.st=s.st and dm.hr=hs.hr
   where not exists (select 1 from _cov c where c.d=g.d and c.hr=hs.hr and c.st=s.st);
 
+  with w as (
+    -- bounds from hnum, never min(hr)/max(hr): a run crossing midnight would
+    -- otherwise report min 0 / max 23 and render as a full inverted day
+    select st, count(*)::int len, min(hnum) h0n, max(hnum) h1n, sum(dem) dem_sum
+    from (select *, hnum - row_number() over (partition by st order by hnum) grp from _gap) z
+    group by st, grp),
+  wo as (
+    select w.*,
+      (select count(distinct x.em) from _oh x where x.hnum between w.h0n and w.h1n) n_on,
+      (select coalesce(jsonb_agg(jsonb_build_array(t.cred,t.n) order by t.n desc, t.cred),'[]'::jsonb)
+       from (select x.cred, count(distinct x.em) n from _oh x
+             where x.hnum between w.h0n and w.h1n group by x.cred) t) mix
+    from w)
   select jsonb_build_object(
     'window', jsonb_build_object('from',lo,'to',hi,'h0',p_hour0,'h1',p_hour1),
     'baseline', jsonb_build_object('from',d_from,'to',d_to),
     'slots_total', (select count(*) from (select generate_series(lo,hi,interval '1 day')) x)*(p_hour1-p_hour0+1)*51,
     'gap_slots', (select count(*) from _gap),
     'states_with_gap', (select count(distinct st) from _gap),
-    -- what "All" actually means here, named rather than assumed
     'excluded', case when p_service_line is not null then '[]'::jsonb else
       coalesce((select jsonb_agg(entity order by entity) from service_line_map
                 where not count_in_coverage), '[]'::jsonb) end,
-    -- Arya posts nobody claimed, on coverage-counting calendars only. A leading
-    -- indicator: an open post is a gap that has not happened yet.
     'unfilled', (select jsonb_build_object(
         'hours', coalesce(round(sum(u.hours))::int,0), 'posts', count(*))
       from shift u
@@ -132,29 +146,19 @@ begin
         and (u.start_at at time zone 'UTC')::date between lo and hi
         and (case when p_service_line is not null then u.service_line = any(p_service_line)
                   else coalesce(um.count_in_coverage,true) end)),
-    -- one row per state: its contiguous uncovered windows, worst first
-    'rows', coalesce((select jsonb_agg(jsonb_build_array(st, gap_hours, round(dem_at_risk,1), wins)
-                              order by dem_at_risk desc, gap_hours desc, st)
-      from (
-        select st, sum(len)::int gap_hours, sum(dem_sum) dem_at_risk,
-               jsonb_agg(jsonb_build_array(to_char(d0,'YYYY-MM-DD'), h0, to_char(d1,'YYYY-MM-DD'), h1, len, round(dem_sum,1))
-                         order by d0, h0) wins
-        from (
-          -- Bounds come from hnum, never min(hr)/max(hr): a run crossing midnight
-          -- (23:00 -> 01:00) would otherwise report min(hr)=0 and max(hr)=23 and
-          -- render as a full inverted day.
-          select st, count(*)::int len,
-                 (date '2026-01-01' + (min(hnum)/24)) d0, (min(hnum)%24) h0,
-                 (date '2026-01-01' + (max(hnum)/24)) d1, (max(hnum)%24) h1,
-                 sum(dem) dem_sum
-          from (select *, hnum - row_number() over (partition by st order by hnum) grp from _gap) z
-          group by st, grp) w
-        group by st) q), '[]'::jsonb),
-    'worst', (select jsonb_build_array(st, to_char(d0,'YYYY-MM-DD'), h0, h1, len)
-              from (select st, (date '2026-01-01' + (min(hnum)/24)) d0, (min(hnum)%24) h0,
-                           (max(hnum)%24) h1, count(*) len, sum(dem) ds
-                    from (select *, hnum - row_number() over (partition by st order by hnum) grp from _gap) z
-                    group by st, grp order by ds desc, len desc limit 1) x)
+    -- which hours of the day gaps land in, as DATA so the UI can say it in
+    -- words rather than draw a chart nobody can read
+    'by_hour', coalesce((select jsonb_agg(jsonb_build_array(t.hr,t.n) order by t.hr)
+                         from (select g.hr, count(*) n from _gap g group by g.hr) t), '[]'::jsonb),
+    -- FLAT, worst first. One row of the table per element:
+    -- [state, start_date, start_hr, end_date, end_hr_exclusive, hours,
+    --  arrivals_per_day, n_on_shift, [[credential, n], ...]]
+    'windows', coalesce((select jsonb_agg(jsonb_build_array(
+          wo.st,
+          to_char(date '2026-01-01' + (wo.h0n/24), 'YYYY-MM-DD'), (wo.h0n%24),
+          to_char(date '2026-01-01' + (wo.h1n/24), 'YYYY-MM-DD'), (wo.h1n%24)+1,
+          wo.len, round(wo.dem_sum,1), wo.n_on, wo.mix)
+          order by wo.dem_sum desc, wo.len desc, wo.st, wo.h0n) from wo), '[]'::jsonb)
   ) into out;
   return out;
 end $$;
