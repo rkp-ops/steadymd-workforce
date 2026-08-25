@@ -81,18 +81,24 @@ begin
             and (m.demand_match is null or sr.partner ilike '%'||m.demand_match||'%')))
   group by 1,2;
 
-  -- every (hour, state) slot the window contains, minus the covered ones
+  -- every (hour, state) slot the window contains, minus the covered ones.
+  -- EVERY hour reference below is table-qualified on purpose. An unqualified
+  -- `hr` inside the NOT EXISTS binds to the SUBQUERY's _cov.hr, not to the
+  -- outer hour, so `c.hr = hr` silently degrades to `c.hr = c.hr` (always
+  -- true) and the whole hour dimension drops out - a state covered for one
+  -- hour then reads as covered for all 24. That shipped once and reported a
+  -- week with 55 uncovered state-hours as fully covered. Do not un-qualify.
   create temp table _gap on commit drop as
-  select g.d, g.hr, s.st,
-         ((g.d - date '2026-01-01')*24 + g.hr) hnum,
+  select g.d, hs.hr, s.st,
+         ((g.d - date '2026-01-01')*24 + hs.hr) hnum,
          coalesce(dm.per_day,0) dem
   from (select generate_series(lo,hi,interval '1 day')::date d) g
-  cross join generate_series(p_hour0,p_hour1) hr
+  cross join (select generate_series(p_hour0,p_hour1) hr) hs
   cross join (select unnest(array['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA',
     'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR',
     'PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']) st) s
-  left join _dm dm on dm.st=s.st and dm.hr=hr
-  where not exists (select 1 from _cov c where c.d=g.d and c.hr=hr and c.st=s.st);
+  left join _dm dm on dm.st=s.st and dm.hr=hs.hr
+  where not exists (select 1 from _cov c where c.d=g.d and c.hr=hs.hr and c.st=s.st);
 
   select jsonb_build_object(
     'window', jsonb_build_object('from',lo,'to',hi,'h0',p_hour0,'h1',p_hour1),
@@ -122,12 +128,19 @@ begin
                jsonb_agg(jsonb_build_array(to_char(d0,'YYYY-MM-DD'), h0, to_char(d1,'YYYY-MM-DD'), h1, len, round(dem_sum,1))
                          order by d0, h0) wins
         from (
-          select st, count(*)::int len, min(d) d0, min(hr) h0, max(d) d1, max(hr) h1, sum(dem) dem_sum
+          -- Bounds come from hnum, never min(hr)/max(hr): a run crossing midnight
+          -- (23:00 -> 01:00) would otherwise report min(hr)=0 and max(hr)=23 and
+          -- render as a full inverted day.
+          select st, count(*)::int len,
+                 (date '2026-01-01' + (min(hnum)/24)) d0, (min(hnum)%24) h0,
+                 (date '2026-01-01' + (max(hnum)/24)) d1, (max(hnum)%24) h1,
+                 sum(dem) dem_sum
           from (select *, hnum - row_number() over (partition by st order by hnum) grp from _gap) z
           group by st, grp) w
         group by st) q), '[]'::jsonb),
     'worst', (select jsonb_build_array(st, to_char(d0,'YYYY-MM-DD'), h0, h1, len)
-              from (select st, min(d) d0, min(hr) h0, max(hr) h1, count(*) len, sum(dem) ds
+              from (select st, (date '2026-01-01' + (min(hnum)/24)) d0, (min(hnum)%24) h0,
+                           (max(hnum)%24) h1, count(*) len, sum(dem) ds
                     from (select *, hnum - row_number() over (partition by st order by hnum) grp from _gap) z
                     group by st, grp order by ds desc, len desc limit 1) x)
   ) into out;

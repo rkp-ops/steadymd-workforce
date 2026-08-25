@@ -110,6 +110,11 @@
      gave a 1-gap hour the same visual mass as a 6-gap hour. Only hours the hour
      filter excludes get a tinted block, so "out of scope" stays distinguishable
      from "no gaps here". */
+  .hide{display:none!important}
+  /* A failed coverage check is stated as a failure, never as an all-clear. */
+  .gapfail{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;
+           border:1px solid var(--bad);border-radius:var(--radius);color:var(--bad);font-size:13px}
+  .gapfail .muted{color:var(--ink-2)}
   .whenbars{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px;
             border-bottom:1px solid var(--border-2)}
   .whenbar{border-radius:3px 3px 0 0;display:flex;align-items:flex-end;height:100%}
@@ -473,9 +478,9 @@
       <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="gapH0"></select><span class="muted">-</span><select class="dateinp" id="gapH1"></select></div>
     </div>
     <div class="ovhero" id="gapHero"></div>
-    <div class="card"><div class="hd"><h2>When gaps happen</h2><span class="desc">uncovered state-hours by hour of day, across the whole window</span></div>
+    <div class="card" id="gapWhenCard"><div class="hd"><h2>When gaps happen</h2><span class="desc">uncovered state-hours by hour of day, across the whole window</span></div>
       <div class="bd"><div class="whenbars" id="gapWhen"></div><div class="whenlabs" id="gapWhenLabs"></div></div></div>
-    <div class="card"><div class="hd"><h2>Where, and exactly when</h2><span class="desc" id="gapTlDesc">one row per state that goes uncovered, worst first &#183; hover a bar for the exact window</span></div>
+    <div class="card" id="gapTlCard"><div class="hd"><h2>Where, and exactly when</h2><span class="desc" id="gapTlDesc">one row per state that goes uncovered, worst first &#183; hover a bar for the exact window</span></div>
       <div class="bd gapwrap"><div class="gthead"><div></div><div class="gtticks" id="gapTicks"></div></div>
         <div class="gtrows" id="gapRows"></div>
         <div class="muted" id="gapNote" style="font-size:11.5px;margin-top:10px"></div></div></div>
@@ -1428,7 +1433,12 @@ function wireScoreboard(){
 // live data ~1% of state-hours are uncovered. So render only the exceptions, as
 // contiguous windows positioned on a shared time axis. Server does the island
 // merging (state_gap_windows); this draws it.
-let GAPS={rows:[]}, GW={from:null,to:null,cal:new Set(),h0:0,h1:23,_init:0};
+// _st is the load state and it is load-bearing: 'idle' (never fetched), 'ok'
+// (the server answered) or 'err' (it did not). Only 'ok' may render the
+// all-clear. An empty GAPS.rows on its own means nothing - it is also what a
+// failed request leaves behind, and reporting a failure as "every state is
+// covered" is the worst thing this page can do.
+let GAPS={rows:[],_st:'idle',_msg:''}, GW={from:null,to:null,cal:new Set(),h0:0,h1:23,_init:0};
 const GMON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function gDate(s){const p=String(s).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]))}
 function gIso(d){return d.toISOString().slice(0,10)}
@@ -1438,13 +1448,18 @@ function gShort(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri',
 function gToday(){return new Date().toISOString().slice(0,10)}
 function gDiff(a,b){return Math.round((gDate(b)-gDate(a))/86400000)}
 function hh(n){return String(n).padStart(2,'0')+':00'}
+function hesc(v){return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 window.__kickGaps=function(){if(GW._init)return;GW._init=1;gapDefaults();gapFetch()};
 async function gapFetch(){
-  if(!RANGE_API||!RANGE_API.stateGaps){renderGaps();return}
+  if(!RANGE_API||!RANGE_API.stateGaps){
+    GAPS={rows:[],_st:'err',_msg:'The coverage service is not connected in this build.'};renderGaps();return}
   const bar=document.querySelector('[data-tab="gaps"] .filterbar');if(bar)bar.style.opacity=.55;
   try{const r=await RANGE_API.stateGaps({p_from:GW.from,p_to:GW.to,
       p_service_line:GW.cal.size?[...GW.cal]:null,p_hour0:GW.h0,p_hour1:GW.h1});
-    if(r&&!r.error)GAPS=r.data||{rows:[]};}catch(_){}
+    if(r&&r.error)GAPS={rows:[],_st:'err',_msg:r.error.message||String(r.error)};
+    else if(r&&r.data)GAPS=Object.assign({rows:[]},r.data,{_st:'ok',_msg:''});
+    else GAPS={rows:[],_st:'err',_msg:'The coverage service returned no payload.'};}
+  catch(e){GAPS={rows:[],_st:'err',_msg:(e&&e.message)||String(e)}}
   if(bar)bar.style.opacity='';renderGaps()}
 function gapDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
   if(hi&&hi>=t){GW.from=t;GW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markGapPreset('7d')}
@@ -1468,8 +1483,19 @@ function renderGaps(){
     +(GW.cal.size?[...GW.cal].join(' + '):'All on-demand calendars')
     +'</b> &#183; '+(lo&&hi?gDay(lo)+' to '+gDay(hi):'all loaded')+(h0>0||h1<23?' &#183; '+hh(h0)+'-'+hh(h1):'')
     +(GW.cal.size||!exc.length?'':' <span class="muted">('+exc.length+' siloed calendars excluded)</span>');
-  if(!lo||GAPS.no_schedule){$('#gapHero').innerHTML='<div class="empty" style="flex-basis:100%">No schedule loaded. Upload the Arya export via Settings &#8250; Import.</div>';
-    rowsEl.innerHTML='';$('#gapWhen').innerHTML='';$('#gapWhenLabs').innerHTML='';$('#gapTicks').innerHTML='';$('#gapNote').textContent='';return}
+  // one place decides whether the result cards are worth showing at all
+  const showCards=GAPS._st==='ok'&&rows.length>0;
+  $('#gapWhenCard').classList.toggle('hide',!showCards);
+  $('#gapTlCard').classList.toggle('hide',!showCards);
+  const bail=(html)=>{$('#gapHero').innerHTML=html;rowsEl.innerHTML='';
+    $('#gapWhen').innerHTML='';$('#gapWhenLabs').innerHTML='';$('#gapTicks').innerHTML='';$('#gapNote').textContent=''};
+  if(GAPS._st==='err'){
+    bail('<div class="gapfail" style="flex-basis:100%"><b>Coverage could not be checked.</b> '
+      +'<span class="muted">'+hesc(GAPS._msg||'The request failed.')+'</span>'
+      +'<button class="qbtn" id="gapRetry" type="button">Try again</button></div>');
+    const rb=$('#gapRetry');if(rb)rb.onclick=()=>gapFetch();return}
+  if(GAPS._st==='idle'){bail('<div class="empty" style="flex-basis:100%">Checking coverage&#8230;</div>');return}
+  if(!lo||GAPS.no_schedule){bail('<div class="empty" style="flex-basis:100%">No schedule loaded. Upload the Arya export via Settings &#8250; Import.</div>');return}
   const nd=gDiff(lo,hi)+1, H=h1-h0+1, N=nd*H;
   const totalHrs=rows.reduce((a,r)=>a+r[1],0), totalDem=rows.reduce((a,r)=>a+r[2],0);
   const worst=GAPS.worst;
