@@ -134,6 +134,11 @@
      gave a 1-gap hour the same visual mass as a 6-gap hour. Only hours the hour
      filter excludes get a tinted block, so "out of scope" stays distinguishable
      from "no gaps here". */
+  /* Scanning 8 columns across 29 rows needs a row anchor. */
+  #gapTbl tbody tr:hover{background:var(--surface-2)}
+  #gapTbl th[data-sort]{user-select:none;white-space:nowrap}
+  #gapTbl th[data-sort]:hover{color:var(--ink)}
+  #gapTbl td{vertical-align:baseline}
   .hide{display:none!important}
   /* A failed coverage check is stated as a failure, never as an all-clear. */
   .gapfail{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;
@@ -502,12 +507,24 @@
       <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="gapH0"></select><span class="muted">-</span><select class="dateinp" id="gapH1"></select></div>
     </div>
     <div class="ovhero" id="gapHero"></div>
-    <div class="card" id="gapWhenCard"><div class="hd"><h2>When gaps happen</h2><span class="desc">uncovered state-hours by hour of day, across the whole window</span></div>
-      <div class="bd"><div class="whenbars" id="gapWhen"></div><div class="whenlabs" id="gapWhenLabs"></div></div></div>
-    <div class="card" id="gapTlCard"><div class="hd"><h2>Where, and exactly when</h2><span class="desc" id="gapTlDesc">one row per state that goes uncovered, worst first &#183; hover a bar for the exact window</span></div>
-      <div class="bd gapwrap"><div class="gthead"><div></div><div class="gtticks" id="gapTicks"></div></div>
-        <div class="gtrows" id="gapRows"></div>
-        <div class="muted" id="gapNote" style="font-size:11.5px;margin-top:10px"></div></div></div>
+    <div class="card" id="gapTblCard"><div class="hd"><h2>Every gap, worst first</h2>
+        <span class="desc" id="gapTblDesc"></span></div>
+      <div class="bd">
+        <div style="overflow-x:auto"><table class="fx" id="gapTbl">
+          <thead><tr>
+            <th data-sort="st"  style="width:74px">State</th>
+            <th data-sort="day" style="width:132px">Day</th>
+            <th data-sort="beg" style="width:92px">Starts</th>
+            <th data-sort="end" style="width:132px">Ends</th>
+            <th data-sort="len" class="r" style="width:74px">Length</th>
+            <th data-sort="dem" class="r" style="width:118px">Arrivals/day</th>
+            <th data-sort="non" style="width:56px" class="r">On</th>
+            <th>Who is on shift then</th>
+          </tr></thead>
+          <tbody id="gapTblBody"></tbody>
+        </table></div>
+        <div class="muted" id="gapNote" style="font-size:11.5px;margin-top:10px"></div>
+      </div></div>
   </section>
 
   <section class="tab" data-tab="states">
@@ -1646,7 +1663,7 @@ function wireScoreboard(){
 // all-clear. An empty GAPS.rows on its own means nothing - it is also what a
 // failed request leaves behind, and reporting a failure as "every state is
 // covered" is the worst thing this page can do.
-let GAPS={rows:[],_st:'idle',_msg:''}, GW={from:null,to:null,cal:new Set(),h0:0,h1:23,_init:0};
+let GAPS={windows:[],_st:'idle',_msg:''}, GW={from:null,to:null,cal:new Set(),h0:0,h1:23,_init:0};
 const GMON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function gDate(s){const p=String(s).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]))}
 function gIso(d){return d.toISOString().slice(0,10)}
@@ -1660,14 +1677,14 @@ function hesc(v){return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;',
 window.__kickGaps=function(){if(GW._init)return;GW._init=1;gapDefaults();gapFetch()};
 async function gapFetch(){
   if(!RANGE_API||!RANGE_API.stateGaps){
-    GAPS={rows:[],_st:'err',_msg:'The coverage service is not connected in this build.'};renderGaps();return}
+    GAPS={windows:[],_st:'err',_msg:'The coverage service is not connected in this build.'};renderGaps();return}
   const bar=document.querySelector('[data-tab="gaps"] .filterbar');if(bar)bar.style.opacity=.55;
   try{const r=await RANGE_API.stateGaps({p_from:GW.from,p_to:GW.to,
       p_service_line:GW.cal.size?[...GW.cal]:null,p_hour0:GW.h0,p_hour1:GW.h1});
-    if(r&&r.error)GAPS={rows:[],_st:'err',_msg:r.error.message||String(r.error)};
-    else if(r&&r.data)GAPS=Object.assign({rows:[]},r.data,{_st:'ok',_msg:''});
-    else GAPS={rows:[],_st:'err',_msg:'The coverage service returned no payload.'};}
-  catch(e){GAPS={rows:[],_st:'err',_msg:(e&&e.message)||String(e)}}
+    if(r&&r.error)GAPS={windows:[],_st:'err',_msg:r.error.message||String(r.error)};
+    else if(r&&r.data)GAPS=Object.assign({windows:[]},r.data,{_st:'ok',_msg:''});
+    else GAPS={windows:[],_st:'err',_msg:'The coverage service returned no payload.'};}
+  catch(e){GAPS={windows:[],_st:'err',_msg:(e&&e.message)||String(e)}}
   if(bar)bar.style.opacity='';renderGaps()}
 function gapDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
   if(hi&&hi>=t){GW.from=t;GW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markGapPreset('7d')}
@@ -1678,25 +1695,24 @@ function markGapPreset(k){$$('#gapPresets .qbtn').forEach(b=>b.classList.toggle(
 function unfTxt(){const u=GAPS.unfilled;return (u&&u.hours)?(' '+nf(u.hours)+' posted shift-hours in this window are still unfilled.'):''}
 function unf(){const u=GAPS.unfilled;return (u&&u.hours)?
   ('<div class="line" style="color:var(--warn)"><b>'+nf(u.hours)+'</b> posted shift-hours still unfilled ('+nf(u.posts)+' open posts) - gaps that have not happened yet</div>'):''}
+// Sort state for the gap table. Default is worst-first by demand at risk;
+// every column is clickable because "when does it start" and "which state" are
+// different questions and both get asked.
+let GSORT={k:'dem',dir:-1};
 function renderGaps(){
-  const rowsEl=$('#gapRows');if(!rowsEl)return;
-  const W=GAPS.window||{},rows=GAPS.rows||[];
+  const body=$('#gapTblBody');if(!body)return;
+  const W=GAPS.window||{},wins=GAPS.windows||[];
   const lo=W.from||GW.from,hi=W.to||GW.to,h0=W.h0==null?GW.h0:W.h0,h1=W.h1==null?GW.h1:W.h1;
-  // "All" means every calendar that actually staffs on-demand care. Siloed and
-  // staffing-only calendars (Transcarent, Thirty Madison, MA P2, tracked-only)
-  // are excluded by the engine, so name them rather than letting "All" imply
-  // they were counted.
   const exc=GAPS.excluded||[];
-  $('#gapScope').innerHTML='State coverage gaps &#183; <b'+(GW.cal.size?'':(exc.length?' title="Excludes '+exc.join(', ').replace(/"/g,'&quot;')+' - siloed or staffing-only, so they never count as on-demand coverage"':''))+'>'
+  $('#gapScope').innerHTML='State coverage gaps &#183; <b'
+    +(GW.cal.size?'':(exc.length?' title="Excludes '+exc.join(', ').replace(/"/g,'&quot;')+' - siloed or staffing-only, so they never count as on-demand coverage"':''))+'>'
     +(GW.cal.size?[...GW.cal].join(' + '):'All on-demand calendars')
     +'</b> &#183; '+(lo&&hi?gDay(lo)+' to '+gDay(hi):'all loaded')+(h0>0||h1<23?' &#183; '+hh(h0)+'-'+hh(h1):'')
     +(GW.cal.size||!exc.length?'':' <span class="muted">('+exc.length+' siloed calendars excluded)</span>');
-  // one place decides whether the result cards are worth showing at all
-  const showCards=GAPS._st==='ok'&&rows.length>0;
-  $('#gapWhenCard').classList.toggle('hide',!showCards);
-  $('#gapTlCard').classList.toggle('hide',!showCards);
-  const bail=(html)=>{$('#gapHero').innerHTML=html;rowsEl.innerHTML='';
-    $('#gapWhen').innerHTML='';$('#gapWhenLabs').innerHTML='';$('#gapTicks').innerHTML='';$('#gapNote').textContent=''};
+
+  const card=$('#gapTblCard');
+  const bail=(html)=>{$('#gapHero').innerHTML=html;body.innerHTML='';
+    if(card)card.classList.add('hide');$('#gapNote').textContent=''};
   if(GAPS._st==='err'){
     bail('<div class="gapfail" style="flex-basis:100%"><b>Coverage could not be checked.</b> '
       +'<span class="muted">'+hesc(GAPS._msg||'The request failed.')+'</span>'
@@ -1704,47 +1720,68 @@ function renderGaps(){
     const rb=$('#gapRetry');if(rb)rb.onclick=()=>gapFetch();return}
   if(GAPS._st==='idle'){bail('<div class="empty" style="flex-basis:100%">Checking coverage&#8230;</div>');return}
   if(!lo||GAPS.no_schedule){bail('<div class="empty" style="flex-basis:100%">No schedule loaded. Upload the Arya export via Settings &#8250; Import.</div>');return}
-  const nd=gDiff(lo,hi)+1, H=h1-h0+1, N=nd*H;
-  const totalHrs=rows.reduce((a,r)=>a+r[1],0), totalDem=rows.reduce((a,r)=>a+r[2],0);
-  const worst=GAPS.worst;
-  // ---- hero: the answer in one line ----
-  $('#gapHero').innerHTML=rows.length?
-    '<div class="hero-sla"><div class="k">States going uncovered</div><div class="v" style="color:var(--bad)">'+rows.length+'</div>'+
-    '<div class="d">of 51 &#183; '+nf(totalHrs)+' uncovered state-hours</div></div>'+
-    '<div class="hero-meta"><div class="line">Worst single window: <b>'+(worst?worst[0]+' '+gDay(worst[1])+' '+hh(worst[2])+'-'+hh(worst[3]+1)+' ('+worst[4]+'h)':'-')+'</b></div>'+
-    '<div class="line">Highest exposure: <b>'+rows[0][0]+'</b> - '+rows[0][1]+'h uncovered, about '+rows[0][2]+' arrivals/day normally land there</div>'+
-    '<div class="line muted">'+nf(Math.round(totalDem))+' arrivals/day of normal volume sits in a state with at least one uncovered hour</div>'+unf()+'</div>'
-    :'<div class="gapclear" style="flex-basis:100%"><span class="pipdot"></span><b>Every state is covered for every hour in this window.</b><span class="muted">No licensed-coverage gaps to escalate.'+unfTxt()+'</span></div>';
-  // ---- when: uncovered state-hours by hour of day ----
-  // (unf/unfTxt defined below render so both hero branches can use them)
-  const byHour=new Array(24).fill(0);
-  rows.forEach(r=>r[3].forEach(w=>{const s0=gDiff(lo,w[0])*H+(w[1]-h0);
-    for(let k=0;k<w[4];k++){const c=s0+k;byHour[h0+(c%H)]++}}));
-  const mxH=Math.max(...byHour,1);
-  $('#gapWhen').innerHTML=Array.from({length:24},(_,i)=>{
-    const on=i>=h0&&i<=h1,v=byHour[i];
-    return '<div class="whenbar'+(on?'':' off')+'" title="'+hh(i)+' &#183; '+(on?v+' uncovered state-hours':'outside the hour filter')+'">'+
-      (on&&v?'<i style="height:'+Math.max(6,v/mxH*100)+'%"></i>':'')+'</div>'}).join('');
-  $('#gapWhenLabs').innerHTML=Array.from({length:24},(_,i)=>'<div>'+(i%3===0?i:'')+'</div>').join('');
-  // ---- ticks: one label per day ----
-  $('#gapTicks').style.gridTemplateColumns='repeat('+nd+',1fr)';
-  $('#gapTicks').innerHTML=Array.from({length:nd},(_,i)=>'<span>'+gShort(gAdd(lo,i))+'</span>').join('');
-  // ---- timeline rows ----
-  const mxDem=Math.max(...rows.map(r=>r[2]),1);
-  rowsEl.innerHTML=rows.length?rows.map(r=>{
-    const [st,hrs,dem,wins]=r;
-    const segs=wins.map(w=>{
-      const s0=gDiff(lo,w[0])*H+(w[1]-h0), e0=gDiff(lo,w[2])*H+(w[3]-h0), span=Math.max(1,e0-s0+1);
-      const inten=.42+.58*Math.min(1,(w[5]||0)/(mxDem||1));
-      const t=st+' uncovered '+gDay(w[0])+' '+hh(w[1])+'-'+hh(w[3]+1)+' ('+w[4]+'h)'+(w[5]?' &#183; about '+w[5]+' arrivals/day normally':'');
-      return '<i class="gtseg" style="grid-column:'+(s0+1)+'/span '+span+';opacity:'+inten.toFixed(2)+'" title="'+t+'"></i>'}).join('');
-    const days=Array.from({length:nd-1},(_,i)=>'<i class="gtday" style="grid-column:'+((i+1)*H+1)+'/span 1"></i>').join('');
-    return '<div class="gtrow"><div class="gtlab"><b>'+st+'</b><small>'+hrs+'h</small></div>'+
-      '<div class="gttrack" style="grid-template-columns:repeat('+N+',1fr)">'+days+segs+'</div></div>'}).join(''):'';
-  $('#gapNote').textContent=rows.length?('bar position = when, bar shade = how much normal volume sits in that state '
-    +'· '+nd+' days × '+H+' hours · schedule clock'):'';
+  if(!wins.length){
+    bail('<div class="gapclear" style="flex-basis:100%"><span class="pipdot"></span>'
+      +'<b>Every state is covered for every hour in this window.</b>'
+      +'<span class="muted">No licensed-coverage gaps to escalate.'+unfTxt()+'</span></div>');return}
+  if(card)card.classList.remove('hide');
+
+  const totalHrs=wins.reduce((a,w)=>a+w[5],0), totalDem=wins.reduce((a,w)=>a+w[6],0);
+  const nStates=new Set(wins.map(w=>w[0])).size;
+  const worst=wins.reduce((a,w)=>w[6]>a[6]?w:a,wins[0]);
+  // which hours of the day it clusters in, said in words rather than drawn
+  const bh=(GAPS.by_hour||[]).slice().sort((a,b)=>b[1]-a[1]).slice(0,3).filter(x=>x[1]>0);
+  const clusters=bh.length?bh.map(x=>hh(x[0])).join(', '):'';
+  $('#gapHero').innerHTML=
+    '<div class="hero-sla"><div class="k">States going uncovered</div><div class="v" style="color:var(--bad)">'+nStates+'</div>'+
+    '<div class="d">of 51 &#183; '+nf(totalHrs)+' uncovered state-hours in '+wins.length+' gaps</div></div>'+
+    '<div class="hero-meta">'+
+    '<div class="line">Worst gap: <b>'+worst[0]+' '+gDay(worst[1])+' '+hh(worst[2])+' to '+hh(worst[4])
+      +'</b> ('+worst[5]+'h, about '+worst[6]+' arrivals/day)</div>'+
+    '<div class="line muted">'+nf(Math.round(totalDem))+' arrivals/day of normal volume falls in an uncovered hour'
+      +(clusters?' &#183; most gaps start around '+clusters:'')+'</div>'+unf()+'</div>';
+
+  // sort
+  const key={st:w=>w[0],day:w=>w[1]+' '+String(w[2]).padStart(2,'0'),beg:w=>w[2],
+             end:w=>w[3]+' '+String(w[4]).padStart(2,'0'),len:w=>w[5],dem:w=>w[6],non:w=>w[7]}[GSORT.k]||(w=>w[6]);
+  const rows=wins.slice().sort((a,b)=>{const x=key(a),y=key(b);
+    return (x<y?-1:x>y?1:0)*GSORT.dir || (b[6]-a[6])});
+  $$('#gapTbl th').forEach(th=>{const on=th.dataset.sort===GSORT.k;
+    th.style.cursor='pointer';
+    th.setAttribute('aria-sort',on?(GSORT.dir<0?'descending':'ascending'):'none');
+    const base=th.textContent.replace(/[ \u2191\u2193]+$/,'');
+    th.textContent=base+(on?(GSORT.dir<0?' \u2193':' \u2191'):'')});
+
+  body.innerHTML=rows.map(w=>{
+    const [st,d0,hb,d1,he,len,dem,non,mix]=w;
+    const sameDay=d0===d1;
+    const ends=hh(he)+(sameDay?'':' <span class="muted">'+gShort(d1)+'</span>');
+    const who=non===0?'<span style="color:var(--bad)">nobody on shift</span>'
+      :(mix||[]).map(m=>'<span class="cred '+credClass(m[0]).toLowerCase()+'">'+m[1]+' '+m[0]+'</span>').join(' ')
+        +' <span class="muted">- none licensed in '+st+'</span>';
+    return '<tr>'
+      +'<td><b>'+st+'</b></td>'
+      +'<td>'+gDay(d0)+'</td>'
+      +'<td>'+hh(hb)+'</td>'
+      +'<td>'+ends+'</td>'
+      +'<td class="r">'+len+'h</td>'
+      +'<td class="r">'+(dem>=1?Math.round(dem):dem)+'</td>'
+      +'<td class="r">'+non+'</td>'
+      +'<td>'+who+'</td>'
+      +'</tr>'}).join('');
+  $('#gapTblDesc').textContent=wins.length+' gap'+(wins.length===1?'':'s')+' across '+nStates
+    +' state'+(nStates===1?'':'s')+' \u00b7 click a column to sort';
+  $('#gapNote').textContent='times are the schedule\u2019s own clock \u00b7 "on shift" counts everyone working '
+    +'that window on the selected calendars, none of whom hold a licence for that state';
 }
 function wireGaps(){
+  const tb=$('#gapTbl');
+  if(tb&&!tb._w){tb._w=1;tb.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sort;
+    // a new column starts on the reading most people want: biggest first for
+    // magnitudes, earliest first for names and times
+    if(GSORT.k===k)GSORT.dir=-GSORT.dir; else {GSORT.k=k;GSORT.dir=(k==='len'||k==='dem'||k==='non')?-1:1}
+    renderGaps()})}
   if($('#gapFrom')&&!$('#gapFrom')._w){$('#gapFrom')._w=1;
     $('#gapFrom').onchange=e=>{GW.from=e.target.value||null;markGapPreset(null);gapFetch()};
     $('#gapTo').onchange=e=>{GW.to=e.target.value||null;markGapPreset(null);gapFetch()};

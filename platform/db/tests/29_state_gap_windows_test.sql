@@ -61,36 +61,44 @@ begin
   end if;
 
   -- 2. Per-state gap_hours must sum to gap_slots.
-  if (select coalesce(sum((r->>1)::int),0) from jsonb_array_elements(j_all->'rows') r)
+  -- window LENGTHS must sum to the raw uncovered-hour count
+  if (select coalesce(sum((w->>5)::int),0) from jsonb_array_elements(j_all->'windows') w)
      <> (j_all->>'gap_slots')::int then
-    raise exception 'rows do not reconcile with gap_slots';
+    raise exception 'window lengths do not reconcile with gap_slots';
+  end if;
+  -- every window must carry who was on shift and a credential breakdown that
+  -- adds up to that headcount; the table prints both as text
+  if exists (select 1 from jsonb_array_elements(j_all->'windows') w
+             where (w->>7)::int > 0
+               and (select coalesce(sum((m->>1)::int),0)
+                    from jsonb_array_elements(w->8) m) <> (w->>7)::int) then
+    raise exception 'a window credential mix does not sum to its on-shift headcount';
   end if;
 
   -- 3. The hour filter must actually bind. This is the regression that shipped.
   if (j_biz->>'gap_slots')::int > (j_all->>'gap_slots')::int then
     raise exception 'narrowing hours to 9-17 returned MORE gaps than 0-23';
   end if;
-  if exists (select 1 from jsonb_array_elements(j_biz->'rows') r,
-                             jsonb_array_elements(r->3) w
-             where (w->>1)::int not between 9 and 17 or (w->>3)::int not between 9 and 17) then
+  if exists (select 1 from jsonb_array_elements(j_biz->'windows') w
+             where (w->>2)::int not between 9 and 17
+                or ((w->>4)::int - 1) not between 9 and 17) then
     raise exception 'a 9-17 window reported an hour outside 9-17';
   end if;
-  if exists (select 1 from jsonb_array_elements(j_narrow->'rows') r,
-                             jsonb_array_elements(r->3) w
-             where (w->>1)::int <> 14 or (w->>3)::int <> 14 or (w->>4)::int <> 1) then
+  if exists (select 1 from jsonb_array_elements(j_narrow->'windows') w
+             where (w->>2)::int <> 14 or (w->>4)::int <> 15 or (w->>5)::int <> 1) then
     raise exception 'a single-hour window (14-14) reported something other than one 14:00 hour';
   end if;
 
   -- 4. Window bounds must never invert, including runs that cross midnight.
-  if exists (select 1 from jsonb_array_elements(j_all->'rows') r, jsonb_array_elements(r->3) w
-             where (w->>0)::date > (w->>2)::date
-                or ((w->>0)::date = (w->>2)::date and (w->>1)::int > (w->>3)::int)) then
+  if exists (select 1 from jsonb_array_elements(j_all->'windows') w
+             where (w->>1)::date > (w->>3)::date
+                or ((w->>1)::date = (w->>3)::date and (w->>2)::int >= (w->>4)::int)) then
     raise exception 'a window ends before it starts';
   end if;
   -- length must equal the real span of the run
-  if exists (select 1 from jsonb_array_elements(j_all->'rows') r, jsonb_array_elements(r->3) w
-             where (w->>4)::int <> (((w->>2)::date - (w->>0)::date)*24 + (w->>3)::int - (w->>1)::int) + 1) then
-    raise exception 'a window length disagrees with its start and end';
+  if exists (select 1 from jsonb_array_elements(j_all->'windows') w
+             where (w->>5)::int <> ((w->>3)::date - (w->>1)::date)*24 + (w->>4)::int - (w->>2)::int) then
+    raise exception 'a window length disagrees with its own start and end';
   end if;
 
   -- 5. SILO. "All" must exclude siloed / staffing-only calendars and say so;
@@ -111,6 +119,7 @@ begin
     raise exception 'more gaps than slots in the window';
   end if;
 
-  raise notice 'state_gap_windows: all assertions passed (% gap-slots across % states for % to %)',
-    j_all->>'gap_slots', j_all->>'states_with_gap', lo, hi;
+  raise notice 'state_gap_windows: all assertions passed (% gap-slots across % states in % windows, % to %)',
+    j_all->>'gap_slots', j_all->>'states_with_gap',
+    jsonb_array_length(j_all->'windows'), lo, hi;
 end $$;
