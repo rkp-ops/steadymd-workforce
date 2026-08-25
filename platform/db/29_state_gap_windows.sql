@@ -43,7 +43,19 @@ begin
   d_from := coalesce(d_to,current_date) - 27;
   nd := greatest((coalesce(d_to,current_date) - d_from) + 1, 1);
 
-  drop table if exists _cov; drop table if exists _gap; drop table if exists _dm;
+  drop table if exists _gr; drop table if exists _cov; drop table if exists _gap; drop table if exists _dm;
+
+  -- one row per lowercased email. The correlated form of this join
+  --   lower(s.clinician_email_raw) = any(array(select lower(x) from unnest(r.emails) x))
+  -- forces a nested loop re-running the unnest per (shift x roster) pair and
+  -- took 4,263ms for a seven-day window, on a tab where every filter change
+  -- refetches. Flattened and hash-joined it is ~1,100ms. Do not inline it back.
+  create temp table _gr on commit drop as
+  select distinct on (lower(e)) lower(e) em,
+         coalesce(public.cred_bucket(r.credential),'-') cred, r.license_states ls
+  from clinician_roster r cross join lateral unnest(r.emails) e
+  order by lower(e), r.id;
+  create index on _gr(em);
 
   -- states genuinely covered in each hour: at least one licensed body on shift,
   -- on a calendar that actually counts as on-demand coverage (see SILO RULE).
@@ -51,8 +63,8 @@ begin
   select distinct (h)::date d, extract(hour from h)::int hr, ls.st
   from shift s
   left join service_line_map m on m.entity = s.service_line
-  join clinician_roster r on lower(s.clinician_email_raw)=any(array(select lower(x) from unnest(r.emails) x))
-  cross join lateral unnest(r.license_states) ls(st)
+  join _gr rt on rt.em = lower(s.clinician_email_raw)
+  cross join lateral unnest(rt.ls) ls(st)
   cross join lateral generate_series(date_trunc('hour', s.start_at at time zone 'UTC'),
         (s.end_at at time zone 'UTC') - interval '1 second', interval '1 hour') h
   where lower(coalesce(s.clinician_email_raw,''))<>'not assigned'
@@ -61,7 +73,7 @@ begin
     and extract(hour from h)::int between p_hour0 and p_hour1
     and (case when p_service_line is not null then s.service_line = any(p_service_line)
               else coalesce(m.count_in_coverage,true) end)
-    and (p_cred is null or coalesce(public.cred_bucket(r.credential),'-') = any(p_cred));
+    and (p_cred is null or rt.cred = any(p_cred));
 
   -- demand follows the same silo: a siloed partner's arrivals never inflate the
   -- pooled demand-at-risk, and naming its calendar reports it alone.

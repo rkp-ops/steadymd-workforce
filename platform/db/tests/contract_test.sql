@@ -84,5 +84,21 @@ begin
   if ms > 2500 then raise exception 'state_gap_windows(7d) took % ms - too slow per filter change', round(ms); end if;
   raise notice 'state_gap_windows(7d): % ms', round(ms);
 
+  -- SELF-CONSISTENCY: a row that claims N states are uncovered must name N
+  -- states. whos_on coalesced a missing uncovered-row to 51 instead of 0, so a
+  -- fully covered hour claimed all 51 uncovered while listing none - a false
+  -- alarm on 157 of 168 rows.
+  if exists (
+    select 1 from jsonb_array_elements(public.whos_on('2026-08-25','2026-08-31')->'rows') e
+    where (e->>9)::int > 0 and coalesce(e->>10,'') = '') then
+    raise exception 'whos_on has rows claiming uncovered states while naming none';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(public.whos_on('2026-08-25','2026-08-31')->'rows') e
+    where (e->>9)::int > 0
+      and array_length(string_to_array(trim(e->>10),' '),1) <> (e->>9)::int) then
+    raise exception 'whos_on uncovered COUNT disagrees with its own uncovered LIST';
+  end if;
+
   raise notice 'contract: all deployed functions answer what the console reads, within budget';
 end $$;
