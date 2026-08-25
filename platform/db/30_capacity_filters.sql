@@ -50,6 +50,23 @@
 -- subquery binds to that subquery's own column and silently drops the hour
 -- comparison - that shipped once in state_gap_windows and reported a week of
 -- gaps as full coverage.
+--
+-- PERFORMANCE (2026-08-25). The roster join was written as
+--   lower(s.clinician_email_raw) = any(array(select lower(x) from unnest(r.emails) x))
+-- which forces a nested loop re-running the unnest subquery for every
+-- (shift x roster) pair: 1,280,348 subplan executions and 3.3s for ONE WEEK,
+-- before any hour expansion. shift_summary is called with NO date bounds on
+-- sign-in, so this made the landing path time out. The roster is now flattened
+-- to one row per lowercased email first (~900 rows) and hash-joined: the same
+-- unbounded call is ~0.3s.
+--
+-- Hour expansion now happens ONLY when an hour or day filter is narrowing.
+-- Otherwise each shift is clamped to the window bounds, which gives the exact
+-- in-window hours with no expansion. Both paths answer the same question -
+-- hours that FALL INSIDE the window - and are asserted equal. Shifts are
+-- selected by overlap, not by start-date containment, so a shift running in
+-- from the previous day is not dropped. by_hour/by_dow were removed: nothing
+-- rendered them and they were the only reason to always expand.
 -- ============================================================================
 
 -- ---------------------------------------------------------------- shifts ---
@@ -60,47 +77,84 @@ create or replace function public.shift_summary(
     p_dow int[] default null, p_state text[] default null,
     p_clinician text[] default null)   -- lowercased emails; the stable identifier
   returns jsonb language plpgsql volatile security definer set search_path to 'public' as $$
-declare out jsonb;
+declare out jsonb; narrowed boolean;
 begin
   if not public.is_active_app_user() then raise exception 'not authorized' using errcode='42501'; end if;
+  narrowed := (p_hour0 > 0 or p_hour1 < 23 or p_dow is not null);
 
-  drop table if exists _sh;
-  create temp table _sh on commit drop as
-  select lower(s.clinician_email_raw) em,
-         coalesce(s.clinician_name_raw,'(unnamed)') nm,
-         coalesce(s.service_line,'(unspecified)') sl,
-         coalesce(public.cred_bucket(r.credential),'-') cred,
-         (hb.h)::date d,
-         extract(hour from hb.h)::int hr,
-         extract(isodow from hb.h)::int dow,
-         -- exact overlap of this shift with this hour bucket
-         extract(epoch from (
-           least(s.end_at at time zone 'UTC', hb.h + interval '1 hour')
-         - greatest(s.start_at at time zone 'UTC', hb.h)))/3600.0 hrs,
-         r.license_states ls
-  from shift s
-  left join service_line_map m on m.entity = s.service_line
-  left join clinician_roster r
-    on lower(s.clinician_email_raw) = any(array(select lower(x) from unnest(r.emails) x))
-  cross join lateral generate_series(
-        date_trunc('hour', s.start_at at time zone 'UTC'),
-        (s.end_at at time zone 'UTC') - interval '1 second', interval '1 hour') hb(h)
-  where s.start_at is not null and s.end_at is not null and s.end_at > s.start_at
-    and lower(coalesce(s.clinician_email_raw,'')) <> 'not assigned'
-    and (p_from is null or (hb.h)::date >= p_from)
-    and (p_to   is null or (hb.h)::date <= p_to)
-    and extract(hour from hb.h)::int between p_hour0 and p_hour1
-    and (p_dow is null or extract(isodow from hb.h)::int = any(p_dow))
-    and (case when p_service_line is not null then s.service_line = any(p_service_line)
-              else coalesce(m.count_in_coverage,true) end)
-    and (p_cred is null or coalesce(public.cred_bucket(r.credential),'-') = any(p_cred))
-    and (p_state is null or r.license_states && p_state)
-    and (p_clinician is null or lower(s.clinician_email_raw) = any(
-          array(select lower(x) from unnest(p_clinician) x)));
+  drop table if exists _rost; drop table if exists _sh;
+
+  -- one row per lowercased email. Flattening first is what turns the roster
+  -- join from a nested loop with a correlated unnest into a hash join.
+  create temp table _rost on commit drop as
+  select distinct on (lower(e)) lower(e) em,
+         coalesce(public.cred_bucket(r.credential),'-') cred, r.license_states ls
+  from clinician_roster r cross join lateral unnest(r.emails) e
+  order by lower(e), r.id;
+  create index on _rost(em);
+
+  if narrowed then
+    -- an hour or day filter is active: expand and take exact partial-hour overlap
+    create temp table _sh on commit drop as
+    select s.id sid, lower(s.clinician_email_raw) em,
+           coalesce(s.clinician_name_raw,'(unnamed)') nm,
+           coalesce(s.service_line,'(unspecified)') sl,
+           coalesce(rt.cred,'-') cred, (hb.h)::date d,
+           extract(epoch from (
+             least(s.end_at at time zone 'UTC', hb.h + interval '1 hour')
+           - greatest(s.start_at at time zone 'UTC', hb.h)))/3600.0 hrs
+    from shift s
+    left join service_line_map m on m.entity = s.service_line
+    left join _rost rt on rt.em = lower(s.clinician_email_raw)
+    cross join lateral generate_series(
+          date_trunc('hour', s.start_at at time zone 'UTC'),
+          (s.end_at at time zone 'UTC') - interval '1 second', interval '1 hour') hb(h)
+    where s.start_at is not null and s.end_at is not null and s.end_at > s.start_at
+      and lower(coalesce(s.clinician_email_raw,'')) <> 'not assigned'
+      and (p_from is null or (hb.h)::date >= p_from)
+      and (p_to   is null or (hb.h)::date <= p_to)
+      and extract(hour from hb.h)::int between p_hour0 and p_hour1
+      and (p_dow is null or extract(isodow from hb.h)::int = any(p_dow))
+      and (case when p_service_line is not null then s.service_line = any(p_service_line)
+                else coalesce(m.count_in_coverage,true) end)
+      and (p_cred is null or coalesce(rt.cred,'-') = any(p_cred))
+      and (p_state is null or rt.ls && p_state)
+      and (p_clinician is null or lower(s.clinician_email_raw) = any(
+            array(select lower(x) from unnest(p_clinician) x)));
+  else
+    -- no hour/day narrowing: clamp each shift to the window. Exact in-window
+    -- hours with no expansion, and selected by OVERLAP so a shift running in
+    -- from the previous day is not dropped.
+    create temp table _sh on commit drop as
+    select s.id sid, lower(s.clinician_email_raw) em,
+           coalesce(s.clinician_name_raw,'(unnamed)') nm,
+           coalesce(s.service_line,'(unspecified)') sl,
+           coalesce(rt.cred,'-') cred,
+           greatest((s.start_at at time zone 'UTC'),
+                    coalesce(p_from::timestamp, s.start_at at time zone 'UTC'))::date d,
+           extract(epoch from (
+             least(s.end_at at time zone 'UTC',
+                   coalesce((p_to + 1)::timestamp, s.end_at at time zone 'UTC'))
+           - greatest(s.start_at at time zone 'UTC',
+                   coalesce(p_from::timestamp, s.start_at at time zone 'UTC'))))/3600.0 hrs
+    from shift s
+    left join service_line_map m on m.entity = s.service_line
+    left join _rost rt on rt.em = lower(s.clinician_email_raw)
+    where s.start_at is not null and s.end_at is not null and s.end_at > s.start_at
+      and lower(coalesce(s.clinician_email_raw,'')) <> 'not assigned'
+      and (p_to   is null or (s.start_at at time zone 'UTC') <  (p_to + 1)::timestamp)
+      and (p_from is null or (s.end_at   at time zone 'UTC') >  p_from::timestamp)
+      and (case when p_service_line is not null then s.service_line = any(p_service_line)
+                else coalesce(m.count_in_coverage,true) end)
+      and (p_cred is null or coalesce(rt.cred,'-') = any(p_cred))
+      and (p_state is null or rt.ls && p_state)
+      and (p_clinician is null or lower(s.clinician_email_raw) = any(
+            array(select lower(x) from unnest(p_clinician) x)));
+  end if;
 
   select jsonb_build_object(
     'total_hours',  (select round(coalesce(sum(x.hrs),0)::numeric,1) from _sh x),
-    'n_shifts',     (select count(distinct (x.em, x.d, x.sl)) from _sh x),
+    'n_shifts',     (select count(distinct x.sid) from _sh x),
     'n_clinicians', (select count(distinct x.em) from _sh x),
     'range',  (select jsonb_build_object('min',min(x.d)::text,'max',max(x.d)::text) from _sh x),
     'loaded', (select jsonb_build_object('min',min((start_at at time zone 'UTC')::date)::text,
@@ -118,24 +172,16 @@ begin
                   else coalesce(um.count_in_coverage,true) end)),
     'by_service_line', coalesce((select jsonb_agg(to_jsonb(t) order by t.hours desc) from (
        select x.sl as name, round(sum(x.hrs)::numeric,1) as hours,
-              count(distinct (x.em, x.d)) as shifts, count(distinct x.em) as people
+              count(distinct x.sid) as shifts, count(distinct x.em) as people
        from _sh x group by x.sl) t), '[]'::jsonb),
     'by_cred', coalesce((select jsonb_agg(to_jsonb(t) order by t.hours desc) from (
        select x.cred as name, round(sum(x.hrs)::numeric,1) as hours,
-              count(distinct (x.em, x.d)) as shifts, count(distinct x.em) as people
+              count(distinct x.sid) as shifts, count(distinct x.em) as people
        from _sh x group by x.cred) t), '[]'::jsonb),
-    'by_hour', coalesce((select jsonb_agg(jsonb_build_array(t.hr, t.hours, t.people) order by t.hr) from (
-       select x.hr, round(sum(x.hrs)::numeric,1) hours, count(distinct x.em) people
-       from _sh x group by x.hr) t), '[]'::jsonb),
-    'by_dow', coalesce((select jsonb_agg(jsonb_build_array(t.dow, t.hours, t.people) order by t.dow) from (
-       select x.dow, round(sum(x.hrs)::numeric,1) hours, count(distinct x.em) people
-       from _sh x group by x.dow) t), '[]'::jsonb),
     'top_clin', coalesce((select jsonb_agg(to_jsonb(t) order by t.hours desc) from (
        select x.nm as name, max(x.cred) as cred, round(sum(x.hrs)::numeric,1) as hours,
-              count(distinct (x.em, x.d)) as shifts
+              count(distinct x.sid) as shifts
        from _sh x group by x.nm order by sum(x.hrs) desc limit 25) t), '[]'::jsonb),
-    -- every calendar / credential / state present in the CURRENT filter, so the
-    -- pickers offer what actually exists rather than a hardcoded list
     'facets', jsonb_build_object(
        'calendars', coalesce((select jsonb_agg(distinct x.sl order by x.sl) from _sh x), '[]'::jsonb),
        'creds',     coalesce((select jsonb_agg(distinct x.cred order by x.cred) from _sh x), '[]'::jsonb),
@@ -159,14 +205,21 @@ declare out jsonb;
 begin
   if not public.is_active_app_user() then raise exception 'not authorized' using errcode='42501'; end if;
 
-  drop table if exists _cg;
+  drop table if exists _rost2; drop table if exists _cg;
+
+  create temp table _rost2 on commit drop as
+  select distinct on (lower(e)) lower(e) em,
+         coalesce(public.cred_bucket(r.credential),'-') cred, r.license_states ls
+  from clinician_roster r cross join lateral unnest(r.emails) e
+  order by lower(e), r.id;
+  create index on _rost2(em);
+
   create temp table _cg on commit drop as
   select extract(isodow from hb.h)::int dow, extract(hour from hb.h)::int hr,
          date_trunc('week', hb.h)::date wk, lower(s.clinician_email_raw) em
   from shift s
   left join service_line_map m on m.entity = s.service_line
-  left join clinician_roster r
-    on lower(s.clinician_email_raw) = any(array(select lower(x) from unnest(r.emails) x))
+  left join _rost2 rt on rt.em = lower(s.clinician_email_raw)
   cross join lateral generate_series(
         date_trunc('hour', s.start_at at time zone 'UTC'),
         (s.end_at at time zone 'UTC') - interval '1 second', interval '1 hour') hb(h)
@@ -178,8 +231,8 @@ begin
     and (p_dow is null or extract(isodow from hb.h)::int = any(p_dow))
     and (case when p_service_line is not null then s.service_line = any(p_service_line)
               else coalesce(m.count_in_coverage,true) end)
-    and (p_cred is null or coalesce(public.cred_bucket(r.credential),'-') = any(p_cred))
-    and (p_state is null or r.license_states && p_state)
+    and (p_cred is null or coalesce(rt.cred,'-') = any(p_cred))
+    and (p_state is null or rt.ls && p_state)
     and (p_clinician is null or lower(s.clinician_email_raw) = any(
           array(select lower(x) from unnest(p_clinician) x)));
 
@@ -254,6 +307,15 @@ begin
   select jsonb_build_object(
     'weeks', (select count(*) from wks),
     'arrivals', (select count(*) from _dg),
+    -- the demand source's own horizon, so "no arrivals" can be distinguished
+    -- from "this window is past the last demand export". Demand runs to
+    -- 2026-07-16 while the schedule runs to 2026-08-31, so the Forecast tab
+    -- needs to be able to tell the operator which of the two it is looking at.
+    'loaded', (select jsonb_build_object(
+                 'min', min((sli_received at time zone 'UTC')::date)::text,
+                 'max', max((sli_received at time zone 'UTC')::date)::text)
+               from sli_response where lane='on_demand'),
+    'source', 'sli_response.lane=on_demand',
     'grid', coalesce((select jsonb_agg(jsonb_build_array(s.dow,s.hr,s.av,s.mn,s.mx)
                                        order by s.dow, s.hr) from slot s), '[]'::jsonb)
   ) into out;
