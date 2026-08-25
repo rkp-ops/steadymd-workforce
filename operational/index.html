@@ -1558,10 +1558,14 @@ let WO={}, WOF={from:null,to:null,cal:new Set(),cred:new Set(),_init:0};
 const WCOL={Doctor:'var(--cred-doctor)',NP:'var(--cred-np)',PA:'var(--cred-pa)',MA:'var(--cred-ma)',GC:'var(--cred-gc)',MS:'var(--cred-ms)'};
 window.__kickWhosOn=function(){if(WOF._init)return;WOF._init=1;woDefaults();woFetch()};
 async function woFetch(){
-  if(!RANGE_API||!RANGE_API.whosOn){renderWhosOn();return}
+  if(!RANGE_API||!RANGE_API.whosOn){
+    WO={_st:'err',_msg:'The schedule service is not connected in this build.'};renderWhosOn();return}
   try{const r=await RANGE_API.whosOn({p_from:WOF.from,p_to:WOF.to,
       p_service_line:WOF.cal.size?[...WOF.cal]:null,p_cred:WOF.cred.size?[...WOF.cred]:null});
-    if(r&&!r.error)WO=r.data||{};}catch(_){}
+    if(r&&r.error)WO={_st:'err',_msg:r.error.message||String(r.error)};
+    else if(r&&r.data)WO=Object.assign({},r.data,{_st:'ok'});
+    else WO={_st:'err',_msg:'The schedule service returned no payload.'};}
+  catch(e){WO={_st:'err',_msg:(e&&e.message)||String(e)}}
   renderWhosOn()}
 function woDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
   if(hi&&hi>=t){WOF.from=t;WOF.to=gAdd(t,2)>hi?hi:gAdd(t,2)}else if(hi){WOF.from=gAdd(hi,-2);WOF.to=hi}
@@ -1574,6 +1578,12 @@ function renderWhosOn(){
     +(WOF.cred.size?' · '+[...WOF.cred].join(', '):'');
   $('#woKey').innerHTML=CREDS6.map(c=>`<span><i style="background:${WCOL[c]}"></i>${c}</span>`).join('')
     +'<span class="muted">· hours are the schedule’s own clock</span>';
+  // A failed read is never allowed to look like "nobody is scheduled".
+  if(WO._st==='err'){$('#woStats').innerHTML='';
+    bodyEl.innerHTML='<div class="gapfail"><b>The schedule could not be read.</b> '
+      +'<span class="muted">'+hesc(WO._msg||'The request failed.')+'</span>'
+      +'<button class="qbtn" id="woRetry" type="button">Try again</button></div>';
+    const rb=$('#woRetry');if(rb)rb.onclick=()=>woFetch();return}
   if(!rows.length){$('#woStats').innerHTML='';bodyEl.innerHTML='<div class="empty">No shifts scheduled in this window'
     +(WO.loaded&&WO.loaded.min?` — the loaded schedule runs <b>${WO.loaded.min} → ${WO.loaded.max}</b>.`:'.')+'</div>';return}
   const peak=WO.peak||Math.max(...rows.map(r=>r[2]),1);
@@ -1647,9 +1657,11 @@ async function stFetch(){
   try{const [r,e]=await Promise.all([
       RANGE_API.staffing(Object.assign({},A,{p_base_weeks:SW.base,p_clear_per_hr:SW.clr,p_sync_min:SW.syncMin,p_offshift:SW.off/100})),
       RANGE_API.staffingEntities?RANGE_API.staffingEntities(A):Promise.resolve({data:[]})]);
-    if(r&&!r.error)STC=r.data||{};
+    if(r&&r.error)STC={_st:'err',_msg:r.error.message||String(r.error)};
+    else if(r&&r.data)STC=Object.assign({},r.data,{_st:'ok'});
+    else STC={_st:'err',_msg:'The coverage service returned no payload.'};
     if(e&&!e.error)STE=e.data||[];}
-  catch(_){}
+  catch(ex){STC={_st:'err',_msg:(ex&&ex.message)||String(ex)}}
   if(bar)bar.style.opacity='';renderStates()}
 function stDefaults(){const lo=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.min,hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
   if(hi&&hi>=t){SW.from=t;SW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markStPreset('7d')}
@@ -1660,6 +1672,12 @@ function markStPreset(k){$$('#stPresets .qbtn').forEach(b=>b.classList.toggle('o
 function vTone(v){return v==='Covered'?'good':v==='Stretched'?'warn':'bad'}
 function renderStates(){
   const hero=$('#stHero');if(!hero)return;
+  // A failed read must not render as a coverage verdict.
+  if(STC._st==='err'){hero.innerHTML='<div class="gapfail" style="flex-basis:100%">'
+      +'<b>Coverage could not be computed.</b> <span class="muted">'+hesc(STC._msg||'The request failed.')+'</span>'
+      +'<button class="qbtn" id="stRetry" type="button">Try again</button></div>';
+    ['#stGrid','#stStates','#stEnt','#stNotes'].forEach(x=>{if($(x))$(x).innerHTML=''});
+    const rb=$('#stRetry');if(rb)rb.onclick=()=>stFetch();return}
   const P=STC.pool,bl=STC.baseline,W=STC.window||{},as=STC.assumptions||{};
   const dowTxt=SW.dow.size?[...SW.dow].sort().map(d=>SDOW[d-1]).join(' '):'all days';
   $('#stScope').innerHTML=`Staffing coverage · <b>${SW.svc.size?[...SW.svc].join(' + '):'All coverage-counted calendars'}</b> · ${SW.from&&SW.to?gDay(SW.from)+' – '+gDay(SW.to):'all loaded'} · ${dowTxt}`
