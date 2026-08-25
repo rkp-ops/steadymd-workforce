@@ -590,9 +590,18 @@
   <!-- FORECAST -->
   <section class="tab" data-tab="forecast">
     <div class="filterbar winbar" data-win="forecast" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
+    <div class="filterbar" id="fcFilters" style="margin-bottom:14px">
+      <div class="facet"><button class="ghost" id="fcCalBtn" type="button">Calendars: <b id="fcCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="fcCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup" id="fcCredF"><span class="fl">Credential</span></div>
+      <div class="facet"><button class="ghost" id="fcClinBtn" type="button">Clinicians: <b id="fcClinLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="fcClinPop" style="width:300px"></div></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="fcH0"></select><span class="muted">-</span><select class="dateinp" id="fcH1"></select></div>
+      <div class="fgroup" id="fcDow"><span class="fl">Days</span></div>
+      <button class="qbtn" id="fcClear" type="button">Clear filters</button>
+      <span class="muted" id="fcFNote" style="font-size:11.5px"></span>
+    </div>
     <div class="stats s4" id="fcStats"></div>
     <div class="card">
-      <div class="hd"><h2>Load — demand vs. who's on shift</h2><span class="desc" id="fcNote">consults per on-shift clinician · day &amp; hour · Central time</span></div>
+      <div class="hd"><h2>Load — demand vs. who's on shift</h2><span class="desc" id="fcNote"></span></div>
       <div class="bd"><div class="hm"><div class="hmgrid" id="fcHeat"></div></div>
         <div class="legend"><span>load</span><span class="sw" style="background:hsl(145 68% 37%)"></span>easy<span class="sw" style="background:hsl(58 68% 42%)"></span><span class="sw" style="background:hsl(0 68% 42%)"></span>stretched<span class="sw" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px)"></span>no coverage<span class="muted">· number = consults/clinician/hr · grey = no demand</span></span>
       </div>
@@ -1047,7 +1056,8 @@ function replaceObj(o,d){Object.keys(o).forEach(k=>{if(k!=='_win')delete o[k]});
 // construction. Every one of these moves supply AND demand together.
 let CLINROSTER=[];
 const CAPF={shifts:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()},
-            coverage:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()}};
+            coverage:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()},
+            forecast:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()}};
 function capArgs(key,f,t){const F=CAPF[key]||{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()};
   return {p_from:f,p_to:t,p_service_line:F.cal.size?[...F.cal]:null,
           p_cred:F.cred.size?[...F.cred]:null,p_hour0:F.h0,p_hour1:F.h1,
@@ -1067,8 +1077,8 @@ async function winFetch(key,f,t){
       // demand is ARRIVALS - who happened to be scheduled does not change how
       // many people asked for care, and demand_grid takes no p_clinician, so
       // passing one would fail the call outright.
-      const dA=capArgs('coverage',f,t);delete dA.p_clinician;
-      const[d1,d2]=await Promise.all([RANGE_API.demand(dA),RANGE_API.coverage(capArgs('coverage',f,t))]);
+      const dA=capArgs('forecast',f,t);delete dA.p_clinician;
+      const[d1,d2]=await Promise.all([RANGE_API.demand(dA),RANGE_API.coverage(capArgs('forecast',f,t))]);
       if(!d1.error)replaceObj(DEM,d1.data);if(!d2.error)replaceObj(COV,d2.data);renderForecast()}
     else if(key==='incentives'){const r=await RANGE_API.incentives(f,t);if(!r.error){replaceObj(INC,r.data);INC._win=!!(f||t);renderIncentives()}}
   }catch(e){if(key==='shifts'){replaceObj(SHIFTS,{});SHIFTS._st='err';SHIFTS._msg=e&&e.message||String(e);renderShifts()}
@@ -1986,8 +1996,24 @@ function wireStates(){
 function stSyncDow(){$$('#stDow .qbtn').forEach(b=>b.classList.toggle('on',SW.dow.has(+b.dataset.d)))}
 // ---------- FORECAST (demand vs coverage, next-week load) ----------
 function renderForecast(){
+  wireCapFilters('forecast','fc');
+  capCalPop('forecast','fc',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  capClinPop('forecast','fc',CLINROSTER);
+  capNote('forecast','fc');
+  const n=$('#fcNote');
+  if(n)n.textContent="consults per on-shift clinician \u00b7 day and hour \u00b7 the schedule\u2019s own clock";
   const dg=DEM.grid||[], cg=COV.grid||[];
-  if(!dg.length){$('#fcStats').innerHTML='';$('#fcHeat').innerHTML='<div class="empty" style="grid-column:1/-1">No demand pattern yet — it comes from the consult log.</div>';$('#fcTight').innerHTML='';$('#fcDiag').innerHTML='';return}
+  // "no demand" and "the demand export does not reach this window" are different
+  // answers. Demand runs to its own horizon; the schedule runs further ahead.
+  if(!dg.length){$('#fcStats').innerHTML='';
+    const L=DEM.loaded,W=(COV.window||{});
+    const past=L&&L.max&&W&&W.from&&W.from>L.max;
+    $('#fcHeat').innerHTML='<div class="empty" style="grid-column:1/-1">'
+      +(L&&L.max
+        ? (past?'No demand data for this window - arrivals are loaded through <b>'+hesc(L.max)+'</b>, and this window starts after that.'
+               :'No demand in this window. Arrivals are loaded <b>'+hesc(L.min)+'</b> to <b>'+hesc(L.max)+'</b>.')
+        : 'No demand pattern yet - it comes from the consult log.')+'</div>';
+    $('#fcTight').innerHTML='';$('#fcDiag').innerHTML='';return}
   const cov={};cg.forEach(r=>{(cov[r[0]]=cov[r[0]]||{})[r[1]]=r[2]});
   const slots=[];let totDemand=0,busiest=dg[0];
   dg.forEach(r=>{const d=r[2];totDemand+=d;if(d>busiest[2])busiest=r;const c=(cov[r[0]]&&cov[r[0]][r[1]])||0;const load=d>0?(c>0?d/c:Infinity):0;slots.push({dow:r[0],hr:r[1],d,c,load})});

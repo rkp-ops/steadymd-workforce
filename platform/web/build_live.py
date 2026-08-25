@@ -207,6 +207,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "Coverage could not be checked","_st==='err'","gapRetry",  # a failed coverage read NEVER renders as an all-clear
           ".wstrip{","wdlab","Hours with nobody on",  # Who's on is one row per DAY on a shared axis, not one row per hour
           "function searchPop","p_clinician:F.clin","more not shown",  # clinicians filterable via a SEARCHABLE picker; truncation is stated, never silent
+          'id="fcFilters"',"capArgs('forecast'","Arrivals are loaded",  # Forecast owns its filters (never inherits Coverage's) and names the demand horizon
           "__setRangeApi","function winFetch","function wireWinbars",  # no-static-windows: every summary tab refetches windowed
           'data-win="consults"','data-win="shifts"','data-win="coverage"','data-win="forecast"','data-win="incentives"',  # window bar on each summary tab
           "No consults in this window","No incentives in this window",  # honest empty states name the loaded range
