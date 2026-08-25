@@ -521,6 +521,14 @@
 
   <section class="tab" data-tab="shifts">
     <div class="filterbar winbar" data-win="shifts" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
+    <div class="filterbar" id="shFilters" style="margin-bottom:14px">
+      <div class="facet"><button class="ghost" id="shCalBtn" type="button">Calendars: <b id="shCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="shCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup" id="shCredF"><span class="fl">Credential</span></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="shH0"></select><span class="muted">-</span><select class="dateinp" id="shH1"></select></div>
+      <div class="fgroup" id="shDow"><span class="fl">Days</span></div>
+      <button class="qbtn" id="shClear" type="button">Clear filters</button>
+      <span class="muted" id="shFNote" style="font-size:11.5px"></span>
+    </div>
     <div class="stats s4" id="shStats"></div>
     <div class="card"><div class="hd"><h2>Hours by service line</h2><span class="desc">scheduled shift hours</span></div><div class="bd"><div class="rank" id="shLine"></div></div></div>
     <div class="cols2">
@@ -532,15 +540,23 @@
   <!-- COVERAGE -->
   <section class="tab" data-tab="coverage">
     <div class="filterbar winbar" data-win="coverage" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
+    <div class="filterbar" id="covFilters" style="margin-bottom:14px">
+      <div class="facet"><button class="ghost" id="covCalBtn" type="button">Calendars: <b id="covCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="covCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup" id="covCredF"><span class="fl">Credential</span></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="covH0"></select><span class="muted">-</span><select class="dateinp" id="covH1"></select></div>
+      <div class="fgroup" id="covDow"><span class="fl">Days</span></div>
+      <button class="qbtn" id="covClear" type="button">Clear filters</button>
+      <span class="muted" id="covFNote" style="font-size:11.5px"></span>
+    </div>
     <div class="stats s4" id="covStats"></div>
     <div class="card">
-      <div class="hd"><h2>Clinicians on shift — day &amp; hour</h2><span class="desc" id="covNote">avg across weeks · Central time</span></div>
+      <div class="hd"><h2>Clinicians on shift — day &amp; hour</h2><span class="desc" id="covNote"></span></div>
       <div class="bd"><div class="hm"><div class="hmgrid" id="covHeat"></div></div>
         <div class="legend"><span>on shift</span><span class="sw" style="background:hsl(0 68% 42%)"></span>thin<span class="sw" style="background:hsl(58 68% 42%)"></span><span class="sw" style="background:hsl(101 68% 38%)"></span><span class="sw" style="background:hsl(145 68% 36%)"></span>full<span class="muted">· number = avg clinicians · grey = none</span></span>
       </div>
     </div>
     <div class="cols2">
-      <div class="card"><div class="hd"><h2>Thinnest daytime slots</h2><span class="desc">lowest average coverage, 7am–7pm</span></div><div class="bd"><div class="rank" id="covThin"></div></div></div>
+      <div class="card"><div class="hd"><h2>Thinnest slots</h2><span class="desc" id="covThinDesc">lowest average coverage in the selected hours</span></div><div class="bd"><div class="rank" id="covThin"></div></div></div>
       <div class="card"><div class="hd"><h2>Least reliable slots</h2><span class="desc">coverage that swings week to week</span></div><div class="bd"><div class="rank" id="covUnrel"></div></div></div>
     </div>
   </section>
@@ -732,7 +748,19 @@ function laneOf(ct){return ct&&(/video_visit/.test(ct)||/scheduled_video/.test(c
 // buckets ops actually reasons about: Doctor (MD/DO), PA, MA, GC, MS, and NP
 // (every APRN/CRNP/FNP/DNP/… nurse-practitioner variant). Raw credential is kept
 // on the roster row for editing/records; this is only the display + filter bucket.
-function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');if(!c)return'';if(c==='MD'||c==='DO')return'Doctor';if(c==='PA'||c==='PAC')return'PA';if(c==='MA')return'MA';if(c==='GC')return'GC';if(c==='MS')return'MS';return'NP'}
+// Raw credential -> one of the 6 buckets. Two rules matter:
+//  * an ALREADY-bucketed value passes through. 'Doctor' used to fall past every
+//    case and hit the NP catch-all, so re-bucketing a bucketed list relabelled
+//    every physician as an NP and merged their hours into the NP row.
+//  * an unrecognised value returns '' (unknown). It is never silently counted
+//    as an NP - a guess that reads as data is worse than an honest blank.
+function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');if(!c)return'';
+  if(c==='DOCTOR')return'Doctor';
+  if(c==='NP'||c==='PA'||c==='MA'||c==='GC'||c==='MS')return c;
+  if(c==='MD'||c==='DO')return'Doctor';
+  if(c==='PAC')return'PA';
+  if(c==='APN'||/NP|APRN|ARNP/.test(c))return'NP';   // every NP variant in the roster
+  return''}
 
 // ---------- theme + tabs ----------
 // Theme is remembered across reloads: a picked theme is stored and re-applied on
@@ -988,18 +1016,79 @@ function renderConsults(){
 let RANGE_API=null;
 window.__setRangeApi=function(api){RANGE_API=api||null};
 function replaceObj(o,d){Object.keys(o).forEach(k=>{if(k!=='_win')delete o[k]});Object.assign(o,d||{})}
+// Capacity filters. shift_summary / coverage_grid / demand_grid used to take
+// dates and nothing else, so Shifts and Coverage were lumped totals by
+// construction. Every one of these moves supply AND demand together.
+const CAPF={shifts:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()},
+            coverage:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()}};
+function capArgs(key,f,t){const F=CAPF[key]||{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()};
+  return {p_from:f,p_to:t,p_service_line:F.cal.size?[...F.cal]:null,
+          p_cred:F.cred.size?[...F.cred]:null,p_hour0:F.h0,p_hour1:F.h1,
+          p_dow:F.dow.size?[...F.dow].sort((a,b)=>a-b):null}}
 async function winFetch(key,f,t){
   if(!RANGE_API)return;
   const bar=document.querySelector(`.winbar[data-win="${key}"]`);if(bar)bar.style.opacity=.55;
+  const fail=(o,r)=>{o._st='err';o._msg=(r&&r.error&&(r.error.message||String(r.error)))||'The request failed.'};
   try{
     if(key==='consults'){const r=await RANGE_API.consults(f,t);if(!r.error){replaceObj(CD,r.data);CD._win=!!(f||t);renderConsults()}}
-    else if(key==='shifts'){const r=await RANGE_API.shifts(f,t);if(!r.error){replaceObj(SHIFTS,r.data);SHIFTS._win=!!(f||t);renderShifts()}}
-    else if(key==='coverage'){const r=await RANGE_API.coverage(f,t);if(!r.error){replaceObj(COV,r.data);renderCoverage()}}
-    else if(key==='forecast'){const[d1,d2]=await Promise.all([RANGE_API.demand(f,t),RANGE_API.coverage(f,t)]);if(!d1.error)replaceObj(DEM,d1.data);if(!d2.error)replaceObj(COV,d2.data);renderForecast()}
+    else if(key==='shifts'){const r=await RANGE_API.shifts(capArgs('shifts',f,t));
+      if(r.error){replaceObj(SHIFTS,{});fail(SHIFTS,r)}else{replaceObj(SHIFTS,r.data);SHIFTS._st='ok';SHIFTS._win=!!(f||t)}renderShifts()}
+    else if(key==='coverage'){const r=await RANGE_API.coverage(capArgs('coverage',f,t));
+      if(r.error){replaceObj(COV,{});fail(COV,r)}else{replaceObj(COV,r.data);COV._st='ok'}renderCoverage()}
+    else if(key==='forecast'){const[d1,d2]=await Promise.all([RANGE_API.demand(capArgs('coverage',f,t)),RANGE_API.coverage(capArgs('coverage',f,t))]);
+      if(!d1.error)replaceObj(DEM,d1.data);if(!d2.error)replaceObj(COV,d2.data);renderForecast()}
     else if(key==='incentives'){const r=await RANGE_API.incentives(f,t);if(!r.error){replaceObj(INC,r.data);INC._win=!!(f||t);renderIncentives()}}
-  }catch(_){}
+  }catch(e){if(key==='shifts'){replaceObj(SHIFTS,{});SHIFTS._st='err';SHIFTS._msg=e&&e.message||String(e);renderShifts()}
+            else if(key==='coverage'){replaceObj(COV,{});COV._st='err';COV._msg=e&&e.message||String(e);renderCoverage()}}
   if(bar)bar.style.opacity='';winNotes()
 }
+// One wiring routine for both capacity tabs: calendars, credential, hours, days.
+function wireCapFilters(key,pfx){
+  const F=CAPF[key],box=$('#'+pfx+'Filters');if(!box||box._w)return;box._w=1;
+  const refetch=()=>{const b=document.querySelector(`.winbar[data-win="${key}"]`);
+    const fi=b&&b.querySelector('[data-wfrom]'),ti=b&&b.querySelector('[data-wto]');
+    winFetch(key,(fi&&fi.value)||null,(ti&&ti.value)||null);capNote(key,pfx)};
+  const h0=$('#'+pfx+'H0'),h1=$('#'+pfx+'H1');
+  if(h0&&h1){h0.innerHTML=h1.innerHTML=Array.from({length:24},(_,i)=>`<option value="${i}">${hh(i)}</option>`).join('');
+    h0.value=F.h0;h1.value=F.h1;
+    h0.onchange=e=>{F.h0=+e.target.value;if(F.h1<F.h0){F.h1=F.h0;h1.value=F.h1}refetch()};
+    h1.onchange=e=>{F.h1=+e.target.value;if(F.h1<F.h0){F.h0=F.h1;h0.value=F.h0}refetch()}}
+  const cr=$('#'+pfx+'CredF');
+  if(cr)cr.insertAdjacentHTML('beforeend',CREDS6.map(c=>`<button class="qbtn" data-c="${c}">${c}</button>`).join(''));
+  $$('#'+pfx+'CredF .qbtn').forEach(b=>b.onclick=()=>{const c=b.dataset.c;
+    F.cred.has(c)?F.cred.delete(c):F.cred.add(c);b.classList.toggle('on');refetch()});
+  const dw=$('#'+pfx+'Dow');
+  if(dw)dw.insertAdjacentHTML('beforeend',SDOW.map((d,i)=>`<button class="qbtn" data-d="${i+1}">${d}</button>`).join(''));
+  $$('#'+pfx+'Dow .qbtn').forEach(b=>b.onclick=()=>{const d=+b.dataset.d;
+    F.dow.has(d)?F.dow.delete(d):F.dow.add(d);b.classList.toggle('on');refetch()});
+  const cl=$('#'+pfx+'Clear');
+  if(cl)cl.onclick=()=>{F.cal.clear();F.cred.clear();F.dow.clear();F.h0=0;F.h1=23;
+    if(h0)h0.value=0;if(h1)h1.value=23;
+    $$('#'+pfx+'CredF .qbtn, #'+pfx+'Dow .qbtn').forEach(b=>b.classList.remove('on'));
+    const lb=$('#'+pfx+'CalLbl');if(lb)lb.textContent='All';refetch()};
+  capNote(key,pfx);
+}
+// Calendar picker is rebuilt from whatever the current payload actually holds,
+// alphabetically (a picker a person scans is never volume-sorted).
+function capCalPop(key,pfx,names){
+  if(!names||!names.length)return;
+  calPop('#'+pfx+'CalBtn','#'+pfx+'CalPop','#'+pfx+'CalLbl',
+    [...new Set(names)].sort((a,b)=>String(a).localeCompare(String(b))),CAPF[key].cal,
+    ()=>{const b=document.querySelector(`.winbar[data-win="${key}"]`);
+      const fi=b&&b.querySelector('[data-wfrom]'),ti=b&&b.querySelector('[data-wto]');
+      winFetch(key,(fi&&fi.value)||null,(ti&&ti.value)||null);capNote(key,pfx)});
+}
+// Say plainly what "All" leaves out, rather than letting it imply everything.
+function capNote(key,pfx){const n=$('#'+pfx+'FNote');if(!n)return;
+  const F=CAPF[key],src=key==='shifts'?SHIFTS:COV,exc=(src&&src.excluded)||[];
+  const bits=[];
+  if(F.h0>0||F.h1<23)bits.push(hh(F.h0)+'-'+hh(F.h1));
+  if(F.dow.size)bits.push([...F.dow].sort((a,b)=>a-b).map(d=>SDOW[d-1]).join(', '));
+  if(F.cred.size)bits.push([...F.cred].join(', '));
+  if(!F.cal.size&&exc.length)bits.push(exc.length+' siloed calendars excluded');
+  n.textContent=bits.join(' \u00b7 ');
+  if(!F.cal.size&&exc.length)n.title='Excludes '+exc.join(', ')+' - siloed or staffing-only, so they never count as on-demand coverage';
+  else n.removeAttribute('title')}
 function wireWinbars(){$$('.winbar').forEach(bar=>{if(bar._w)return;bar._w=1;const key=bar.dataset.win;
   const f=bar.querySelector('[data-wfrom]'),t=bar.querySelector('[data-wto]'),all=bar.querySelector('[data-wall]');
   const go=()=>winFetch(key,f.value||null,t.value||null);
@@ -1256,7 +1345,16 @@ function credBucket(list,fields){const m=new Map();(list||[]).forEach(x=>{const 
 function hoursRank(sel,arr){const mx=Math.max(...arr.map(x=>x.hours),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name==='—'?'<span class="muted">Not matched to roster</span>':x.name}${credClass(x.cred)?` <span class="cred">${credClass(x.cred)}</span>`:''}<small>${nf(x.shifts)} shifts</small></div><div class="val tnum">${nf(Math.round(x.hours))} h</div><div class="track"><i style="width:${Math.max(2,x.hours/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
 function usdRank(sel,arr){const mx=Math.max(...arr.map(x=>x.usd),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}${credClass(x.license)?` <span class="cred">${credClass(x.license)}</span>`:''}<small>${nf(x.n)}×</small></div><div class="val tnum">$${nf(x.usd)}</div><div class="track"><i style="width:${Math.max(2,x.usd/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
 function renderShifts(){
-  if(!SHIFTS.total_hours){if(SHIFTS._win){$('#shStats').innerHTML=`<div class="empty" style="grid-column:1/-1">No shifts in this window${SHIFTS.loaded&&SHIFTS.loaded.min?` — loaded schedule runs <b>${SHIFTS.loaded.min} → ${SHIFTS.loaded.max}</b>`:''}.</div>`;['#shLine','#shCred','#shTop'].forEach(s=>{if($(s))$(s).innerHTML=''})}return}
+  wireCapFilters('shifts','sh');
+  capCalPop('shifts','sh',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  capNote('shifts','sh');
+  const clr=['#shLine','#shCred','#shTop'];
+  if(SHIFTS._st==='err'){$('#shStats').innerHTML='<div class="gapfail" style="grid-column:1/-1">'
+      +'<b>Shifts could not be read.</b> <span class="muted">'+hesc(SHIFTS._msg||'The request failed.')+'</span></div>';
+    clr.forEach(x=>{if($(x))$(x).innerHTML=''});return}
+  if(!SHIFTS.total_hours){$('#shStats').innerHTML='<div class="empty" style="grid-column:1/-1">Nothing matches these filters'
+      +(SHIFTS.loaded&&SHIFTS.loaded.min?` &#183; loaded schedule runs <b>${SHIFTS.loaded.min} &#8594; ${SHIFTS.loaded.max}</b>`:'')+'.</div>';
+    clr.forEach(x=>{if($(x))$(x).innerHTML=''});return}
   const S=SHIFTS;$('#shStats').innerHTML=[{k:'Scheduled hours',v:nf(Math.round(S.total_hours)),d:nf(S.n_shifts)+' shifts'},{k:'Clinicians scheduled',v:S.n_clinicians,d:'avg '+Math.round(S.total_hours/S.n_clinicians)+' h each'},{k:'Service lines',v:S.by_service_line.length,d:'scheduled against'},{k:'Window',v:(S.range.min||'')+' → '+(S.range.max||''),d:''}].map(tileHTML).join('');hoursRank('#shLine',S.by_service_line);hoursRank('#shCred',credBucket(S.by_cred,['hours','shifts']));hoursRank('#shTop',S.top_clin)}
 function renderIncentives(){
   if(!INC.n_items){if(INC._win){$('#inStats').innerHTML=`<div class="empty" style="grid-column:1/-1">No incentives in this window${INC.loaded&&INC.loaded.min?` — loaded payouts run <b>${INC.loaded.min} → ${INC.loaded.max}</b>`:''}.</div>`;['#inLicense','#inPartner','#inProgram','#inName','#inTop'].forEach(s=>{if($(s))$(s).innerHTML=''})}return}
@@ -1264,8 +1362,20 @@ function renderIncentives(){
 // ---------- COVERAGE (day x hour clinicians-on-shift, from coverage_grid) ----------
 const DOWL7=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun']; // isodow 1..7
 function renderCoverage(){
+  wireCapFilters('coverage','cov');
+  capCalPop('coverage','cov',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  capNote('coverage','cov');
+  const F=CAPF.coverage,note=$('#covNote');
+  if(note)note.textContent='average clinicians on, across '+(COV.weeks||0)+' week'+((COV.weeks||0)===1?'':'s')
+    +' \u00b7 the schedule\u2019s own clock';
+  const td=$('#covThinDesc');
+  if(td)td.textContent='lowest average coverage'+((F.h0>0||F.h1<23)?' in '+hh(F.h0)+'-'+hh(F.h1):' across the day');
   const g=COV.grid||[];
-  if(!g.length){$('#covStats').innerHTML='';$('#covHeat').innerHTML='<div class="empty" style="grid-column:1/-1">No shift-coverage data yet — it comes from the schedule export.</div>';$('#covThin').innerHTML='';$('#covUnrel').innerHTML='';return}
+  if(COV._st==='err'){$('#covStats').innerHTML='';
+    $('#covHeat').innerHTML='<div class="gapfail" style="grid-column:1/-1"><b>Coverage could not be read.</b> '
+      +'<span class="muted">'+hesc(COV._msg||'The request failed.')+'</span></div>';
+    $('#covThin').innerHTML='';$('#covUnrel').innerHTML='';return}
+  if(!g.length){$('#covStats').innerHTML='';$('#covHeat').innerHTML='<div class="empty" style="grid-column:1/-1">Nothing matches these filters.</div>';$('#covThin').innerHTML='';$('#covUnrel').innerHTML='';return}
   const mx=Math.max(...g.map(r=>r[2]),1);
   const avg=a=>a.length?Math.round(a.reduce((s,r)=>s+r[2],0)/a.length*10)/10:0;
   const bh=g.filter(r=>r[0]<=5&&r[1]>=9&&r[1]<=17),wknd=g.filter(r=>r[0]>=6);
@@ -2090,9 +2200,9 @@ if(SLI.length||Object.keys(CD).length)boot();
     // Windowed refetch API: every summary tab's window bar goes through these (p_from/p_to null = all loaded).
     if(window.__setRangeApi)window.__setRangeApi({
       consults:  (f,t)=>sb.rpc('consult_summary',  {p_from:f,p_to:t}),
-      shifts:    (f,t)=>sb.rpc('shift_summary',    {p_from:f,p_to:t}),
-      coverage:  (f,t)=>sb.rpc('coverage_grid',    {p_from:f,p_to:t}),
-      demand:    (f,t)=>sb.rpc('demand_grid',      {p_from:f,p_to:t}),
+      shifts:    (a)=>sb.rpc('shift_summary', a),
+      coverage:  (a)=>sb.rpc('coverage_grid', a),
+      demand:    (a)=>sb.rpc('demand_grid',   a),
       incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
       staffing:(a)=>sb.rpc('staffing_coverage',a),
       staffingEntities:(a)=>sb.rpc('staffing_entities',a),

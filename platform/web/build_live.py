@@ -111,9 +111,9 @@ AUTH_JS = r"""
     // Windowed refetch API: every summary tab's window bar goes through these (p_from/p_to null = all loaded).
     if(window.__setRangeApi)window.__setRangeApi({
       consults:  (f,t)=>sb.rpc('consult_summary',  {p_from:f,p_to:t}),
-      shifts:    (f,t)=>sb.rpc('shift_summary',    {p_from:f,p_to:t}),
-      coverage:  (f,t)=>sb.rpc('coverage_grid',    {p_from:f,p_to:t}),
-      demand:    (f,t)=>sb.rpc('demand_grid',      {p_from:f,p_to:t}),
+      shifts:    (a)=>sb.rpc('shift_summary', a),
+      coverage:  (a)=>sb.rpc('coverage_grid', a),
+      demand:    (a)=>sb.rpc('demand_grid',   a),
       incentives:(f,t)=>sb.rpc('incentive_summary',{p_from:f,p_to:t}),
       staffing:(a)=>sb.rpc('staffing_coverage',a),
       staffingEntities:(a)=>sb.rpc('staffing_entities',a),
@@ -207,7 +207,10 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "Coverage could not be checked","_st==='err'","gapRetry",  # a failed coverage read NEVER renders as an all-clear
           "__setRangeApi","function winFetch","function wireWinbars",  # no-static-windows: every summary tab refetches windowed
           'data-win="consults"','data-win="shifts"','data-win="coverage"','data-win="forecast"','data-win="incentives"',  # window bar on each summary tab
-          "No consults in this window","No shifts in this window","No incentives in this window",  # honest empty states name the loaded range
+          "No consults in this window","No incentives in this window",  # honest empty states name the loaded range
+          "Nothing matches these filters","loaded schedule runs",  # Shifts can now be empty from a FILTER, not just the window - say which, and still name the loaded range
+          "wireCapFilters","capArgs","p_service_line:F.cal.size",  # Shifts + Coverage are filterable at all
+          "Shifts could not be read","Coverage could not be read",  # neither tab may render a failed read as a result
           "90d ending at last consult load",  # Active-90d basis labeled (dynamic lookback lands with the Workforce rescope)
           "vph_trend","renderVph",'data-tab="productivity"',"Scheduled, no consults","vphModel",
           "coverage_grid","renderCoverage",'data-tab="coverage"',"covHeat","DOWL7",
