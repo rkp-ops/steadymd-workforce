@@ -7,7 +7,14 @@
 -- else, so those two tabs were lumped totals by construction. All three now
 -- take the same filter set the rest of the console already uses:
 --
---   p_from, p_to, p_service_line[], p_cred[], p_hour0, p_hour1, p_dow[], p_state[]
+--   p_from, p_to, p_service_line[], p_cred[], p_hour0, p_hour1, p_dow[],
+--   p_state[], p_clinician[]
+--
+-- p_clinician keys on the lowercased shift email rather than the display name,
+-- so a rename cannot silently drop a filter. shift_summary also returns
+-- facets.clinicians as [email, name] pairs ordered by NAME, because that list
+-- is scanned by a person - 215 of them, which is a searchable picker, never a
+-- chip wall.
 --
 -- Three correctness defects are fixed in passing, all of which made the old
 -- numbers wrong rather than merely coarse:
@@ -50,7 +57,8 @@ create or replace function public.shift_summary(
     p_from date default null, p_to date default null,
     p_service_line text[] default null, p_cred text[] default null,
     p_hour0 int default 0, p_hour1 int default 23,
-    p_dow int[] default null, p_state text[] default null)
+    p_dow int[] default null, p_state text[] default null,
+    p_clinician text[] default null)   -- lowercased emails; the stable identifier
   returns jsonb language plpgsql volatile security definer set search_path to 'public' as $$
 declare out jsonb;
 begin
@@ -86,7 +94,9 @@ begin
     and (case when p_service_line is not null then s.service_line = any(p_service_line)
               else coalesce(m.count_in_coverage,true) end)
     and (p_cred is null or coalesce(public.cred_bucket(r.credential),'-') = any(p_cred))
-    and (p_state is null or r.license_states && p_state);
+    and (p_state is null or r.license_states && p_state)
+    and (p_clinician is null or lower(s.clinician_email_raw) = any(
+          array(select lower(x) from unnest(p_clinician) x)));
 
   select jsonb_build_object(
     'total_hours',  (select round(coalesce(sum(x.hrs),0)::numeric,1) from _sh x),
@@ -128,19 +138,22 @@ begin
     -- pickers offer what actually exists rather than a hardcoded list
     'facets', jsonb_build_object(
        'calendars', coalesce((select jsonb_agg(distinct x.sl order by x.sl) from _sh x), '[]'::jsonb),
-       'creds',     coalesce((select jsonb_agg(distinct x.cred order by x.cred) from _sh x), '[]'::jsonb))
+       'creds',     coalesce((select jsonb_agg(distinct x.cred order by x.cred) from _sh x), '[]'::jsonb),
+       'clinicians',coalesce((select jsonb_agg(jsonb_build_array(t.em,t.nm) order by t.nm)
+                              from (select x.em, min(x.nm) nm from _sh x group by x.em) t), '[]'::jsonb))
   ) into out;
   return out;
 end $$;
-revoke all on function public.shift_summary(date,date,text[],text[],int,int,int[],text[]) from public;
-grant execute on function public.shift_summary(date,date,text[],text[],int,int,int[],text[]) to anon, authenticated;
+revoke all on function public.shift_summary(date,date,text[],text[],int,int,int[],text[],text[]) from public;
+grant execute on function public.shift_summary(date,date,text[],text[],int,int,int[],text[],text[]) to anon, authenticated;
 
 -- -------------------------------------------------------------- coverage ---
 create or replace function public.coverage_grid(
     p_from date default null, p_to date default null,
     p_service_line text[] default null, p_cred text[] default null,
     p_hour0 int default 0, p_hour1 int default 23,
-    p_dow int[] default null, p_state text[] default null)
+    p_dow int[] default null, p_state text[] default null,
+    p_clinician text[] default null)
   returns jsonb language plpgsql volatile security definer set search_path to 'public' as $$
 declare out jsonb;
 begin
@@ -166,7 +179,9 @@ begin
     and (case when p_service_line is not null then s.service_line = any(p_service_line)
               else coalesce(m.count_in_coverage,true) end)
     and (p_cred is null or coalesce(public.cred_bucket(r.credential),'-') = any(p_cred))
-    and (p_state is null or r.license_states && p_state);
+    and (p_state is null or r.license_states && p_state)
+    and (p_clinician is null or lower(s.clinician_email_raw) = any(
+          array(select lower(x) from unnest(p_clinician) x)));
 
   with buck as (select c.dow, c.hr, c.wk, count(distinct c.em) n from _cg c group by c.dow, c.hr, c.wk),
        wks  as (select distinct b.wk from buck b),
@@ -189,8 +204,8 @@ begin
   ) into out;
   return out;
 end $$;
-revoke all on function public.coverage_grid(date,date,text[],text[],int,int,int[],text[]) from public;
-grant execute on function public.coverage_grid(date,date,text[],text[],int,int,int[],text[]) to anon, authenticated;
+revoke all on function public.coverage_grid(date,date,text[],text[],int,int,int[],text[],text[]) from public;
+grant execute on function public.coverage_grid(date,date,text[],text[],int,int,int[],text[],text[]) to anon, authenticated;
 
 -- ---------------------------------------------------------------- demand ---
 create or replace function public.demand_grid(

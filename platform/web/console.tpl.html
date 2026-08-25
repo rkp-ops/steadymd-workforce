@@ -85,6 +85,10 @@
      A week used to render 168 rows and ~5,400px of scroll; this is 7 rows on
      one screen, and days sit above each other so they are comparable. Bars are
      stacked by credential. Deliberately not a heatmap. */
+  .popsearch{width:100%;height:30px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);
+             border-radius:var(--radius);padding:0 9px;font:inherit;font-size:12.5px;margin-bottom:6px}
+  .poplist{max-height:242px;overflow:auto}
+  .popmore{font-size:11px;color:var(--ink-3);padding:5px 4px 0}
   .wgrid{display:grid;grid-template-columns:96px 1fr 52px;gap:10px;align-items:center;margin-bottom:7px}
   .wgrid .wdlab{font-size:12px;font-weight:650;color:var(--ink)}
   .wgrid .wdtot{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
@@ -519,6 +523,7 @@
     <div class="filterbar" id="shFilters" style="margin-bottom:14px">
       <div class="facet"><button class="ghost" id="shCalBtn" type="button">Calendars: <b id="shCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="shCalPop" style="width:288px;overflow:auto"></div></div>
       <div class="fgroup" id="shCredF"><span class="fl">Credential</span></div>
+      <div class="facet"><button class="ghost" id="shClinBtn" type="button">Clinicians: <b id="shClinLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="shClinPop" style="width:300px"></div></div>
       <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="shH0"></select><span class="muted">-</span><select class="dateinp" id="shH1"></select></div>
       <div class="fgroup" id="shDow"><span class="fl">Days</span></div>
       <button class="qbtn" id="shClear" type="button">Clear filters</button>
@@ -538,6 +543,7 @@
     <div class="filterbar" id="covFilters" style="margin-bottom:14px">
       <div class="facet"><button class="ghost" id="covCalBtn" type="button">Calendars: <b id="covCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="covCalPop" style="width:288px;overflow:auto"></div></div>
       <div class="fgroup" id="covCredF"><span class="fl">Credential</span></div>
+      <div class="facet"><button class="ghost" id="covClinBtn" type="button">Clinicians: <b id="covClinLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="covClinPop" style="width:300px"></div></div>
       <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="covH0"></select><span class="muted">-</span><select class="dateinp" id="covH1"></select></div>
       <div class="fgroup" id="covDow"><span class="fl">Days</span></div>
       <button class="qbtn" id="covClear" type="button">Clear filters</button>
@@ -1014,12 +1020,14 @@ function replaceObj(o,d){Object.keys(o).forEach(k=>{if(k!=='_win')delete o[k]});
 // Capacity filters. shift_summary / coverage_grid / demand_grid used to take
 // dates and nothing else, so Shifts and Coverage were lumped totals by
 // construction. Every one of these moves supply AND demand together.
-const CAPF={shifts:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()},
-            coverage:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()}};
+let CLINROSTER=[];
+const CAPF={shifts:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()},
+            coverage:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()}};
 function capArgs(key,f,t){const F=CAPF[key]||{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()};
   return {p_from:f,p_to:t,p_service_line:F.cal.size?[...F.cal]:null,
           p_cred:F.cred.size?[...F.cred]:null,p_hour0:F.h0,p_hour1:F.h1,
-          p_dow:F.dow.size?[...F.dow].sort((a,b)=>a-b):null}}
+          p_dow:F.dow.size?[...F.dow].sort((a,b)=>a-b):null,
+          p_clinician:F.clin&&F.clin.size?[...F.clin]:null}}
 async function winFetch(key,f,t){
   if(!RANGE_API)return;
   const bar=document.querySelector(`.winbar[data-win="${key}"]`);if(bar)bar.style.opacity=.55;
@@ -1030,7 +1038,12 @@ async function winFetch(key,f,t){
       if(r.error){replaceObj(SHIFTS,{});fail(SHIFTS,r)}else{replaceObj(SHIFTS,r.data);SHIFTS._st='ok';SHIFTS._win=!!(f||t)}renderShifts()}
     else if(key==='coverage'){const r=await RANGE_API.coverage(capArgs('coverage',f,t));
       if(r.error){replaceObj(COV,{});fail(COV,r)}else{replaceObj(COV,r.data);COV._st='ok'}renderCoverage()}
-    else if(key==='forecast'){const[d1,d2]=await Promise.all([RANGE_API.demand(capArgs('coverage',f,t)),RANGE_API.coverage(capArgs('coverage',f,t))]);
+    else if(key==='forecast'){
+      // demand is ARRIVALS - who happened to be scheduled does not change how
+      // many people asked for care, and demand_grid takes no p_clinician, so
+      // passing one would fail the call outright.
+      const dA=capArgs('coverage',f,t);delete dA.p_clinician;
+      const[d1,d2]=await Promise.all([RANGE_API.demand(dA),RANGE_API.coverage(capArgs('coverage',f,t))]);
       if(!d1.error)replaceObj(DEM,d1.data);if(!d2.error)replaceObj(COV,d2.data);renderForecast()}
     else if(key==='incentives'){const r=await RANGE_API.incentives(f,t);if(!r.error){replaceObj(INC,r.data);INC._win=!!(f||t);renderIncentives()}}
   }catch(e){if(key==='shifts'){replaceObj(SHIFTS,{});SHIFTS._st='err';SHIFTS._msg=e&&e.message||String(e);renderShifts()}
@@ -1057,11 +1070,51 @@ function wireCapFilters(key,pfx){
   $$('#'+pfx+'Dow .qbtn').forEach(b=>b.onclick=()=>{const d=+b.dataset.d;
     F.dow.has(d)?F.dow.delete(d):F.dow.add(d);b.classList.toggle('on');refetch()});
   const cl=$('#'+pfx+'Clear');
-  if(cl)cl.onclick=()=>{F.cal.clear();F.cred.clear();F.dow.clear();F.h0=0;F.h1=23;
+  if(cl)cl.onclick=()=>{F.cal.clear();F.cred.clear();F.dow.clear();F.clin.clear();F.h0=0;F.h1=23;
     if(h0)h0.value=0;if(h1)h1.value=23;
     $$('#'+pfx+'CredF .qbtn, #'+pfx+'Dow .qbtn').forEach(b=>b.classList.remove('on'));
-    const lb=$('#'+pfx+'CalLbl');if(lb)lb.textContent='All';refetch()};
+    const lb=$('#'+pfx+'CalLbl');if(lb)lb.textContent='All';
+    const cb=$('#'+pfx+'ClinLbl');if(cb)cb.textContent='All';refetch()};
   capNote(key,pfx);
+}
+// Searchable multi-pick, for lists too long to render as chips. 215 clinicians
+// as a chip wall is the same failure as the 17-chip calendar wall. Items are
+// [value,label]; the list filters as you type and selection is by value (email),
+// so a rename never silently drops a filter.
+function searchPop(btnSel,popSel,lblSel,items,sel,onChange){
+  const btn=$(btnSel),pop=$(popSel),lbl=$(lblSel);if(!btn||!pop)return;
+  const CAP=60;   // rows rendered at once; the count of what is hidden is stated
+  const paint=()=>{lbl.textContent=!sel.size?'All':(sel.size===1
+      ?((items.find(i=>i[0]===[...sel][0])||[,[...sel][0]])[1])
+      :sel.size+' selected')};
+  const draw=(q)=>{
+    const t=String(q||'').trim().toLowerCase();
+    const hit=items.filter(i=>!t||String(i[1]).toLowerCase().includes(t)||String(i[0]).toLowerCase().includes(t));
+    const shown=hit.slice(0,CAP);
+    $(popSel+' .poplist').innerHTML=shown.map(i=>
+      '<button class="qbtn'+(sel.has(i[0])?' on':'')+'" data-sv="'+String(i[0]).replace(/"/g,'&quot;')+'"'
+      +' style="display:block;width:100%;text-align:left;margin:2px 0;border:0;background:0">'
+      +hesc(i[1])+'</button>').join('')
+      ||'<div class="popmore">No one matches that.</div>';
+    const more=hit.length-shown.length;
+    $(popSel+' .popmore-slot').innerHTML=more>0
+      ? '<div class="popmore">'+more+' more not shown - keep typing to narrow</div>' : '';
+    $$(popSel+' [data-sv]').forEach(b=>b.onclick=()=>{const v=b.dataset.sv;
+      sel.has(v)?sel.delete(v):sel.add(v);b.classList.toggle('on');paint();onChange()})};
+  pop.innerHTML='<input class="popsearch" type="text" placeholder="Search…" data-q>'
+    +'<div style="display:flex;gap:6px;padding:0 2px 6px"><button class="qbtn" data-sall>All</button>'
+    +'<button class="qbtn" data-snone>Clear</button></div>'
+    +'<div class="poplist"></div><div class="popmore-slot"></div>';
+  draw('');paint();
+  const q=pop.querySelector('[data-q]');
+  q.oninput=()=>draw(q.value);
+  q.onclick=e=>e.stopPropagation();
+  pop.querySelector('[data-sall]').onclick=()=>{sel.clear();draw(q.value);paint();onChange()};
+  pop.querySelector('[data-snone]').onclick=()=>{sel.clear();draw(q.value);paint();onChange()};
+  if(!btn._w){btn._w=1;btn.onclick=e=>{e.stopPropagation();
+    const was=pop.classList.contains('open');$$('.pop').forEach(x=>x.classList.remove('open'));
+    if(!was){pop.classList.add('open');q.value='';draw('');q.focus()}};
+    pop.onclick=e=>e.stopPropagation()}
 }
 // Calendar picker is rebuilt from whatever the current payload actually holds,
 // alphabetically (a picker a person scans is never volume-sorted).
@@ -1073,6 +1126,16 @@ function capCalPop(key,pfx,names){
       const fi=b&&b.querySelector('[data-wfrom]'),ti=b&&b.querySelector('[data-wto]');
       winFetch(key,(fi&&fi.value)||null,(ti&&ti.value)||null);capNote(key,pfx)});
 }
+// Clinician picker, fed by whatever the current payload actually contains.
+// Values are emails (stable); labels are names, ordered alphabetically because
+// a person scans this list.
+function capClinPop(key,pfx,pairs){
+  if(!pairs||!pairs.length)return;
+  searchPop('#'+pfx+'ClinBtn','#'+pfx+'ClinPop','#'+pfx+'ClinLbl',pairs,CAPF[key].clin,
+    ()=>{const b=document.querySelector(`.winbar[data-win="${key}"]`);
+      const fi=b&&b.querySelector('[data-wfrom]'),ti=b&&b.querySelector('[data-wto]');
+      winFetch(key,(fi&&fi.value)||null,(ti&&ti.value)||null);capNote(key,pfx)});
+}
 // Say plainly what "All" leaves out, rather than letting it imply everything.
 function capNote(key,pfx){const n=$('#'+pfx+'FNote');if(!n)return;
   const F=CAPF[key],src=key==='shifts'?SHIFTS:COV,exc=(src&&src.excluded)||[];
@@ -1080,6 +1143,7 @@ function capNote(key,pfx){const n=$('#'+pfx+'FNote');if(!n)return;
   if(F.h0>0||F.h1<23)bits.push(hh(F.h0)+'-'+hh(F.h1));
   if(F.dow.size)bits.push([...F.dow].sort((a,b)=>a-b).map(d=>SDOW[d-1]).join(', '));
   if(F.cred.size)bits.push([...F.cred].join(', '));
+  if(F.clin&&F.clin.size)bits.push(F.clin.size===1?'1 clinician':F.clin.size+' clinicians');
   if(!F.cal.size&&exc.length)bits.push(exc.length+' siloed calendars excluded');
   n.textContent=bits.join(' \u00b7 ');
   if(!F.cal.size&&exc.length)n.title='Excludes '+exc.join(', ')+' - siloed or staffing-only, so they never count as on-demand coverage';
@@ -1342,6 +1406,9 @@ function usdRank(sel,arr){const mx=Math.max(...arr.map(x=>x.usd),1);$(sel).inner
 function renderShifts(){
   wireCapFilters('shifts','sh');
   capCalPop('shifts','sh',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  // keep the roster the picker offers from collapsing to whoever is selected
+  if(SHIFTS.facets&&SHIFTS.facets.clinicians&&!CAPF.shifts.clin.size)CLINROSTER=SHIFTS.facets.clinicians;
+  capClinPop('shifts','sh',CLINROSTER);
   capNote('shifts','sh');
   const clr=['#shLine','#shCred','#shTop'];
   if(SHIFTS._st==='err'){$('#shStats').innerHTML='<div class="gapfail" style="grid-column:1/-1">'
@@ -1359,6 +1426,7 @@ const DOWL7=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun']; // isodow 1..7
 function renderCoverage(){
   wireCapFilters('coverage','cov');
   capCalPop('coverage','cov',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  capClinPop('coverage','cov',CLINROSTER);
   capNote('coverage','cov');
   const F=CAPF.coverage,note=$('#covNote');
   if(note)note.textContent='average clinicians on, across '+(COV.weeks||0)+' week'+((COV.weeks||0)===1?'':'s')
