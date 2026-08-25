@@ -117,22 +117,7 @@
   .wkey span{display:inline-flex;align-items:center;gap:5px}
   .wkey i{width:10px;height:10px;border-radius:var(--radius);display:inline-block}
   /* ---- state-gap timeline: exceptions on a time axis, not a grid of cells ---- */
-  .gapwrap{--lab:104px}
-  .gtrow{display:grid;grid-template-columns:var(--lab) 1fr;align-items:center;gap:10px;height:22px}
-  .gtlab{font-size:11.5px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:6px;overflow:hidden}
-  .gtlab small{color:var(--ink-3);font-weight:500}
-  .gttrack{display:grid;height:14px;border-radius:3px;background:var(--surface-2);overflow:hidden}
-  .gtseg{grid-row:1;height:100%;border-radius:2px;background:var(--bad);transition:transform .12s ease,filter .12s ease}
-  .gtseg:hover{transform:scaleY(1.3);filter:brightness(1.15)}
-  .gtday{grid-row:1;height:100%;border-left:1px solid var(--border)}
   .gthead{display:grid;grid-template-columns:var(--lab) 1fr;gap:10px;align-items:end;margin-bottom:7px}
-  .gtticks{display:grid;font-size:10px;color:var(--ink-3)}
-  .gtticks span{border-left:1px solid var(--border);padding-left:5px;white-space:nowrap;overflow:hidden}
-  .gtrows{display:flex;flex-direction:column;gap:3px}
-  /* Bars carry the signal; the axis is a hairline. A full-height track per hour
-     gave a 1-gap hour the same visual mass as a 6-gap hour. Only hours the hour
-     filter excludes get a tinted block, so "out of scope" stays distinguishable
-     from "no gaps here". */
   /* Scanning 8 columns across 29 rows needs a row anchor. */
   #gapTbl tbody tr:hover{background:var(--surface-2)}
   #gapTbl th[data-sort]{user-select:none;white-space:nowrap}
@@ -143,12 +128,6 @@
   .gapfail{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;
            border:1px solid var(--bad);border-radius:var(--radius);color:var(--bad);font-size:13px}
   .gapfail .muted{color:var(--ink-2)}
-  .whenbars{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px;
-            border-bottom:1px solid var(--border-2)}
-  .whenbar{border-radius:3px 3px 0 0;display:flex;align-items:flex-end;height:100%}
-  .whenbar.off{background:var(--surface-2)}
-  .whenbar i{display:block;width:100%;background:var(--bad);border-radius:3px 3px 0 0;transition:height .18s ease}
-  .whenlabs{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;font-size:9.5px;color:var(--ink-3);margin-top:5px;text-align:center}
   .gapclear{display:flex;align-items:center;gap:9px;padding:10px 2px;font-size:13px}
   .gapclear .pipdot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
   @media (max-width:880px){.stats,.stats.s4{grid-template-columns:repeat(2,1fr)}}
