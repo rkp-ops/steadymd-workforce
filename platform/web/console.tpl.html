@@ -1,23 +1,31 @@
 <style>
   :root{
-    --bg:#f5f6f8;--surface:#fff;--surface-2:#eef1f4;--border:#e3e7ec;--border-2:#d3d9e0;
-    --ink:#0f1622;--ink-2:#586172;--ink-3:#8b94a3;
-    --accent:#0e8f86;--accent-ink:#0b6b64;--accent-soft:#dcf1ee;
-    --good:#12a150;--good-soft:#dff3e6;--warn:#b8770a;--warn-soft:#f6ecd6;
-    --flag:#5b52e0;--flag-soft:#e6e4fb;--bad:#d5323a;--bad-soft:#fbe3e4;
-    --shadow:0 1px 2px rgba(16,22,34,.05),0 8px 24px -12px rgba(16,22,34,.18);
+    --bg:#FAFAFA;--surface:#FFFFFF;--surface-2:#F4F4F5;--border:rgba(0,0,0,.07);--border-2:rgba(0,0,0,.12);
+    --ink:#18181B;--ink-2:#52525B;--ink-3:#A1A1AA;
+    --accent:#0D9488;--accent-ink:#0b6b64;--accent-soft:#dcf1ee;
+    --good:#059669;--good-soft:#dff3e6;--warn:#D97706;--warn-soft:#f6ecd6;
+    --flag:#5b52e0;--flag-soft:#e6e4fb;--bad:#DC2626;--bad-soft:#fbe3e4;
+    /* SLA 95-98. Was borrowing --accent-ink, which made a brand/action colour carry
+       a data meaning. Same value as --accent today, deliberately a separate token. */
+    --sla-mid:#0D9488;
+    /* Categorical credential colours. Doctor and NP previously borrowed --accent and
+       --good, i.e. action + SLA-good encoding a credential. Now non-semantic hues. */
+    --cred-doctor:#1D4ED8;--cred-np:#0891B2;--cred-pa:#7C6BD6;--cred-ma:#D69B2B;--cred-gc:#3AA6A6;--cred-ms:#B06BD6;
+    /* One radius everywhere; pills and circles opt out explicitly. */
+    --radius:6px;
+    --on-accent:#FFFFFF;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
   }
   @media (prefers-color-scheme:dark){:root{
     --bg:#0a0d12;--surface:#12161d;--surface-2:#181d26;--border:#232a35;--border-2:#2c3542;
     --ink:#e8ecf1;--ink-2:#9aa4b2;--ink-3:#69727f;--accent:#2dd4bf;--accent-ink:#7ee7db;--accent-soft:#123330;
     --good:#34d17e;--good-soft:#0f2a1c;--warn:#e0a94b;--warn-soft:#2c2413;--flag:#8b83f5;--flag-soft:#1c1a35;--bad:#ff6369;--bad-soft:#3a1a1c;
-    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 30px -14px rgba(0,0,0,.6);
+    --sla-mid:#14B8A6;--cred-doctor:#60A5FA;--cred-np:#22D3EE;--cred-pa:#A78BFA;--cred-ma:#E0A94B;--cred-gc:#5EC8C8;--cred-ms:#C79BEA;--on-accent:#FFFFFF;
   }}
-  :root[data-theme="light"]{--bg:#f5f6f8;--surface:#fff;--surface-2:#eef1f4;--border:#e3e7ec;--border-2:#d3d9e0;--ink:#0f1622;--ink-2:#586172;--ink-3:#8b94a3;--accent:#0e8f86;--accent-ink:#0b6b64;--accent-soft:#dcf1ee;--good:#12a150;--good-soft:#dff3e6;--warn:#b8770a;--warn-soft:#f6ecd6;--flag:#5b52e0;--flag-soft:#e6e4fb;--bad:#d5323a;--bad-soft:#fbe3e4;--shadow:0 1px 2px rgba(16,22,34,.05),0 8px 24px -12px rgba(16,22,34,.18);}
-  :root[data-theme="dark"]{--bg:#0a0d12;--surface:#12161d;--surface-2:#181d26;--border:#232a35;--border-2:#2c3542;--ink:#e8ecf1;--ink-2:#9aa4b2;--ink-3:#69727f;--accent:#2dd4bf;--accent-ink:#7ee7db;--accent-soft:#123330;--good:#34d17e;--good-soft:#0f2a1c;--warn:#e0a94b;--warn-soft:#2c2413;--flag:#8b83f5;--flag-soft:#1c1a35;--bad:#ff6369;--bad-soft:#3a1a1c;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 30px -14px rgba(0,0,0,.6);}
+  :root[data-theme="light"]{--bg:#FAFAFA;--surface:#FFFFFF;--surface-2:#F4F4F5;--border:rgba(0,0,0,.07);--border-2:rgba(0,0,0,.12);--ink:#18181B;--ink-2:#52525B;--ink-3:#A1A1AA;--accent:#0D9488;--accent-ink:#0b6b64;--accent-soft:#dcf1ee;--good:#059669;--good-soft:#dff3e6;--warn:#D97706;--warn-soft:#f6ecd6;--flag:#5b52e0;--flag-soft:#e6e4fb;--bad:#DC2626;--bad-soft:#fbe3e4;--sla-mid:#0D9488;--cred-doctor:#1D4ED8;--cred-np:#0891B2;--cred-pa:#7C6BD6;--cred-ma:#D69B2B;--cred-gc:#3AA6A6;--cred-ms:#B06BD6;--on-accent:#FFFFFF;}
+  :root[data-theme="dark"]{--bg:#0a0d12;--surface:#12161d;--surface-2:#181d26;--border:#232a35;--border-2:#2c3542;--ink:#e8ecf1;--ink-2:#9aa4b2;--ink-3:#69727f;--accent:#2dd4bf;--accent-ink:#7ee7db;--accent-soft:#123330;--good:#34d17e;--good-soft:#0f2a1c;--warn:#e0a94b;--warn-soft:#2c2413;--flag:#8b83f5;--flag-soft:#1c1a35;--bad:#ff6369;--bad-soft:#3a1a1c;--sla-mid:#14B8A6;--cred-doctor:#60A5FA;--cred-np:#22D3EE;--cred-pa:#A78BFA;--cred-ma:#E0A94B;--cred-gc:#5EC8C8;--cred-ms:#C79BEA;--on-accent:#FFFFFF;}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;font-variant-numeric:tabular-nums;line-height:1.45;-webkit-font-smoothing:antialiased}
   .wrap{max-width:1240px;margin:0 auto;padding:20px 20px 70px}
   .tnum{font-variant-numeric:tabular-nums}.mono{font-family:var(--mono)}
   .top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:14px;flex-wrap:wrap}
@@ -26,112 +34,174 @@
   .sub{color:var(--ink-2);font-size:12.5px;margin-top:3px}.sub b{color:var(--ink);font-weight:600}
   .scope{color:var(--ink-2);font-size:12px;font-weight:500;margin:0 0 12px;letter-spacing:.01em}.scope b{color:var(--ink);font-weight:600}
   .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--accent-ink)}
-  .ghost{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:8px;height:32px;padding:0 12px;font:inherit;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .ghost{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:var(--radius);height:32px;padding:0 12px;font:inherit;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
   .ghost:hover{color:var(--ink);border-color:var(--ink-3)}
   .ghost:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-  .nav{display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:3px;margin-bottom:14px;width:fit-content;max-width:100%;overflow:auto}
-  .nav button{appearance:none;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:560;padding:7px 15px;border-radius:8px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:7px}
-  .nav button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-  .nav .cb{background:var(--accent);color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 6px}
+  .nav{display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:3px;margin-bottom:14px;width:fit-content;max-width:100%;overflow:auto}
+  .nav button{appearance:none;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:560;padding:7px 15px;border-radius:var(--radius);cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:7px}
+  .nav button.on{background:var(--surface);color:var(--ink);border-color:var(--border-2)}
+  .nav .cb{background:var(--accent);color:var(--on-accent);border-radius:20px;font-size:10px;font-weight:700;padding:1px 6px}
   section.tab{display:none}section.tab.on{display:block}
   /* filter bar */
-  .filterbar{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .filterbar{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .filterbar .fl{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
   .fgroup{display:inline-flex;align-items:center;gap:6px}
-  .qbtn{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:7px;height:26px;padding:0 9px;font:inherit;font-size:11.5px;cursor:pointer}
+  .qbtn{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:var(--radius);height:26px;padding:0 9px;font:inherit;font-size:11.5px;cursor:pointer}
   .qbtn:hover{color:var(--ink);border-color:var(--ink-3)}
   .qbtn.on{background:var(--accent-soft);color:var(--accent-ink);border-color:transparent;font-weight:600}
   .morefilters{flex-basis:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:4px;padding-top:8px;border-top:1px dashed var(--border)}
   .facet{position:relative}
-  .pop{position:absolute;z-index:40;top:38px;left:0;width:250px;background:var(--surface);border:1px solid var(--border-2);border-radius:11px;box-shadow:var(--shadow);padding:8px;max-height:340px;display:none;flex-direction:column}
+  .pop{position:absolute;z-index:40;top:38px;left:0;width:250px;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius);padding:8px;max-height:340px;display:none;flex-direction:column}
   .pop.open{display:flex}
-  .pop input{height:30px;border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:7px;padding:0 9px;font:inherit;font-size:12px;margin-bottom:6px}
+  .pop input{height:30px;border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:var(--radius);padding:0 9px;font:inherit;font-size:12px;margin-bottom:6px}
   .pop .opts{overflow:auto;display:flex;flex-direction:column;gap:1px}
-  .opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer;font-size:12.5px}
+  .opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius);cursor:pointer;font-size:12.5px}
   .opt:hover{background:var(--surface-2)}.opt input{margin:0;width:14px;height:14px;accent-color:var(--accent)}
   .opt .ct{margin-left:auto;color:var(--ink-3);font-size:11px}
-  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:2px}
-  .seg button{appearance:none;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:550;padding:5px 10px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:6px}
-  .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-  .dateinp{height:32px;border:1px solid var(--border-2);background:var(--surface);color:var(--ink);border-radius:8px;padding:0 8px;font:inherit;font-size:12px}
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:2px}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:12px;font-weight:550;padding:5px 10px;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;gap:6px}
+  .seg button.on{background:var(--surface);color:var(--ink);border-color:var(--border-2)}
+  .dateinp{height:32px;border:1px solid var(--border-2);background:var(--surface);color:var(--ink);border-radius:var(--radius);padding:0 8px;font:inherit;font-size:12px}
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{display:inline-flex;align-items:center;gap:5px;background:var(--accent-soft);color:var(--accent-ink);border-radius:20px;font-size:11.5px;font-weight:550;padding:3px 6px 3px 10px}
   .chip button{appearance:none;border:0;background:transparent;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 2px;opacity:.7}.chip button:hover{opacity:1}
   .clearall{font-size:11.5px;color:var(--ink-2);background:0;border:0;cursor:pointer;text-decoration:underline}
   /* tiles */
-  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
   .stats.s4{grid-template-columns:repeat(4,1fr)}
-  .tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;box-shadow:var(--shadow)}
+  .tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px}
   .tile .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
   .tile .v{font-size:23px;font-weight:680;letter-spacing:-.02em;margin-top:5px}
   .tile .d{font-size:11.5px;color:var(--ink-2);margin-top:1px}
   .ovhero{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;margin-bottom:16px}
-  .hero-sla{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px 20px 16px;box-shadow:var(--shadow);min-width:210px}
+  .hero-sla{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px 20px 16px;min-width:210px}
   .hero-sla .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
   .hero-sla .v{font-size:42px;font-weight:720;letter-spacing:-.025em;line-height:1.02;margin:3px 0 4px;font-variant-numeric:tabular-nums}
   .hero-sla .d{font-size:12.5px;color:var(--ink-2)}
   .hero-meta{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:2px 2px}
   .hero-meta .line{font-size:13.5px;color:var(--ink)}.hero-meta .line.muted{color:var(--ink-2);font-size:12.5px}.hero-meta b{font-weight:680}
   .mut2{color:var(--ink-3);font-size:11px;font-weight:500;margin-left:2px}
+  /* Who's on: one row per DAY on a shared 24-hour axis, not one row per hour.
+     A week used to render 168 rows and ~5,400px of scroll; this is 7 rows on
+     one screen, and days sit above each other so they are comparable. Bars are
+     stacked by credential. Deliberately not a heatmap. */
+  .popsearch{width:100%;height:30px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);
+             border-radius:var(--radius);padding:0 9px;font:inherit;font-size:12.5px;margin-bottom:6px}
+  .poplist{max-height:242px;overflow:auto}
+  .popmore{font-size:11px;color:var(--ink-3);padding:5px 4px 0}
+  .wgrid{display:grid;grid-template-columns:96px 1fr 52px;gap:10px;align-items:center;margin-bottom:7px}
+  .wgrid .wdlab{font-size:12px;font-weight:650;color:var(--ink)}
+  .wgrid .wdtot{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  /* The bar is the data; the track is not. 24 filled boxes per row x 7 rows
+     out-weighed the bars sitting inside them, so the track is now just a
+     baseline and the hour ruler does the locating. */
+  .wstrip{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:56px;
+          border-bottom:1px solid var(--border-2)}
+  .wcell{height:100%;display:flex;flex-direction:column-reverse;background:0;
+         border-radius:2px 2px 0 0;overflow:hidden;position:relative}
+  .wcell:hover{background:var(--surface-2)}
+  .wcell.none{background:0}
+  .wcell i{display:block;width:100%;min-height:2px}
+  .wruler{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;font-size:10px;
+          color:var(--ink-3);font-variant-numeric:tabular-nums;margin-top:3px}
+  .wruler span{text-align:center}
   .wday{margin-bottom:18px}
   .wday h3{font-size:13.5px;font-weight:680;margin:0 0 8px;color:var(--ink)}
   .wrow{display:grid;grid-template-columns:52px 1fr 42px;align-items:center;gap:9px;padding:1px 0}
   .wrow .wh{font-size:11.5px;color:var(--ink-3);text-align:right;font-variant-numeric:tabular-nums}
-  .wrow .wb{height:15px;border-radius:4px;background:var(--surface-2);display:flex;overflow:hidden}
+  .wrow .wb{height:15px;border-radius:var(--radius);background:var(--surface-2);display:flex;overflow:hidden}
   .wrow .wb i{display:block;height:100%}
   .wrow .wn{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;text-align:right}
   .wrow.zero .wn{color:var(--ink-3);font-weight:500}
   .wkey{display:flex;gap:13px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);margin:2px 0 14px}
   .wkey span{display:inline-flex;align-items:center;gap:5px}
-  .wkey i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .wkey i{width:10px;height:10px;border-radius:var(--radius);display:inline-block}
+  /* ---- state-gap timeline: exceptions on a time axis, not a grid of cells ---- */
+  .gapwrap{--lab:104px}
+  .gtrow{display:grid;grid-template-columns:var(--lab) 1fr;align-items:center;gap:10px;height:22px}
+  .gtlab{font-size:11.5px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:6px;overflow:hidden}
+  .gtlab small{color:var(--ink-3);font-weight:500}
+  .gttrack{display:grid;height:14px;border-radius:3px;background:var(--surface-2);overflow:hidden}
+  .gtseg{grid-row:1;height:100%;border-radius:2px;background:var(--bad);transition:transform .12s ease,filter .12s ease}
+  .gtseg:hover{transform:scaleY(1.3);filter:brightness(1.15)}
+  .gtday{grid-row:1;height:100%;border-left:1px solid var(--border)}
+  .gthead{display:grid;grid-template-columns:var(--lab) 1fr;gap:10px;align-items:end;margin-bottom:7px}
+  .gtticks{display:grid;font-size:10px;color:var(--ink-3)}
+  .gtticks span{border-left:1px solid var(--border);padding-left:5px;white-space:nowrap;overflow:hidden}
+  .gtrows{display:flex;flex-direction:column;gap:3px}
+  /* Bars carry the signal; the axis is a hairline. A full-height track per hour
+     gave a 1-gap hour the same visual mass as a 6-gap hour. Only hours the hour
+     filter excludes get a tinted block, so "out of scope" stays distinguishable
+     from "no gaps here". */
+  .hide{display:none!important}
+  /* A failed coverage check is stated as a failure, never as an all-clear. */
+  .gapfail{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;
+           border:1px solid var(--bad);border-radius:var(--radius);color:var(--bad);font-size:13px}
+  .gapfail .muted{color:var(--ink-2)}
+  .whenbars{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px;
+            border-bottom:1px solid var(--border-2)}
+  .whenbar{border-radius:3px 3px 0 0;display:flex;align-items:flex-end;height:100%}
+  .whenbar.off{background:var(--surface-2)}
+  .whenbar i{display:block;width:100%;background:var(--bad);border-radius:3px 3px 0 0;transition:height .18s ease}
+  .whenlabs{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;font-size:9.5px;color:var(--ink-3);margin-top:5px;text-align:center}
+  .gapclear{display:flex;align-items:center;gap:9px;padding:10px 2px;font-size:13px}
+  .gapclear .pipdot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
   @media (max-width:880px){.stats,.stats.s4{grid-template-columns:repeat(2,1fr)}}
   /* cards */
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
-  .card>.hd{padding:12px 15px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px}
+  .card>.hd{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
   .card>.hd .desc{font-size:11.5px;color:var(--ink-2);font-weight:450}
-  .card>.bd{padding:14px 15px}
-  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.cols2>.card{margin-bottom:0}
+  .card>.bd{padding:16px}
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cols2>.card{margin-bottom:0}
   @media (max-width:880px){.cols2{grid-template-columns:1fr}}
   /* rank list (clickable) */
   .rank{display:flex;flex-direction:column;gap:1px}
-  .rk{display:grid;grid-template-columns:1fr auto;gap:9px 12px;align-items:center;padding:7px 8px;border-radius:8px;cursor:pointer}
+  .rk{display:grid;grid-template-columns:1fr auto;gap:9px 12px;align-items:center;padding:7px 8px;border-radius:var(--radius);cursor:pointer}
   .rk:hover{background:var(--surface-2)}
   .rk .lab{font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rk .lab small{color:var(--ink-3);font-weight:450;margin-left:6px}
   .rk .val{font-weight:650;font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
-  .rk .track{grid-column:1/3;height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden}
-  .rk .track i{display:block;height:100%;border-radius:4px}
+  .rk .track{grid-column:1/3;height:6px;border-radius:var(--radius);background:var(--surface-2);overflow:hidden}
+  .rk .track i{display:block;height:100%;border-radius:var(--radius)}
   .rk .drill{color:var(--ink-3);font-size:11px}
   /* tables */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
-  thead th{position:sticky;top:0;background:var(--surface);z-index:2;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);padding:9px 12px;border-bottom:1px solid var(--border-2);white-space:nowrap;cursor:pointer;user-select:none}
+  /* 3.4 One numeric treatment for every table. .r is the pre-existing spelling and
+     stays as an alias so no markup has to change to get the behaviour. */
+  .num,td.num,th.num,td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+  tbody td.num,tbody td.r{font-weight:500}
+  /* Pinned columns. Every column gets an explicit width except the single text
+     column left to absorb the slack, which is what kills the dead gap mid-table. */
+  table.fx{table-layout:fixed}
+  table.fx td:not(.r):not(.num),table.fx th:not(.r):not(.num){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  thead th{position:sticky;top:0;background:var(--surface-2);z-index:2;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);padding:8px 12px;border-bottom:1px solid var(--border-2);white-space:nowrap;cursor:pointer;user-select:none}
   thead th.r{text-align:right}thead th:hover{color:var(--ink)}th .ar{opacity:.55;font-size:9px}
-  tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tbody td{padding:8px 12px;height:36px;border-bottom:1px solid var(--border);vertical-align:middle}
   tbody tr:hover{background:var(--surface-2)}td.r{text-align:right}
   tbody tr.clk{cursor:pointer}
-  .volbar{display:inline-block;height:8px;border-radius:3px;background:var(--accent);vertical-align:middle;margin-left:8px;min-width:2px}
+  .volbar{display:inline-block;height:8px;border-radius:var(--radius);background:var(--accent);vertical-align:middle;margin-left:8px;min-width:2px}
   .slapill{display:inline-flex;align-items:center;gap:5px;border-radius:20px;font-size:11.5px;font-weight:650;padding:2px 9px;font-variant-numeric:tabular-nums}
   .slapill .dot{width:6px;height:6px;border-radius:50%}
-  .kind{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:5px;vertical-align:middle;margin-left:6px}
+  .kind{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:var(--radius);vertical-align:middle;margin-left:6px}
   .kind.sync{background:var(--flag-soft);color:var(--flag)}.kind.async{background:var(--accent-soft);color:var(--accent-ink)}.kind.other{background:var(--surface-2);color:var(--ink-3)}
   /* heatmap */
   .hm{overflow-x:auto}.hmgrid{display:grid;gap:2px;min-width:660px}
-  .hmcell{height:28px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.55);font-variant-numeric:tabular-nums}
+  .hmcell{height:28px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:var(--on-accent);text-shadow:0 1px 2px rgba(0,0,0,.55);font-variant-numeric:tabular-nums}
   .hmcell.empty{background:var(--surface-2)!important;color:var(--ink-3);text-shadow:none;font-weight:500;font-size:10px}
   .hmlab{font-size:11px;color:var(--ink-2);font-weight:600;display:flex;align-items:center;height:28px}
   .hmlab.col{justify-content:center;height:auto;padding-bottom:2px}
   .legend{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-2);margin-top:10px;flex-wrap:wrap}
-  .legend .sw{width:16px;height:10px;border-radius:2px;display:inline-block}
+  .legend .sw{width:16px;height:10px;border-radius:var(--radius);display:inline-block}
   /* histogram (clickable) */
   .hist{display:flex;flex-direction:column;gap:6px}
-  .hbar{display:grid;grid-template-columns:64px 1fr 74px;align-items:center;gap:10px;font-size:12px;cursor:pointer;border-radius:6px;padding:2px 4px}
+  .hbar{display:grid;grid-template-columns:64px 1fr 74px;align-items:center;gap:10px;font-size:12px;cursor:pointer;border-radius:var(--radius);padding:2px 4px}
   .hbar:hover{background:var(--surface-2)}
-  .hbar .t{height:16px;border-radius:4px;background:var(--accent);min-width:2px}
+  .hbar .t{height:16px;border-radius:var(--radius);background:var(--accent);min-width:2px}
   .hbar .n{text-align:right;color:var(--ink-2);font-variant-numeric:tabular-nums}
   /* callouts (clickable) */
-  .callout{display:flex;gap:11px;align-items:center;padding:11px 13px;border:1px solid var(--border);border-left-width:3px;border-radius:9px;margin-bottom:8px;background:var(--surface);cursor:pointer;transition:border-color .12s}
+  .callout{display:flex;gap:11px;align-items:center;padding:11px 13px;border:1px solid var(--border);border-left-width:3px;border-radius:var(--radius);margin-bottom:8px;background:var(--surface);cursor:pointer;transition:border-color .12s}
   .callout:hover{border-color:var(--ink-3)}
-  .callout .ic{width:22px;height:22px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+  .callout .ic{width:22px;height:22px;border-radius:var(--radius);flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
   .callout .t{font-weight:640;font-size:13px}.callout .d{color:var(--ink-2);font-size:12px;margin-top:1px}
   .callout .go{margin-left:auto;color:var(--ink-3);font-size:16px;flex:none}
   .co-bad{border-left-color:var(--bad)}.co-bad .ic{background:var(--bad-soft);color:var(--bad)}
@@ -140,11 +210,11 @@
   /* drill modal */
   .modal{position:fixed;inset:0;z-index:80;background:rgba(8,11,16,.5);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
   .modal.open{display:flex}
-  .sheet{background:var(--surface);border:1px solid var(--border-2);border-radius:15px;box-shadow:var(--shadow);width:100%;max-width:760px;overflow:hidden}
+  .sheet{background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius);width:100%;max-width:760px;overflow:hidden}
   .sheet .shd{padding:15px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
   .sheet .shd h2{font-size:16px}.sheet .shd .m{font-size:12px;color:var(--ink-2);margin-top:3px}
   .sheet .sbd{padding:14px 18px;max-height:66vh;overflow:auto}
-  .xbtn{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:16px;flex:none}
+  .xbtn{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:var(--radius);width:30px;height:30px;cursor:pointer;font-size:16px;flex:none}
   .xbtn:hover{color:var(--ink)}
   .mini{margin-bottom:14px}.mini h3{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px}
   .key{display:flex;gap:14px;align-items:center;font-size:11px;color:var(--ink-2);flex-wrap:wrap}
@@ -153,19 +223,19 @@
   /* clinicians */
   .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
   .search{position:relative;flex:1;min-width:210px}
-  .search input{width:100%;height:36px;border:1px solid var(--border-2);background:var(--surface);color:var(--ink);border-radius:9px;padding:0 12px 0 32px;font:inherit;font-size:13px}
+  .search input{width:100%;height:36px;border:1px solid var(--border-2);background:var(--surface);color:var(--ink);border-radius:var(--radius);padding:0 12px 0 32px;font:inherit;font-size:13px}
   .search svg{position:absolute;left:10px;top:10px;color:var(--ink-3)}
   .seg .dot{width:7px;height:7px;border-radius:50%}
   .rowcount{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--ink-2)}.rowcount b{color:var(--ink)}
   .tscroll{overflow:auto;max-height:60vh}
   .name{font-weight:600;color:var(--ink)}
-  .cred{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+  .cred{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:1px 5px}
   .pill{display:inline-flex;align-items:center;gap:5px;border-radius:20px;font-size:11px;font-weight:600;padding:2px 9px}.pill .dot{width:6px;height:6px;border-radius:50%}
   .p-active{background:var(--good-soft);color:var(--good)}.p-active .dot{background:var(--good)}
   .p-inactive{background:var(--warn-soft);color:var(--warn)}.p-inactive .dot{background:var(--warn)}
   .p-flag{background:var(--flag-soft);color:var(--flag)}.p-flag .dot{background:var(--flag)}
-  .addbtn{appearance:none;border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent-ink);border-radius:7px;font:inherit;font-size:11px;font-weight:650;padding:2px 8px;cursor:pointer;margin-left:6px;white-space:nowrap}
-  .addbtn:hover{background:var(--accent);color:#fff}.addbtn:disabled{opacity:.6;cursor:default}
+  .addbtn{appearance:none;border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent-ink);border-radius:var(--radius);font:inherit;font-size:11px;font-weight:650;padding:2px 8px;cursor:pointer;margin-left:6px;white-space:nowrap}
+  .addbtn:hover{background:var(--accent);color:var(--on-accent)}.addbtn:disabled{opacity:.6;cursor:default}
   .addbtn-err{border-color:var(--bad);background:var(--bad-soft);color:var(--bad)}
   .addbtn-lg{padding:6px 13px;font-size:12px;margin-left:0}
   .addbtn-ghost{border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2)}
@@ -176,32 +246,32 @@
   .spin2{display:inline-block;width:11px;height:11px;border:2px solid var(--border-2);border-top-color:var(--accent);border-radius:50%;animation:sp2 .7s linear infinite;vertical-align:-1px}
   @keyframes sp2{to{transform:rotate(360deg)}}
   .p-bad{background:var(--bad-soft);color:var(--bad)}.p-bad .dot{background:var(--bad)}
-  .tierb{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;border-radius:4px;margin-left:5px;vertical-align:middle}
+  .tierb{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;border-radius:var(--radius);margin-left:5px;vertical-align:middle}
   .tierb.seat{background:var(--surface-2);color:var(--ink-3)}
   .tierb.sup{background:var(--warn-soft);color:var(--warn)}
   .tierb.adm{background:var(--accent-soft);color:var(--accent-ink)}
   .provform{display:grid;gap:1px;max-width:340px}
   .provform label{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:11px 0 4px}
-  .provform input,.provform select{height:36px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:8px;padding:0 11px;font:inherit;font-size:13.5px}
+  .provform input,.provform select{height:36px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:var(--radius);padding:0 11px;font:inherit;font-size:13.5px}
   .okmsg{color:var(--good);font-size:12px;margin-top:10px;min-height:14px;line-height:1.4}
   .umanage{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
   .usub{font-size:11px;color:var(--ink-3);margin-top:1px}
-  .impdrop{border:1.5px dashed var(--border-2);border-radius:12px;padding:26px 16px;text-align:center;transition:border-color .15s,background .15s;cursor:pointer}
+  .impdrop{border:1.5px dashed var(--border-2);border-radius:var(--radius);padding:26px 16px;text-align:center;transition:border-color .15s,background .15s;cursor:pointer}
   .impdrop.over{border-color:var(--accent);background:var(--accent-soft)}
   .impdi{font-size:26px;color:var(--ink-3);margin-bottom:6px}
   .linkbtn2{appearance:none;background:0;border:0;color:var(--accent-ink);font:inherit;font-size:12.5px;font-weight:650;cursor:pointer;text-decoration:underline;padding:0}
   .impbtns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-  .impf{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;margin-top:8px;font-size:12.5px}
+  .impf{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-top:8px;font-size:12.5px}
   .impf .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .impf .fsz{color:var(--ink-3);font-size:11px}
   .impf .fx{cursor:pointer;color:var(--ink-3);border:0;background:0;font-size:15px;line-height:1}
   .impf.up{border-color:var(--good)}.impf.err{border-color:var(--bad)}
   .impkv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px;margin-bottom:10px}
   .impkv .k{color:var(--ink-3)}.impkv .v{font-variant-numeric:tabular-nums;color:var(--ink)}
-  .impwarn{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:8px 11px;font-size:12px;margin-top:8px;line-height:1.5}
+  .impwarn{background:var(--warn-soft);color:var(--warn);border-radius:var(--radius);padding:8px 11px;font-size:12px;margin-top:8px;line-height:1.5}
   .sev{display:inline-block;width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none}
   .sev.high{background:var(--bad)}.sev.med{background:var(--warn)}.sev.low{background:var(--ink-3)}
-  .flagrow{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:8px}
+  .flagrow{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin-bottom:8px}
   .flagrow .fx{flex:1;min-width:0}
   .flagrow .ft{font-size:13px;font-weight:640;color:var(--ink)}
   .flagrow .fd{font-size:12px;color:var(--ink-2);line-height:1.45;margin-top:2px}
@@ -215,8 +285,8 @@
   .fclabel{font-size:12px;color:var(--ink-2);margin-top:5px}
   .fcbars{display:flex;flex-direction:column;gap:10px}
   .fcbar{display:grid;grid-template-columns:96px 1fr 40px;align-items:center;gap:10px;font-size:12px;color:var(--ink-2)}
-  .fctrack{height:8px;border-radius:5px;background:var(--surface-2);overflow:hidden}
-  .fctrack i{height:100%;border-radius:5px;display:block;min-width:2px}
+  .fctrack{height:8px;border-radius:var(--radius);background:var(--surface-2);overflow:hidden}
+  .fctrack i{height:100%;border-radius:var(--radius);display:block;min-width:2px}
   .fcbar b{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
   .sbsec{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:17px 0 9px}
   .sbsec:first-child{margin-top:2px}
@@ -233,14 +303,14 @@
   .sbstatus{font-size:11px;font-weight:650;padding:3px 10px;border-radius:20px;white-space:nowrap;text-align:center}
   .sb-good{background:var(--good-soft);color:var(--good)}.sb-warn{background:var(--warn-soft);color:var(--warn)}
   .sb-bad{background:var(--bad-soft);color:var(--bad)}.sb-none{background:var(--surface-2);color:var(--ink-3)}
-  .ptrack{position:relative;width:64px;height:6px;border-radius:4px;background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
-  .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:2px;background:var(--ink-2)}
+  .ptrack{position:relative;width:64px;height:6px;border-radius:var(--radius);background:var(--surface-2);display:inline-block;vertical-align:middle;margin-right:7px}
+  .ptrack i{position:absolute;top:-2px;width:3px;height:10px;border-radius:var(--radius);background:var(--ink-2)}
   .mv{font-weight:700;font-size:11.5px;white-space:nowrap}
   .mv.up{color:var(--good)}.mv.dn{color:var(--bad)}.mv.fl{color:var(--ink-3)}
   .editbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:12px 16px 14px;border-top:1px dashed var(--border-2)}
   .editbar .ef{display:flex;flex-direction:column;gap:4px}
   .editbar label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
-  .editbar .ei{height:32px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:7px;padding:0 9px;font:inherit;font-size:12.5px;min-width:110px}
+  .editbar .ei{height:32px;border:1px solid var(--border-2);background:var(--bg);color:var(--ink);border-radius:var(--radius);padding:0 9px;font:inherit;font-size:12.5px;min-width:110px}
   .editbar .ei.wide{min-width:220px}
   .editbar .note{width:100%;font-size:11.5px;font-weight:600;color:var(--bad);margin-bottom:2px}
   .sc{display:inline-flex;gap:3px;align-items:baseline}.sc b{font-weight:650}.sc span{font-size:10.5px;color:var(--ink-3)}
@@ -249,11 +319,11 @@
   .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;padding:14px 16px}
   .dgrid .k{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
   .dgrid .val{font-size:12px;color:var(--ink);word-break:break-word}
-  .tag{display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 6px;margin:2px 3px 0 0;font-size:11px}
+  .tag{display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1px 6px;margin:2px 3px 0 0;font-size:11px}
   .hide-sm{}@media (max-width:820px){.hide-sm{display:none}}
   .pb{font-size:13px;color:var(--ink-2);line-height:1.6}.pb h3{font-size:13px;font-weight:680;color:var(--ink);margin:0 0 5px}
-  .pb .m{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
-  .pb code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;color:var(--ink)}.pb b{color:var(--ink)}
+  .pb .m{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .pb code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:1px 5px;color:var(--ink)}.pb b{color:var(--ink)}
   .foot{margin-top:26px;padding-top:14px;border-top:1px solid var(--border);color:var(--ink-3);font-size:11.5px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 </style>
 
@@ -316,7 +386,7 @@
     <div class="stats s4" id="perfStats"></div>
     <div class="card">
       <div class="hd"><h2>Partner performance</h2>
-        <span class="key"><span><span class="dot" style="background:var(--good)"></span>≥98</span><span><span class="dot" style="background:var(--accent-ink)"></span>95–98</span><span><span class="dot" style="background:var(--warn)"></span>90–95</span><span><span class="dot" style="background:var(--bad)"></span>&lt;90 (dot)</span><span class="muted">· click a row to drill in</span></span>
+        <span class="key"><span><span class="dot" style="background:var(--good)"></span>≥98</span><span><span class="dot" style="background:var(--sla-mid)"></span>95–98</span><span><span class="dot" style="background:var(--warn)"></span>90–95</span><span><span class="dot" style="background:var(--bad)"></span>&lt;90 (dot)</span><span class="muted">· click a row to drill in</span></span>
       </div>
       <div style="overflow:auto"><table id="ptbl"><thead><tr id="phead"></tr></thead><tbody id="pbody"></tbody></table></div>
     </div>
@@ -395,21 +465,24 @@
   </section>
 
   <section class="tab" data-tab="gaps">
-    <div class="scope" id="gapScope">Shifts vs projected demand · All partners</div>
-    <div class="filterbar" style="margin-bottom:14px">
-      <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="gapFrom"><span class="muted">–</span><input type="date" class="dateinp" id="gapTo"></div>
+    <div class="scope" id="gapScope">State coverage gaps</div>
+    <div class="filterbar" style="margin-bottom:12px">
+      <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="gapFrom"><span class="muted">-</span><input type="date" class="dateinp" id="gapTo"></div>
       <div class="fgroup" id="gapPresets">
         <button class="qbtn" data-g="wknd">This weekend</button>
         <button class="qbtn" data-g="7d">Next 7 days</button>
-        <button class="qbtn" data-g="loaded">Loaded schedule</button>
+        <button class="qbtn" data-g="loaded">All loaded</button>
       </div>
-      <div class="fgroup"><span class="fl">Demand baseline</span><select class="dateinp" id="gapBase"><option value="2">last 2 wks</option><option value="4" selected>last 4 wks</option><option value="8">last 8 wks</option></select></div>
+      <div class="facet"><button class="ghost" id="gapCalBtn" type="button">Calendars: <b id="gapCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="gapCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="gapH0"></select><span class="muted">-</span><select class="dateinp" id="gapH1"></select></div>
     </div>
-    <div class="stats s4" id="gapStats"></div>
-    <div class="card"><div class="hd"><h2>Coverage vs expected demand</h2><span class="desc">per date &amp; hour · expected = same weekday/hour average from the response log · <b>!</b> = arrivals expected, nobody scheduled</span></div>
-      <div class="bd"><div class="heat" id="gapHeat" style="display:grid;gap:3px"></div><div class="muted" id="gapNote" style="font-size:11.5px;margin-top:9px"></div></div></div>
-    <div class="card"><div class="hd"><h2>Where it's thin — call-out list</h2><span class="desc">worst hours first: uncovered, then most stretched · posted-unfilled shown when Arya has open posts</span></div>
-      <div class="bd"><div class="rank" id="gapList"></div></div></div>
+    <div class="ovhero" id="gapHero"></div>
+    <div class="card" id="gapWhenCard"><div class="hd"><h2>When gaps happen</h2><span class="desc">uncovered state-hours by hour of day, across the whole window</span></div>
+      <div class="bd"><div class="whenbars" id="gapWhen"></div><div class="whenlabs" id="gapWhenLabs"></div></div></div>
+    <div class="card" id="gapTlCard"><div class="hd"><h2>Where, and exactly when</h2><span class="desc" id="gapTlDesc">one row per state that goes uncovered, worst first &#183; hover a bar for the exact window</span></div>
+      <div class="bd gapwrap"><div class="gthead"><div></div><div class="gtticks" id="gapTicks"></div></div>
+        <div class="gtrows" id="gapRows"></div>
+        <div class="muted" id="gapNote" style="font-size:11.5px;margin-top:10px"></div></div></div>
   </section>
 
   <section class="tab" data-tab="states">
@@ -437,7 +510,7 @@
     </div>
     <div class="ovhero" id="stHero"></div>
     <div class="card"><div class="hd"><h2>Hours counted — by calendar</h2><span class="desc">exactly which shift calendars feed the numbers above, and what was left out. If this doesn't say what you expect, the filter is wrong.</span></div>
-      <div style="overflow:auto"><table id="stEntTbl"><thead><tr><th>Calendar</th><th class="r">Bodies</th><th class="r">Scheduled hours</th><th>Counted?</th></tr></thead><tbody id="stEntBody"></tbody></table></div></div>
+      <div style="overflow:auto"><table id="stEntTbl" class="fx"><colgroup><col><col style="width:90px"><col style="width:130px"><col style="width:320px"></colgroup><thead><tr><th>Calendar</th><th class="r">Bodies</th><th class="r">Scheduled hours</th><th>Counted?</th></tr></thead><tbody id="stEntBody"></tbody></table></div></div>
     <div class="card"><div class="hd"><h2>Bodies on shift, by hour</h2><span class="desc" id="stGridDesc">whole clinicians scheduled in each hour, by credential — one row per day, never averaged</span></div>
       <div style="overflow:auto"><table id="stHrTbl"><thead><tr id="stHrHead"></tr></thead><tbody id="stHrBody"></tbody></table></div>
       <div class="bd"><div class="heat" id="stHeat" style="display:grid;gap:3px"></div><div class="muted" id="stHeatNote" style="font-size:11.5px;margin-top:9px"></div></div></div>
@@ -447,6 +520,15 @@
 
   <section class="tab" data-tab="shifts">
     <div class="filterbar winbar" data-win="shifts" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
+    <div class="filterbar" id="shFilters" style="margin-bottom:14px">
+      <div class="facet"><button class="ghost" id="shCalBtn" type="button">Calendars: <b id="shCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="shCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup" id="shCredF"><span class="fl">Credential</span></div>
+      <div class="facet"><button class="ghost" id="shClinBtn" type="button">Clinicians: <b id="shClinLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="shClinPop" style="width:300px"></div></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="shH0"></select><span class="muted">-</span><select class="dateinp" id="shH1"></select></div>
+      <div class="fgroup" id="shDow"><span class="fl">Days</span></div>
+      <button class="qbtn" id="shClear" type="button">Clear filters</button>
+      <span class="muted" id="shFNote" style="font-size:11.5px"></span>
+    </div>
     <div class="stats s4" id="shStats"></div>
     <div class="card"><div class="hd"><h2>Hours by service line</h2><span class="desc">scheduled shift hours</span></div><div class="bd"><div class="rank" id="shLine"></div></div></div>
     <div class="cols2">
@@ -458,15 +540,24 @@
   <!-- COVERAGE -->
   <section class="tab" data-tab="coverage">
     <div class="filterbar winbar" data-win="coverage" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
+    <div class="filterbar" id="covFilters" style="margin-bottom:14px">
+      <div class="facet"><button class="ghost" id="covCalBtn" type="button">Calendars: <b id="covCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="covCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup" id="covCredF"><span class="fl">Credential</span></div>
+      <div class="facet"><button class="ghost" id="covClinBtn" type="button">Clinicians: <b id="covClinLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="covClinPop" style="width:300px"></div></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="covH0"></select><span class="muted">-</span><select class="dateinp" id="covH1"></select></div>
+      <div class="fgroup" id="covDow"><span class="fl">Days</span></div>
+      <button class="qbtn" id="covClear" type="button">Clear filters</button>
+      <span class="muted" id="covFNote" style="font-size:11.5px"></span>
+    </div>
     <div class="stats s4" id="covStats"></div>
     <div class="card">
-      <div class="hd"><h2>Clinicians on shift — day &amp; hour</h2><span class="desc" id="covNote">avg across weeks · Central time</span></div>
+      <div class="hd"><h2>Clinicians on shift — day &amp; hour</h2><span class="desc" id="covNote"></span></div>
       <div class="bd"><div class="hm"><div class="hmgrid" id="covHeat"></div></div>
         <div class="legend"><span>on shift</span><span class="sw" style="background:hsl(0 68% 42%)"></span>thin<span class="sw" style="background:hsl(58 68% 42%)"></span><span class="sw" style="background:hsl(101 68% 38%)"></span><span class="sw" style="background:hsl(145 68% 36%)"></span>full<span class="muted">· number = avg clinicians · grey = none</span></span>
       </div>
     </div>
     <div class="cols2">
-      <div class="card"><div class="hd"><h2>Thinnest daytime slots</h2><span class="desc">lowest average coverage, 7am–7pm</span></div><div class="bd"><div class="rank" id="covThin"></div></div></div>
+      <div class="card"><div class="hd"><h2>Thinnest slots</h2><span class="desc" id="covThinDesc">lowest average coverage in the selected hours</span></div><div class="bd"><div class="rank" id="covThin"></div></div></div>
       <div class="card"><div class="hd"><h2>Least reliable slots</h2><span class="desc">coverage that swings week to week</span></div><div class="bd"><div class="rank" id="covUnrel"></div></div></div>
     </div>
   </section>
@@ -474,9 +565,18 @@
   <!-- FORECAST -->
   <section class="tab" data-tab="forecast">
     <div class="filterbar winbar" data-win="forecast" style="margin-bottom:14px"><div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" data-wfrom><span class="muted">–</span><input type="date" class="dateinp" data-wto></div><button class="qbtn" data-wall>All loaded</button><span class="muted" data-wnote style="font-size:11.5px"></span></div>
+    <div class="filterbar" id="fcFilters" style="margin-bottom:14px">
+      <div class="facet"><button class="ghost" id="fcCalBtn" type="button">Calendars: <b id="fcCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="fcCalPop" style="width:288px;overflow:auto"></div></div>
+      <div class="fgroup" id="fcCredF"><span class="fl">Credential</span></div>
+      <div class="facet"><button class="ghost" id="fcClinBtn" type="button">Clinicians: <b id="fcClinLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="fcClinPop" style="width:300px"></div></div>
+      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="fcH0"></select><span class="muted">-</span><select class="dateinp" id="fcH1"></select></div>
+      <div class="fgroup" id="fcDow"><span class="fl">Days</span></div>
+      <button class="qbtn" id="fcClear" type="button">Clear filters</button>
+      <span class="muted" id="fcFNote" style="font-size:11.5px"></span>
+    </div>
     <div class="stats s4" id="fcStats"></div>
     <div class="card">
-      <div class="hd"><h2>Load — demand vs. who's on shift</h2><span class="desc" id="fcNote">consults per on-shift clinician · day &amp; hour · Central time</span></div>
+      <div class="hd"><h2>Load — demand vs. who's on shift</h2><span class="desc" id="fcNote"></span></div>
       <div class="bd"><div class="hm"><div class="hmgrid" id="fcHeat"></div></div>
         <div class="legend"><span>load</span><span class="sw" style="background:hsl(145 68% 37%)"></span>easy<span class="sw" style="background:hsl(58 68% 42%)"></span><span class="sw" style="background:hsl(0 68% 42%)"></span>stretched<span class="sw" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px)"></span>no coverage<span class="muted">· number = consults/clinician/hr · grey = no demand</span></span>
       </div>
@@ -534,7 +634,7 @@
     </div>
     <div class="chips" id="clchips"></div>
     <div class="card" style="margin-bottom:0"><div class="rowcount"><span><b id="shown">0</b> of <span id="tot2">0</span> shown</span><span class="muted">click a row for identity · Export uses this filter</span></div>
-      <div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:9px;padding:8px 11px;margin:2px 0 10px;font-size:12px;color:var(--ink-2);line-height:1.5">The <b>Consults</b> column is suppressed — per-clinician counts were derived from the SLI clinician field, which replicates one name per consult and can't attribute per responder. Real output returns with the Workforce rescope.</div>
+      <div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius);padding:8px 11px;margin:2px 0 10px;font-size:12px;color:var(--ink-2);line-height:1.5">The <b>Consults</b> column is suppressed — per-clinician counts were derived from the SLI clinician field, which replicates one name per consult and can't attribute per responder. Real output returns with the Workforce rescope.</div>
       <div class="tscroll"><table><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div></div>
   </section>
 
@@ -603,7 +703,7 @@
     <div class="card" style="margin-bottom:0">
       <div class="hd"><h2>People with access</h2><span class="desc" id="usCount"></span></div>
       <div class="bd" style="padding-top:4px">
-        <div class="tscroll"><table id="usTable"><thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Last seen</th><th class="r">Views</th><th class="r">Manage</th></tr></thead><tbody id="usBody"></tbody></table></div>
+        <div class="tscroll"><table id="usTable" class="fx"><colgroup><col><col style="width:120px"><col style="width:110px"><col style="width:130px"><col style="width:90px"></colgroup><thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Last seen</th><th class="r">Views</th><th class="r">Manage</th></tr></thead><tbody id="usBody"></tbody></table></div>
         <div class="adderr" id="us-lerr" style="padding:8px 2px 0"></div>
       </div>
     </div>
@@ -639,8 +739,8 @@ function fmtDur(s){if(s==null)return'—';let m=Math.round(s/60);const neg=m<0;m
 function fmtMin(m){if(m==null)return'—';if(m<60)return Math.round(m)+'m';const h=Math.floor(m/60),mm=Math.round(m%60);return h+'h'+(mm?' '+mm+'m':'')}
 function slaHue(p){return Math.round(Math.max(0,Math.min(1,(p-85)/15))*145)}
 function slaCss(p){const h=slaHue(p);return `hsl(${h} 68% ${h>95?37:40}%)`}
-function slaTone(p){return p>=98?'good':p>=95?'accent':p>=90?'warn':'bad'}
-function toneCss(t){return t==='accent'?'var(--accent-ink)':'var(--'+t+')'}
+function slaTone(p){return p>=98?'good':p>=95?'mid':p>=90?'warn':'bad'}
+function toneCss(t){return t==='mid'?'var(--sla-mid)':'var(--'+t+')'}
 function slaPill(p){const t=slaTone(p),c=toneCss(t),bg={good:'var(--good-soft)',accent:'var(--accent-soft)',warn:'var(--warn-soft)',bad:'var(--bad-soft)'}[t];return `<span class="slapill" style="color:${c};background:${bg}"><i class="dot" style="background:${c}"></i>${p}%</span>`}
 const MODLABEL={messaging:'Messaging',sync_video:'Synchronous video',sync_phone:'Critical-value call',lab:'Lab',other:'Other'};
 const MODKIND={messaging:'async',sync_video:'sync',sync_phone:'sync',lab:'other',other:'other'};
@@ -658,7 +758,19 @@ function laneOf(ct){return ct&&(/video_visit/.test(ct)||/scheduled_video/.test(c
 // buckets ops actually reasons about: Doctor (MD/DO), PA, MA, GC, MS, and NP
 // (every APRN/CRNP/FNP/DNP/… nurse-practitioner variant). Raw credential is kept
 // on the roster row for editing/records; this is only the display + filter bucket.
-function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');if(!c)return'';if(c==='MD'||c==='DO')return'Doctor';if(c==='PA'||c==='PAC')return'PA';if(c==='MA')return'MA';if(c==='GC')return'GC';if(c==='MS')return'MS';return'NP'}
+// Raw credential -> one of the 6 buckets. Two rules matter:
+//  * an ALREADY-bucketed value passes through. 'Doctor' used to fall past every
+//    case and hit the NP catch-all, so re-bucketing a bucketed list relabelled
+//    every physician as an NP and merged their hours into the NP row.
+//  * an unrecognised value returns '' (unknown). It is never silently counted
+//    as an NP - a guess that reads as data is worse than an honest blank.
+function credClass(cred){const c=(cred||'').toUpperCase().replace(/[^A-Z]/g,'');if(!c)return'';
+  if(c==='DOCTOR')return'Doctor';
+  if(c==='NP'||c==='PA'||c==='MA'||c==='GC'||c==='MS')return c;
+  if(c==='MD'||c==='DO')return'Doctor';
+  if(c==='PAC')return'PA';
+  if(c==='APN'||/NP|APRN|ARNP/.test(c))return'NP';   // every NP variant in the roster
+  return''}
 
 // ---------- theme + tabs ----------
 // Theme is remembered across reloads: a picked theme is stored and re-applied on
@@ -682,7 +794,7 @@ function buildNav(){
   $('#nav').innerHTML=SURFACES.map(([sk,l])=>`<button data-s="${sk}" class="${sk===ACTIVE_SURFACE?'on':''}">${l}</button>`).join('');
   $$('#nav button').forEach(b=>b.onclick=()=>goSurface(b.dataset.s));
   const items=SETTINGS_TABS.filter(t=>!adminHidden(t));
-  $('#settingsMenu').innerHTML=items.map(t=>`<button data-t="${t}" style="display:block;width:100%;text-align:left;background:0;border:0;color:var(--ink);padding:8px 12px;cursor:pointer;font:inherit;font-size:13px;border-radius:7px">${TAB_LABEL[t]}</button>`).join('')||'<div class="muted" style="padding:8px 12px">No settings</div>';
+  $('#settingsMenu').innerHTML=items.map(t=>`<button data-t="${t}" style="display:block;width:100%;text-align:left;background:0;border:0;color:var(--ink);padding:8px 12px;cursor:pointer;font:inherit;font-size:13px;border-radius:var(--radius)">${TAB_LABEL[t]}</button>`).join('')||'<div class="muted" style="padding:8px 12px">No settings</div>';
   $$('#settingsMenu button').forEach(b=>b.onclick=()=>{$('#settingsMenu').classList.remove('open');go(b.dataset.t)});
   const sb=$('#settingsBtn');if(sb)sb.onclick=e=>{e.stopPropagation();const m=$('#settingsMenu'),was=m.classList.contains('open');$$('.pop').forEach(p=>p.classList.remove('open'));if(!was)m.classList.add('open')};
   renderSubnav(ACTIVE_SURFACE);
@@ -838,7 +950,8 @@ function renderPerf(rows){
     {k:'P90 wait',v:fmtDur(o.p90),d:'9 in 10 faster'},
     {k:'SLIs in view',v:nf(o.scored),d:'after filters'},
   ].map(t=>`<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
-  const parts=agg(rows,P),mx=Math.max(...parts.map(p=>p.n),1),cols=[['name','Partner',0],['n','Volume',1],['pct','SLA %',1],['avg','Avg wait',1],['miss','Missed',1]];
+  const parts=agg(rows,P),mx=Math.max(...parts.map(p=>p.n),1),cols=[['name','Partner',0,''],['n','Volume',1,'140px'],['pct','SLA %',1,'110px'],['avg','Avg wait',1,'110px'],['miss','Missed',1,'90px']];
+  clFix('#phead',cols.map(c=>({w:c[3]})));
   $('#phead').innerHTML=cols.map(c=>`<th class="${c[2]?'r':''}" data-k="${c[0]}">${c[1]} ${PSORT.k===c[0]?`<span class="ar">${PSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');
   $$('#phead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(PSORT.k===k)PSORT.dir*=-1;else{PSORT.k=k;PSORT.dir=k==='name'?1:-1}renderPerf(slice())});
   const sorted=[...parts].sort((a,b)=>{let x=PSORT.k==='miss'?(a.n-a.met):a[PSORT.k],y=PSORT.k==='miss'?(b.n-b.met):b[PSORT.k];if(typeof x==='string')return PSORT.dir*x.localeCompare(y);return PSORT.dir*((x||0)-(y||0))});
@@ -913,18 +1026,138 @@ function renderConsults(){
 let RANGE_API=null;
 window.__setRangeApi=function(api){RANGE_API=api||null};
 function replaceObj(o,d){Object.keys(o).forEach(k=>{if(k!=='_win')delete o[k]});Object.assign(o,d||{})}
+// Capacity filters. shift_summary / coverage_grid / demand_grid used to take
+// dates and nothing else, so Shifts and Coverage were lumped totals by
+// construction. Every one of these moves supply AND demand together.
+let CLINROSTER=[];
+const CAPF={shifts:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()},
+            coverage:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()},
+            forecast:{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set(),clin:new Set()}};
+function capArgs(key,f,t){const F=CAPF[key]||{cal:new Set(),cred:new Set(),h0:0,h1:23,dow:new Set()};
+  return {p_from:f,p_to:t,p_service_line:F.cal.size?[...F.cal]:null,
+          p_cred:F.cred.size?[...F.cred]:null,p_hour0:F.h0,p_hour1:F.h1,
+          p_dow:F.dow.size?[...F.dow].sort((a,b)=>a-b):null,
+          p_clinician:F.clin&&F.clin.size?[...F.clin]:null}}
 async function winFetch(key,f,t){
   if(!RANGE_API)return;
   const bar=document.querySelector(`.winbar[data-win="${key}"]`);if(bar)bar.style.opacity=.55;
+  const fail=(o,r)=>{o._st='err';o._msg=(r&&r.error&&(r.error.message||String(r.error)))||'The request failed.'};
   try{
     if(key==='consults'){const r=await RANGE_API.consults(f,t);if(!r.error){replaceObj(CD,r.data);CD._win=!!(f||t);renderConsults()}}
-    else if(key==='shifts'){const r=await RANGE_API.shifts(f,t);if(!r.error){replaceObj(SHIFTS,r.data);SHIFTS._win=!!(f||t);renderShifts()}}
-    else if(key==='coverage'){const r=await RANGE_API.coverage(f,t);if(!r.error){replaceObj(COV,r.data);renderCoverage()}}
-    else if(key==='forecast'){const[d1,d2]=await Promise.all([RANGE_API.demand(f,t),RANGE_API.coverage(f,t)]);if(!d1.error)replaceObj(DEM,d1.data);if(!d2.error)replaceObj(COV,d2.data);renderForecast()}
+    else if(key==='shifts'){const r=await RANGE_API.shifts(capArgs('shifts',f,t));
+      if(r.error){replaceObj(SHIFTS,{});fail(SHIFTS,r)}else{replaceObj(SHIFTS,r.data);SHIFTS._st='ok';SHIFTS._win=!!(f||t)}renderShifts()}
+    else if(key==='coverage'){const r=await RANGE_API.coverage(capArgs('coverage',f,t));
+      if(r.error){replaceObj(COV,{});fail(COV,r)}else{replaceObj(COV,r.data);COV._st='ok'}renderCoverage()}
+    else if(key==='forecast'){
+      // demand is ARRIVALS - who happened to be scheduled does not change how
+      // many people asked for care, and demand_grid takes no p_clinician, so
+      // passing one would fail the call outright.
+      const dA=capArgs('forecast',f,t);delete dA.p_clinician;
+      const[d1,d2]=await Promise.all([RANGE_API.demand(dA),RANGE_API.coverage(capArgs('forecast',f,t))]);
+      if(!d1.error)replaceObj(DEM,d1.data);if(!d2.error)replaceObj(COV,d2.data);renderForecast()}
     else if(key==='incentives'){const r=await RANGE_API.incentives(f,t);if(!r.error){replaceObj(INC,r.data);INC._win=!!(f||t);renderIncentives()}}
-  }catch(_){}
+  }catch(e){if(key==='shifts'){replaceObj(SHIFTS,{});SHIFTS._st='err';SHIFTS._msg=e&&e.message||String(e);renderShifts()}
+            else if(key==='coverage'){replaceObj(COV,{});COV._st='err';COV._msg=e&&e.message||String(e);renderCoverage()}}
   if(bar)bar.style.opacity='';winNotes()
 }
+// One wiring routine for both capacity tabs: calendars, credential, hours, days.
+function wireCapFilters(key,pfx){
+  const F=CAPF[key],box=$('#'+pfx+'Filters');if(!box||box._w)return;box._w=1;
+  const refetch=()=>{const b=document.querySelector(`.winbar[data-win="${key}"]`);
+    const fi=b&&b.querySelector('[data-wfrom]'),ti=b&&b.querySelector('[data-wto]');
+    winFetch(key,(fi&&fi.value)||null,(ti&&ti.value)||null);capNote(key,pfx)};
+  const h0=$('#'+pfx+'H0'),h1=$('#'+pfx+'H1');
+  if(h0&&h1){h0.innerHTML=h1.innerHTML=Array.from({length:24},(_,i)=>`<option value="${i}">${hh(i)}</option>`).join('');
+    h0.value=F.h0;h1.value=F.h1;
+    h0.onchange=e=>{F.h0=+e.target.value;if(F.h1<F.h0){F.h1=F.h0;h1.value=F.h1}refetch()};
+    h1.onchange=e=>{F.h1=+e.target.value;if(F.h1<F.h0){F.h0=F.h1;h0.value=F.h0}refetch()}}
+  const cr=$('#'+pfx+'CredF');
+  if(cr)cr.insertAdjacentHTML('beforeend',CREDS6.map(c=>`<button class="qbtn" data-c="${c}">${c}</button>`).join(''));
+  $$('#'+pfx+'CredF .qbtn').forEach(b=>b.onclick=()=>{const c=b.dataset.c;
+    F.cred.has(c)?F.cred.delete(c):F.cred.add(c);b.classList.toggle('on');refetch()});
+  const dw=$('#'+pfx+'Dow');
+  if(dw)dw.insertAdjacentHTML('beforeend',SDOW.map((d,i)=>`<button class="qbtn" data-d="${i+1}">${d}</button>`).join(''));
+  $$('#'+pfx+'Dow .qbtn').forEach(b=>b.onclick=()=>{const d=+b.dataset.d;
+    F.dow.has(d)?F.dow.delete(d):F.dow.add(d);b.classList.toggle('on');refetch()});
+  const cl=$('#'+pfx+'Clear');
+  if(cl)cl.onclick=()=>{F.cal.clear();F.cred.clear();F.dow.clear();F.clin.clear();F.h0=0;F.h1=23;
+    if(h0)h0.value=0;if(h1)h1.value=23;
+    $$('#'+pfx+'CredF .qbtn, #'+pfx+'Dow .qbtn').forEach(b=>b.classList.remove('on'));
+    const lb=$('#'+pfx+'CalLbl');if(lb)lb.textContent='All';
+    const cb=$('#'+pfx+'ClinLbl');if(cb)cb.textContent='All';refetch()};
+  capNote(key,pfx);
+}
+// Searchable multi-pick, for lists too long to render as chips. 215 clinicians
+// as a chip wall is the same failure as the 17-chip calendar wall. Items are
+// [value,label]; the list filters as you type and selection is by value (email),
+// so a rename never silently drops a filter.
+function searchPop(btnSel,popSel,lblSel,items,sel,onChange){
+  const btn=$(btnSel),pop=$(popSel),lbl=$(lblSel);if(!btn||!pop)return;
+  const CAP=60;   // rows rendered at once; the count of what is hidden is stated
+  const paint=()=>{lbl.textContent=!sel.size?'All':(sel.size===1
+      ?((items.find(i=>i[0]===[...sel][0])||[,[...sel][0]])[1])
+      :sel.size+' selected')};
+  const draw=(q)=>{
+    const t=String(q||'').trim().toLowerCase();
+    const hit=items.filter(i=>!t||String(i[1]).toLowerCase().includes(t)||String(i[0]).toLowerCase().includes(t));
+    const shown=hit.slice(0,CAP);
+    $(popSel+' .poplist').innerHTML=shown.map(i=>
+      '<button class="qbtn'+(sel.has(i[0])?' on':'')+'" data-sv="'+String(i[0]).replace(/"/g,'&quot;')+'"'
+      +' style="display:block;width:100%;text-align:left;margin:2px 0;border:0;background:0">'
+      +hesc(i[1])+'</button>').join('')
+      ||'<div class="popmore">No one matches that.</div>';
+    const more=hit.length-shown.length;
+    $(popSel+' .popmore-slot').innerHTML=more>0
+      ? '<div class="popmore">'+more+' more not shown - keep typing to narrow</div>' : '';
+    $$(popSel+' [data-sv]').forEach(b=>b.onclick=()=>{const v=b.dataset.sv;
+      sel.has(v)?sel.delete(v):sel.add(v);b.classList.toggle('on');paint();onChange()})};
+  pop.innerHTML='<input class="popsearch" type="text" placeholder="Search…" data-q>'
+    +'<div style="display:flex;gap:6px;padding:0 2px 6px"><button class="qbtn" data-sall>All</button>'
+    +'<button class="qbtn" data-snone>Clear</button></div>'
+    +'<div class="poplist"></div><div class="popmore-slot"></div>';
+  draw('');paint();
+  const q=pop.querySelector('[data-q]');
+  q.oninput=()=>draw(q.value);
+  q.onclick=e=>e.stopPropagation();
+  pop.querySelector('[data-sall]').onclick=()=>{sel.clear();draw(q.value);paint();onChange()};
+  pop.querySelector('[data-snone]').onclick=()=>{sel.clear();draw(q.value);paint();onChange()};
+  if(!btn._w){btn._w=1;btn.onclick=e=>{e.stopPropagation();
+    const was=pop.classList.contains('open');$$('.pop').forEach(x=>x.classList.remove('open'));
+    if(!was){pop.classList.add('open');q.value='';draw('');q.focus()}};
+    pop.onclick=e=>e.stopPropagation()}
+}
+// Calendar picker is rebuilt from whatever the current payload actually holds,
+// alphabetically (a picker a person scans is never volume-sorted).
+function capCalPop(key,pfx,names){
+  if(!names||!names.length)return;
+  calPop('#'+pfx+'CalBtn','#'+pfx+'CalPop','#'+pfx+'CalLbl',
+    [...new Set(names)].sort((a,b)=>String(a).localeCompare(String(b))),CAPF[key].cal,
+    ()=>{const b=document.querySelector(`.winbar[data-win="${key}"]`);
+      const fi=b&&b.querySelector('[data-wfrom]'),ti=b&&b.querySelector('[data-wto]');
+      winFetch(key,(fi&&fi.value)||null,(ti&&ti.value)||null);capNote(key,pfx)});
+}
+// Clinician picker, fed by whatever the current payload actually contains.
+// Values are emails (stable); labels are names, ordered alphabetically because
+// a person scans this list.
+function capClinPop(key,pfx,pairs){
+  if(!pairs||!pairs.length)return;
+  searchPop('#'+pfx+'ClinBtn','#'+pfx+'ClinPop','#'+pfx+'ClinLbl',pairs,CAPF[key].clin,
+    ()=>{const b=document.querySelector(`.winbar[data-win="${key}"]`);
+      const fi=b&&b.querySelector('[data-wfrom]'),ti=b&&b.querySelector('[data-wto]');
+      winFetch(key,(fi&&fi.value)||null,(ti&&ti.value)||null);capNote(key,pfx)});
+}
+// Say plainly what "All" leaves out, rather than letting it imply everything.
+function capNote(key,pfx){const n=$('#'+pfx+'FNote');if(!n)return;
+  const F=CAPF[key],src=key==='shifts'?SHIFTS:COV,exc=(src&&src.excluded)||[];
+  const bits=[];
+  if(F.h0>0||F.h1<23)bits.push(hh(F.h0)+'-'+hh(F.h1));
+  if(F.dow.size)bits.push([...F.dow].sort((a,b)=>a-b).map(d=>SDOW[d-1]).join(', '));
+  if(F.cred.size)bits.push([...F.cred].join(', '));
+  if(F.clin&&F.clin.size)bits.push(F.clin.size===1?'1 clinician':F.clin.size+' clinicians');
+  if(!F.cal.size&&exc.length)bits.push(exc.length+' siloed calendars excluded');
+  n.textContent=bits.join(' \u00b7 ');
+  if(!F.cal.size&&exc.length)n.title='Excludes '+exc.join(', ')+' - siloed or staffing-only, so they never count as on-demand coverage';
+  else n.removeAttribute('title')}
 function wireWinbars(){$$('.winbar').forEach(bar=>{if(bar._w)return;bar._w=1;const key=bar.dataset.win;
   const f=bar.querySelector('[data-wfrom]'),t=bar.querySelector('[data-wto]'),all=bar.querySelector('[data-wall]');
   const go=()=>winFetch(key,f.value||null,t.value||null);
@@ -953,7 +1186,12 @@ function dl(text,name){const b=new Blob([text],{type:'text/csv'}),a=document.cre
 // ---------- CLINICIANS (ported) ----------
 const STATUS=[{k:'all',l:'All',c:'var(--ink-3)'},{k:'active',l:'Active',c:'var(--good)'},{k:'inactive',l:'Inactive',c:'var(--warn)'},{k:'NEEDS-CORRECTION',l:'Needs fix',c:'var(--bad)'},{k:'ADD-TO-ROSTER',l:'Add-queue',c:'var(--flag)'}];
 const TIERS=[{k:'all',l:'All tiers'},{k:'seat',l:'Seats'},{k:'support',l:'Support'}];
-const COLS=[{k:'n',l:'Clinician'},{k:'c',l:'Cred'},{k:'npi',l:'NPI'},{k:'ls',l:'States',r:1,num:x=>x.ls.length},{k:'pr',l:'Programs',sm:1},{k:'ct',l:'Consults',r:1,num:x=>x.ct},{k:'la',l:'Last active',r:1},{k:'st',l:'Status'}];
+const COLS=[{k:'n',l:'Clinician',w:'220px'},{k:'c',l:'Cred',w:'120px'},{k:'npi',l:'NPI',w:'120px'},{k:'ls',l:'States',r:1,w:'90px',num:x=>x.ls.length},{k:'pr',l:'Programs',sm:1},{k:'ct',l:'Consults',r:1,w:'90px',num:x=>x.ct},{k:'la',l:'Last active',r:1,w:'120px'},{k:'st',l:'Status',w:'130px'}];
+// Programs has no width on purpose: it is the one text column that absorbs the slack.
+function clFix(headSel,cols){const tr=$(headSel);if(!tr)return;const t=tr.closest('table');if(!t)return;
+  t.classList.add('fx');const old=t.querySelector('colgroup');if(old)old.remove();
+  t.insertAdjacentHTML('afterbegin',colgroup(cols));}
+function colgroup(cols){return '<colgroup>'+cols.map(c=>`<col${c.w?` style="width:${c.w}"`:''}>`).join('')+'</colgroup>'}
 let CF={q:'',status:'all',tier:'all',ls:new Set(),c:new Set(),pr:new Set(),pa:new Set(),actstate:false},CSORT={k:'la',dir:-1};
 function fc(key){const m=new Map();DATA.forEach(d=>{const v=key==='c'?credClass(d.c):d[key];(Array.isArray(v)?v:[v]).forEach(x=>{if(x)m.set(x,(m.get(x)||0)+1)})});return[...m.entries()].sort((a,b)=>String(a[0]).localeCompare(String(b[0])))}
 function buildCPop(key){const pop=$(`[data-cpop="${key}"]`),opts=fc(key);pop.innerHTML='<input placeholder="Filter…"><div class="opts"></div>';const box=pop.querySelector('.opts');const draw=(t='')=>{box.innerHTML='';opts.filter(([v])=>v.toLowerCase().includes(t.toLowerCase())).forEach(([v,c])=>{const o=document.createElement('label');o.className='opt';o.innerHTML=`<input type="checkbox" ${CF[key].has(v)?'checked':''}><span>${v}</span><span class="ct">${c}</span>`;o.querySelector('input').onchange=e=>{e.target.checked?CF[key].add(v):CF[key].delete(v);renderCl()};box.appendChild(o)})};draw();pop.querySelector('input').oninput=e=>draw(e.target.value)}
@@ -997,7 +1235,7 @@ async function doAdd(d,confirm,btn,errEl){
     if(errEl){errEl.textContent=msg}else{btn.title=msg;btn.textContent='Retry';btn.classList.add('addbtn-err')}
   }
 }
-function renderCl(){renderClStats();renderClChips();$('#head').innerHTML=COLS.map(c=>`<th class="${c.r?'r':''} ${c.sm?'hide-sm':''}" data-k="${c.k}">${c.l} ${CSORT.k===c.k?`<span class="ar">${CSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');$$('#head th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='ct')return;if(CSORT.k===k)CSORT.dir*=-1;else{CSORT.k=k;CSORT.dir=(k==='n'||k==='c'||k==='la'||k==='st')?1:-1}renderCl()});
+function renderCl(){renderClStats();renderClChips();clFix('#head',COLS);$('#head').innerHTML=COLS.map(c=>`<th class="${c.r?'r':''} ${c.sm?'hide-sm':''}" data-k="${c.k}">${c.l} ${CSORT.k===c.k?`<span class="ar">${CSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');$$('#head th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='ct')return;if(CSORT.k===k)CSORT.dir*=-1;else{CSORT.k=k;CSORT.dir=(k==='n'||k==='c'||k==='la'||k==='st')?1:-1}renderCl()});
   const list=csort(DATA.filter(cmatch));$('#shown').textContent=list.length;$('#tot2').textContent=DATA.length;const body=$('#body');
   if(!list.length){body.innerHTML=`<tr><td colspan="${COLS.length}"><div class="empty">No clinicians match.</div></td></tr>`;return}
   body.innerHTML=list.slice(0,600).map(d=>{const active=d.as.length;return `<tr data-id="${(d.npi||d.n).replace(/"/g,'&quot;')}"><td><span class="name">${d.n}</span></td><td>${(cc=>cc?`<span class="cred">${cc}</span>`:'<span class="muted">—</span>')(credClass(d.c))}${tierBadge(d.tier)}</td><td class="mono muted" style="font-size:11px">${d.npi||'—'}</td><td class="r"><span class="sc tnum"><b>${d.ls.length}</b>${active?`<span>· ${active} active</span>`:''}</span></td><td class="hide-sm"><span class="prog" title="${d.pr.join(', ')}">${d.pr.slice(0,2).join(', ')||'—'}${d.pr.length>2?` +${d.pr.length-2}`:''}</span></td><td class="r tnum muted" title="Per-clinician consult counts are suppressed — they were derived from the SLI clinician field, which replicates one name per consult and cannot attribute per responder. Returns with the Workforce rescope.">—</td><td class="r muted tnum" style="font-size:11.5px">${d.la||'—'}</td><td>${statusPill(d.st)}${d.st==='ADD-TO-ROSTER'&&IS_ADMIN?` <button class="addbtn" data-add="1">＋ Add</button>`:''}</td></tr>`}).join('')+(list.length>600?`<tr><td colspan="${COLS.length}" class="empty" style="padding:16px">First 600 of ${list.length}. Narrow with filters or export the full set.</td></tr>`:'');
@@ -1052,7 +1290,7 @@ function vSpark(series){
 }
 function vMove(o){if(o.delta==null)return'<span class="mv fl">—</span>';if(o.delta<=-20)return`<span class="mv dn">▼ ${o.delta}%</span>`;if(o.delta>=20)return`<span class="mv up">▲ +${o.delta}%</span>`;return`<span class="mv fl">${o.delta>0?'+':''}${o.delta}%</span>`}
 function vmatch(o){if(VF.mod!=='all'&&o.mod!==VF.mod)return false;if(VF.tier!=='all'&&(o.tier||'none')!==VF.tier)return false;if(VF.q&&!o.n.toLowerCase().includes(VF.q))return false;return true}
-const VCOLS=[{k:'n',l:'Clinician'},{k:'mod',l:'Modality'},{k:'fc',l:'Consults',r:1},{k:'fh',l:'Hours',r:1},{k:'vph',l:'VPH',r:1},{k:'pct',l:'vs peers',r:1},{k:'trend',l:'Weekly trend'},{k:'delta',l:'Δ vs norm',r:1}];
+const VCOLS=[{k:'n',l:'Clinician'},{k:'mod',l:'Modality',w:'130px'},{k:'fc',l:'Consults',r:1,w:'90px'},{k:'fh',l:'Hours',r:1,w:'90px'},{k:'vph',l:'VPH',r:1,w:'80px'},{k:'pct',l:'vs peers',r:1,w:'90px'},{k:'trend',l:'Weekly trend',w:'120px'},{k:'delta',l:'Δ vs norm',r:1,w:'100px'}];
 function vDrill(o){
   $('#mTitle').textContent=o.n;
   $('#mSub').innerHTML=`${credClass(o.c)?`<span class="cred">${credClass(o.c)}</span>`:''}${tierBadge(o.tier)} <span class="kind ${o.mod}">${o.mod}</span> &nbsp; ${o.vph!=null?`<b>${o.vph}</b> VPH over complete weeks · stronger than P${o.pct==null?'—':o.pct} of the ${o.mod} cohort`:'not measurable yet — needs consults and scheduled hours in the same complete week'}`;
@@ -1063,7 +1301,7 @@ function renderVph(){
   // SUPPRESSED (Phase 0 review §A) — two live-wrong inputs for a number that lands in staffing
   // calls: the consults it counts are stale to Jun 24, and the hours it divides by are SCHEDULED,
   // not worked. Held until the consult feed is refreshed and the Workforce rescope ships.
-  $('#vStats').innerHTML=`<div style="grid-column:1/-1;background:var(--surface);border:1px solid var(--border-2);border-radius:12px;padding:16px 18px;line-height:1.6"><b style="font-size:14px">Productivity is temporarily unavailable.</b><div style="color:var(--ink-2);font-size:12.5px;margin-top:4px;max-width:680px">The consults it counts are stale to <b style="color:var(--ink)">Jun 24</b>, and the hours it divides by are <b style="color:var(--ink)">scheduled, not worked</b> — so every VPH here would mislead a staffing decision. It returns rebuilt as the Workforce surface (Output · Capacity · Latency) once the consult feed is refreshed.</div></div>`;
+  $('#vStats').innerHTML=`<div style="grid-column:1/-1;background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius);padding:16px 18px;line-height:1.6"><b style="font-size:14px">Productivity is temporarily unavailable.</b><div style="color:var(--ink-2);font-size:12.5px;margin-top:4px;max-width:680px">The consults it counts are stale to <b style="color:var(--ink)">Jun 24</b>, and the hours it divides by are <b style="color:var(--ink)">scheduled, not worked</b> — so every VPH here would mislead a staffing decision. It returns rebuilt as the Workforce surface (Output · Capacity · Latency) once the consult feed is refreshed.</div></div>`;
   ['#vTrend','#vMethod','#vBody','#vTrendNote'].forEach(s=>{const e=$(s);if(e)e.innerHTML='';});
   const _tb=document.querySelector('[data-tab="productivity"] .toolbar');if(_tb)_tb.style.display='none';
   const _rc=document.querySelector('[data-tab="productivity"] .rowcount');if(_rc)_rc.style.display='none';
@@ -1091,6 +1329,7 @@ function renderVph(){
     $('#vTrend').innerHTML=`<svg viewBox="0 0 ${W2} ${H}" width="100%"><path d="M${xs(0).toFixed(1)} ${H-pad} ${wkPts.map((x,i)=>`L${xs(i).toFixed(1)} ${ys(x.v).toFixed(1)}`).join(' ')} L${xs(wkPts.length-1).toFixed(1)} ${H-pad} Z" fill="var(--accent)" opacity=".12"/><path d="${wkPts.map((x,i)=>`${i?'L':'M'}${xs(i).toFixed(1)} ${ys(x.v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${wkPts.map((x,i)=>`<circle cx="${xs(i).toFixed(1)}" cy="${ys(x.v).toFixed(1)}" r="3.2" fill="${x.cov==='full'?'var(--accent)':'var(--surface)'}" stroke="var(--accent)" stroke-width="2"><title>week of ${x.w}${x.cov==='partial'?' (partial)':''} · ${x.v} VPH</title></circle><text x="${xs(i).toFixed(1)}" y="${H-8}" font-size="9" fill="var(--ink-3)" text-anchor="middle">${x.w.slice(5)}</text><text x="${xs(i).toFixed(1)}" y="${(ys(x.v)-9).toFixed(1)}" font-size="10" font-weight="700" fill="var(--ink)" text-anchor="middle">${x.cov==='partial'?'~':''}${x.v}</text>`).join('')}</svg>`}
   $('#vMethod').innerHTML=`VPH is <b>consults ÷ scheduled hours</b>, per ISO week, from a ledger keyed on each clinician's stable identity — so history survives roster reloads. Only <b>complete</b> weeks (fully inside the consult export) count toward totals; the export-edge week shows hollow. Hours are <b>scheduled, not worked</b> — someone under-scheduled and someone slow look the same — so treat this as <b>where to look, not what to conclude</b>. Peer colors compare within the same modality cohort: async messaging naturally runs ~3× sync video. The old tool's fixed bands (sync 2.5–3.5, async 6–9) are kept in the Playbook as reference, not verdicts.`;
   // table
+  clFix('#vHead',VCOLS);
   $('#vHead').innerHTML=VCOLS.map(c=>`<th class="${c.r?'r':''}" data-k="${c.k}">${c.l} ${VSORT.k===c.k?`<span class="ar">${VSORT.dir<0?'▼':'▲'}</span>`:''}</th>`).join('');
   $$('#vHead th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='trend')return;if(VSORT.k===k)VSORT.dir*=-1;else{VSORT.k=k;VSORT.dir=(k==='n'||k==='mod')?1:-1}renderVph()});
   const flist=list.filter(vmatch).sort((a,b)=>{let x=a[VSORT.k],y=b[VSORT.k];if(VSORT.k==='n'||VSORT.k==='mod')return VSORT.dir*String(x).localeCompare(String(y));if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return VSORT.dir*(x-y)});
@@ -1175,7 +1414,19 @@ function credBucket(list,fields){const m=new Map();(list||[]).forEach(x=>{const 
 function hoursRank(sel,arr){const mx=Math.max(...arr.map(x=>x.hours),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name==='—'?'<span class="muted">Not matched to roster</span>':x.name}${credClass(x.cred)?` <span class="cred">${credClass(x.cred)}</span>`:''}<small>${nf(x.shifts)} shifts</small></div><div class="val tnum">${nf(Math.round(x.hours))} h</div><div class="track"><i style="width:${Math.max(2,x.hours/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
 function usdRank(sel,arr){const mx=Math.max(...arr.map(x=>x.usd),1);$(sel).innerHTML=arr.map(x=>`<div class="rk" style="cursor:default"><div class="lab">${x.name}${credClass(x.license)?` <span class="cred">${credClass(x.license)}</span>`:''}<small>${nf(x.n)}×</small></div><div class="val tnum">$${nf(x.usd)}</div><div class="track"><i style="width:${Math.max(2,x.usd/mx*100)}%;background:var(--accent)"></i></div></div>`).join('')}
 function renderShifts(){
-  if(!SHIFTS.total_hours){if(SHIFTS._win){$('#shStats').innerHTML=`<div class="empty" style="grid-column:1/-1">No shifts in this window${SHIFTS.loaded&&SHIFTS.loaded.min?` — loaded schedule runs <b>${SHIFTS.loaded.min} → ${SHIFTS.loaded.max}</b>`:''}.</div>`;['#shLine','#shCred','#shTop'].forEach(s=>{if($(s))$(s).innerHTML=''})}return}
+  wireCapFilters('shifts','sh');
+  capCalPop('shifts','sh',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  // keep the roster the picker offers from collapsing to whoever is selected
+  if(SHIFTS.facets&&SHIFTS.facets.clinicians&&!CAPF.shifts.clin.size)CLINROSTER=SHIFTS.facets.clinicians;
+  capClinPop('shifts','sh',CLINROSTER);
+  capNote('shifts','sh');
+  const clr=['#shLine','#shCred','#shTop'];
+  if(SHIFTS._st==='err'){$('#shStats').innerHTML='<div class="gapfail" style="grid-column:1/-1">'
+      +'<b>Shifts could not be read.</b> <span class="muted">'+hesc(SHIFTS._msg||'The request failed.')+'</span></div>';
+    clr.forEach(x=>{if($(x))$(x).innerHTML=''});return}
+  if(!SHIFTS.total_hours){$('#shStats').innerHTML='<div class="empty" style="grid-column:1/-1">Nothing matches these filters'
+      +(SHIFTS.loaded&&SHIFTS.loaded.min?` &#183; loaded schedule runs <b>${SHIFTS.loaded.min} &#8594; ${SHIFTS.loaded.max}</b>`:'')+'.</div>';
+    clr.forEach(x=>{if($(x))$(x).innerHTML=''});return}
   const S=SHIFTS;$('#shStats').innerHTML=[{k:'Scheduled hours',v:nf(Math.round(S.total_hours)),d:nf(S.n_shifts)+' shifts'},{k:'Clinicians scheduled',v:S.n_clinicians,d:'avg '+Math.round(S.total_hours/S.n_clinicians)+' h each'},{k:'Service lines',v:S.by_service_line.length,d:'scheduled against'},{k:'Window',v:(S.range.min||'')+' → '+(S.range.max||''),d:''}].map(tileHTML).join('');hoursRank('#shLine',S.by_service_line);hoursRank('#shCred',credBucket(S.by_cred,['hours','shifts']));hoursRank('#shTop',S.top_clin)}
 function renderIncentives(){
   if(!INC.n_items){if(INC._win){$('#inStats').innerHTML=`<div class="empty" style="grid-column:1/-1">No incentives in this window${INC.loaded&&INC.loaded.min?` — loaded payouts run <b>${INC.loaded.min} → ${INC.loaded.max}</b>`:''}.</div>`;['#inLicense','#inPartner','#inProgram','#inName','#inTop'].forEach(s=>{if($(s))$(s).innerHTML=''})}return}
@@ -1183,8 +1434,21 @@ function renderIncentives(){
 // ---------- COVERAGE (day x hour clinicians-on-shift, from coverage_grid) ----------
 const DOWL7=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun']; // isodow 1..7
 function renderCoverage(){
+  wireCapFilters('coverage','cov');
+  capCalPop('coverage','cov',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  capClinPop('coverage','cov',CLINROSTER);
+  capNote('coverage','cov');
+  const F=CAPF.coverage,note=$('#covNote');
+  if(note)note.textContent='average clinicians on, across '+(COV.weeks||0)+' week'+((COV.weeks||0)===1?'':'s')
+    +' \u00b7 the schedule\u2019s own clock';
+  const td=$('#covThinDesc');
+  if(td)td.textContent='lowest average coverage'+((F.h0>0||F.h1<23)?' in '+hh(F.h0)+'-'+hh(F.h1):' across the day');
   const g=COV.grid||[];
-  if(!g.length){$('#covStats').innerHTML='';$('#covHeat').innerHTML='<div class="empty" style="grid-column:1/-1">No shift-coverage data yet — it comes from the schedule export.</div>';$('#covThin').innerHTML='';$('#covUnrel').innerHTML='';return}
+  if(COV._st==='err'){$('#covStats').innerHTML='';
+    $('#covHeat').innerHTML='<div class="gapfail" style="grid-column:1/-1"><b>Coverage could not be read.</b> '
+      +'<span class="muted">'+hesc(COV._msg||'The request failed.')+'</span></div>';
+    $('#covThin').innerHTML='';$('#covUnrel').innerHTML='';return}
+  if(!g.length){$('#covStats').innerHTML='';$('#covHeat').innerHTML='<div class="empty" style="grid-column:1/-1">Nothing matches these filters.</div>';$('#covThin').innerHTML='';$('#covUnrel').innerHTML='';return}
   const mx=Math.max(...g.map(r=>r[2]),1);
   const avg=a=>a.length?Math.round(a.reduce((s,r)=>s+r[2],0)/a.length*10)/10:0;
   const bh=g.filter(r=>r[0]<=5&&r[1]>=9&&r[1]<=17),wknd=g.filter(r=>r[0]>=6);
@@ -1347,96 +1611,144 @@ function wireScoreboard(){
 // Coverage comes from coverage_by_date (real dates, filled + posted-unfilled); expected demand is
 // projected client-side from the SLI response log (current), as the same-weekday/hour average over a
 // user-chosen lookback. Nothing here is a typical-week composite and no window is static.
-let GAPS={range:null,rows:[]}, GW={from:null,to:null,base:4};
-window.__setGaps=function(d){GAPS=d&&d.rows?d:{range:null,rows:[]};if(!GW.from)gapDefaults();renderGaps()};
+// ---------- STATE COVERAGE GAPS (exceptions on a time axis) ----------
+// A 51-state x 24-hour grid is unreadable as a list and the signal is sparse: on
+// live data ~1% of state-hours are uncovered. So render only the exceptions, as
+// contiguous windows positioned on a shared time axis. Server does the island
+// merging (state_gap_windows); this draws it.
+// _st is the load state and it is load-bearing: 'idle' (never fetched), 'ok'
+// (the server answered) or 'err' (it did not). Only 'ok' may render the
+// all-clear. An empty GAPS.rows on its own means nothing - it is also what a
+// failed request leaves behind, and reporting a failure as "every state is
+// covered" is the worst thing this page can do.
+let GAPS={rows:[],_st:'idle',_msg:''}, GW={from:null,to:null,cal:new Set(),h0:0,h1:23,_init:0};
 const GMON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function gDate(s){const p=String(s).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]))}
 function gIso(d){return d.toISOString().slice(0,10)}
 function gAdd(s,n){const d=gDate(s);d.setUTCDate(d.getUTCDate()+n);return gIso(d)}
 function gDay(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+' '+GMON[d.getUTCMonth()]+' '+d.getUTCDate()}
+function gShort(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+' '+d.getUTCDate()}
 function gToday(){return new Date().toISOString().slice(0,10)}
-// expected arrivals per weekday×hour: on-demand, non-lab SLI arrivals averaged over the lookback
-function demandBaseline(weeks){
-  const hi=maxDate();if(!hi)return null;
-  const lo=gAdd(hi,-(weeks*7-1));
-  const cnt=new Map(),days=[new Set(),new Set(),new Set(),new Set(),new Set(),new Set(),new Set()];
-  for(const r of SLI){const dt=r[DT];if(!dt||dt<lo||dt>hi)continue;if(laneOf(r[CT])==='scheduled')continue;if(smod(r[CT])==='lab')continue;
-    const dow=gDate(dt).getUTCDay(),hr=r[HR];if(hr==null)continue;days[dow].add(dt);
-    const k=dow+'_'+hr;cnt.set(k,(cnt.get(k)||0)+1)}
-  if(!cnt.size)return null;
-  const avg=new Map();cnt.forEach((n,k)=>{const dow=+k.split('_')[0];avg.set(k,n/Math.max(1,days[dow].size))});
-  return{avg,lo,hi}
-}
-function gapDefaults(){const t=gToday(),mx=GAPS.range&&GAPS.range.max,mn=GAPS.range&&GAPS.range.min;
-  if(mx&&mx>=t){GW.from=t;GW.to=gAdd(t,6)>mx?mx:gAdd(t,6);markGapPreset('7d')}
-  else if(mx){GW.from=gAdd(mx,-6)<mn?mn:gAdd(mx,-6);GW.to=mx;markGapPreset('loaded')}
+function gDiff(a,b){return Math.round((gDate(b)-gDate(a))/86400000)}
+function hh(n){return String(n).padStart(2,'0')+':00'}
+function hesc(v){return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+window.__kickGaps=function(){if(GW._init)return;GW._init=1;gapDefaults();gapFetch()};
+async function gapFetch(){
+  if(!RANGE_API||!RANGE_API.stateGaps){
+    GAPS={rows:[],_st:'err',_msg:'The coverage service is not connected in this build.'};renderGaps();return}
+  const bar=document.querySelector('[data-tab="gaps"] .filterbar');if(bar)bar.style.opacity=.55;
+  try{const r=await RANGE_API.stateGaps({p_from:GW.from,p_to:GW.to,
+      p_service_line:GW.cal.size?[...GW.cal]:null,p_hour0:GW.h0,p_hour1:GW.h1});
+    if(r&&r.error)GAPS={rows:[],_st:'err',_msg:r.error.message||String(r.error)};
+    else if(r&&r.data)GAPS=Object.assign({rows:[]},r.data,{_st:'ok',_msg:''});
+    else GAPS={rows:[],_st:'err',_msg:'The coverage service returned no payload.'};}
+  catch(e){GAPS={rows:[],_st:'err',_msg:(e&&e.message)||String(e)}}
+  if(bar)bar.style.opacity='';renderGaps()}
+function gapDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
+  if(hi&&hi>=t){GW.from=t;GW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markGapPreset('7d')}
+  else if(hi){GW.from=gAdd(hi,-6);GW.to=hi;markGapPreset('loaded')}
   if($('#gapFrom'))$('#gapFrom').value=GW.from||'';if($('#gapTo'))$('#gapTo').value=GW.to||''}
 function markGapPreset(k){$$('#gapPresets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.g===k))}
+// Arya posts nobody claimed: a gap that has not happened yet.
+function unfTxt(){const u=GAPS.unfilled;return (u&&u.hours)?(' '+nf(u.hours)+' posted shift-hours in this window are still unfilled.'):''}
+function unf(){const u=GAPS.unfilled;return (u&&u.hours)?
+  ('<div class="line" style="color:var(--warn)"><b>'+nf(u.hours)+'</b> posted shift-hours still unfilled ('+nf(u.posts)+' open posts) - gaps that have not happened yet</div>'):''}
 function renderGaps(){
-  const heat=$('#gapHeat');if(!heat)return;
-  const base=demandBaseline(GW.base);
-  $('#gapScope').innerHTML=`Shifts vs projected demand · <b>All partners</b> · ${GW.from&&GW.to?gDay(GW.from)+' – '+gDay(GW.to):'no window set'} · baseline last ${GW.base} wks${base?` (${base.lo} → ${base.hi})`:''}`;
-  if(!GAPS.rows.length){$('#gapStats').innerHTML='';heat.innerHTML='<div class="empty" style="grid-column:1/-1">No schedule loaded. Upload the Arya shift export via Settings → Import and this view fills in.</div>';$('#gapList').innerHTML='';$('#gapNote').textContent='';return}
-  if(!GW.from||!GW.to){$('#gapStats').innerHTML='';heat.innerHTML='<div class="empty" style="grid-column:1/-1">Pick a window above.</div>';$('#gapList').innerHTML='';return}
-  const byDH={};GAPS.rows.forEach(r=>{if(r[0]<GW.from||r[0]>GW.to)return;(byDH[r[0]]=byDH[r[0]]||{})[r[1]]={f:r[2],u:r[3]}});
-  const dates=[];for(let d=GW.from;d<=GW.to;d=gAdd(d,1)){dates.push(d);if(dates.length>31)break}
-  const shown=dates.slice(0,14);
-  const anyShift=Object.keys(byDH).length>0;
-  if(!anyShift){$('#gapStats').innerHTML='';heat.innerHTML=`<div class="empty" style="grid-column:1/-1">No shifts loaded for this window — the loaded schedule runs <b>${GAPS.range.min||'?'} → ${GAPS.range.max||'?'}</b>. Upload this window's schedule via Settings → Import.</div>`;$('#gapList').innerHTML='';$('#gapNote').textContent='';return}
-  // build slots
-  const slots=[];let expTot=0,schedHrs=0,unfTot=0;
-  dates.forEach(dt=>{const dow=gDate(dt).getUTCDay();for(let h=0;h<24;h++){
-    const c=(byDH[dt]&&byDH[dt][h])||{f:0,u:0};const exp=base?(base.avg.get(dow+'_'+h)||0):0;
-    schedHrs+=c.f;unfTot+=c.u;expTot+=exp;
-    slots.push({dt,h,f:c.f,u:c.u,exp})}});
-  const finite=slots.filter(s=>s.exp>0&&s.f>0).map(s=>s.exp/s.f).sort((a,b)=>a-b);
-  const median=finite.length?finite[Math.floor(finite.length/2)]:0;
-  const uncov=slots.filter(s=>s.exp>=1&&s.f===0);
-  $('#gapStats').innerHTML=[
-    {k:'Scheduled clinician-hours',v:nf(schedHrs),d:`${gDay(GW.from)} – ${gDay(GW.to)}`},
-    {k:'Expected consults',v:base?nf(Math.round(expTot)):'—',d:base?`projected from last ${GW.base} wks`:'no demand history'},
-    {k:'Uncovered hours',v:uncov.length,d:'arrivals expected, nobody on'},
-    {k:'Posted unfilled',v:nf(unfTot),d:'Arya “Not Assigned” shift-hours'},
-  ].map(tileHTML).join('');
-  // heatmap: rows = actual dates
-  heat.style.gridTemplateColumns='74px repeat(24,1fr)';
-  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
-  shown.forEach(dt=>{html+=`<div class="hmlab" style="white-space:nowrap">${gDay(dt)}</div>`;const dow=gDate(dt).getUTCDay();
-    for(let h=0;h<24;h++){const c=(byDH[dt]&&byDH[dt][h])||{f:0,u:0};const exp=base?(base.avg.get(dow+'_'+h)||0):0;
-      if(c.f===0&&exp<1&&c.u===0){html+='<div class="hmcell empty">·</div>';continue}
-      if(c.f===0&&exp>=1){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:#fff;font-weight:700" title="${gDay(dt)} ${h}:00 · expected ~${Math.round(exp)} consults · nobody scheduled${c.u?` · ${c.u} posted unfilled`:''}">!</div>`;continue}
-      const load=c.f>0?exp/c.f:0;const ratio=median?load/median:1;const hue=Math.round(Math.max(0,Math.min(1,(1.6-ratio)/1.1))*145);
-      html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${gDay(dt)} ${h}:00 · ${c.f} on shift · expected ~${Math.round(exp)} · load ${load.toFixed(1)}/clinician${c.u?` · ${c.u} posted unfilled`:''}">${c.f}</div>`}});
-  heat.innerHTML=html;
-  $('#gapNote').textContent=`cell = clinicians on shift · color = expected load vs the window's typical ${median?median.toFixed(1):'—'}/clinician · Central time`+(dates.length>14?` · showing first 14 of ${dates.length} days`:'');
-  // call-out list: uncovered first (by expected volume), then most stretched
-  const stretched=slots.filter(s=>s.f>0&&s.exp>0&&median&&(s.exp/s.f)>median*1.25).sort((a,b)=>(b.exp/b.f)-(a.exp/a.f));
-  const list=[...uncov.sort((a,b)=>b.exp-a.exp),...stretched].slice(0,12);
-  $('#gapList').innerHTML=list.length?list.map(s=>{const load=s.f>0?s.exp/s.f:null;
-    const need=s.f===0?'staff this hour':`+${Math.max(1,Math.ceil(s.exp/median)-s.f)} to ease`;
-    return `<div class="rk" style="cursor:default"><div class="lab">${gDay(s.dt)} · ${s.h}:00<small>expected ~${Math.round(s.exp)} · ${s.f?s.f+' on shift':'0 on shift'}${s.u?` · <b style="color:var(--warn)">${s.u} posted unfilled</b>`:''} · ${need}</small></div><div class="val tnum" style="color:${s.f===0?'var(--bad)':'var(--warn)'}">${load==null?'no cover':load.toFixed(1)+'/clin'}</div><div class="track"><i style="width:${Math.max(3,Math.min(100,(load==null?1.9*(median||1):load)/((median||1)*1.9)*100))}%;background:${s.f===0?'var(--bad)':'var(--warn)'}"></i></div></div>`}).join(''):'<div class="empty">Nothing thin in this window — coverage clears the projected demand everywhere.</div>';
+  const rowsEl=$('#gapRows');if(!rowsEl)return;
+  const W=GAPS.window||{},rows=GAPS.rows||[];
+  const lo=W.from||GW.from,hi=W.to||GW.to,h0=W.h0==null?GW.h0:W.h0,h1=W.h1==null?GW.h1:W.h1;
+  // "All" means every calendar that actually staffs on-demand care. Siloed and
+  // staffing-only calendars (Transcarent, Thirty Madison, MA P2, tracked-only)
+  // are excluded by the engine, so name them rather than letting "All" imply
+  // they were counted.
+  const exc=GAPS.excluded||[];
+  $('#gapScope').innerHTML='State coverage gaps &#183; <b'+(GW.cal.size?'':(exc.length?' title="Excludes '+exc.join(', ').replace(/"/g,'&quot;')+' - siloed or staffing-only, so they never count as on-demand coverage"':''))+'>'
+    +(GW.cal.size?[...GW.cal].join(' + '):'All on-demand calendars')
+    +'</b> &#183; '+(lo&&hi?gDay(lo)+' to '+gDay(hi):'all loaded')+(h0>0||h1<23?' &#183; '+hh(h0)+'-'+hh(h1):'')
+    +(GW.cal.size||!exc.length?'':' <span class="muted">('+exc.length+' siloed calendars excluded)</span>');
+  // one place decides whether the result cards are worth showing at all
+  const showCards=GAPS._st==='ok'&&rows.length>0;
+  $('#gapWhenCard').classList.toggle('hide',!showCards);
+  $('#gapTlCard').classList.toggle('hide',!showCards);
+  const bail=(html)=>{$('#gapHero').innerHTML=html;rowsEl.innerHTML='';
+    $('#gapWhen').innerHTML='';$('#gapWhenLabs').innerHTML='';$('#gapTicks').innerHTML='';$('#gapNote').textContent=''};
+  if(GAPS._st==='err'){
+    bail('<div class="gapfail" style="flex-basis:100%"><b>Coverage could not be checked.</b> '
+      +'<span class="muted">'+hesc(GAPS._msg||'The request failed.')+'</span>'
+      +'<button class="qbtn" id="gapRetry" type="button">Try again</button></div>');
+    const rb=$('#gapRetry');if(rb)rb.onclick=()=>gapFetch();return}
+  if(GAPS._st==='idle'){bail('<div class="empty" style="flex-basis:100%">Checking coverage&#8230;</div>');return}
+  if(!lo||GAPS.no_schedule){bail('<div class="empty" style="flex-basis:100%">No schedule loaded. Upload the Arya export via Settings &#8250; Import.</div>');return}
+  const nd=gDiff(lo,hi)+1, H=h1-h0+1, N=nd*H;
+  const totalHrs=rows.reduce((a,r)=>a+r[1],0), totalDem=rows.reduce((a,r)=>a+r[2],0);
+  const worst=GAPS.worst;
+  // ---- hero: the answer in one line ----
+  $('#gapHero').innerHTML=rows.length?
+    '<div class="hero-sla"><div class="k">States going uncovered</div><div class="v" style="color:var(--bad)">'+rows.length+'</div>'+
+    '<div class="d">of 51 &#183; '+nf(totalHrs)+' uncovered state-hours</div></div>'+
+    '<div class="hero-meta"><div class="line">Worst single window: <b>'+(worst?worst[0]+' '+gDay(worst[1])+' '+hh(worst[2])+'-'+hh(worst[3]+1)+' ('+worst[4]+'h)':'-')+'</b></div>'+
+    '<div class="line">Highest exposure: <b>'+rows[0][0]+'</b> - '+rows[0][1]+'h uncovered, about '+rows[0][2]+' arrivals/day normally land there</div>'+
+    '<div class="line muted">'+nf(Math.round(totalDem))+' arrivals/day of normal volume sits in a state with at least one uncovered hour</div>'+unf()+'</div>'
+    :'<div class="gapclear" style="flex-basis:100%"><span class="pipdot"></span><b>Every state is covered for every hour in this window.</b><span class="muted">No licensed-coverage gaps to escalate.'+unfTxt()+'</span></div>';
+  // ---- when: uncovered state-hours by hour of day ----
+  // (unf/unfTxt defined below render so both hero branches can use them)
+  const byHour=new Array(24).fill(0);
+  rows.forEach(r=>r[3].forEach(w=>{const s0=gDiff(lo,w[0])*H+(w[1]-h0);
+    for(let k=0;k<w[4];k++){const c=s0+k;byHour[h0+(c%H)]++}}));
+  const mxH=Math.max(...byHour,1);
+  $('#gapWhen').innerHTML=Array.from({length:24},(_,i)=>{
+    const on=i>=h0&&i<=h1,v=byHour[i];
+    return '<div class="whenbar'+(on?'':' off')+'" title="'+hh(i)+' &#183; '+(on?v+' uncovered state-hours':'outside the hour filter')+'">'+
+      (on&&v?'<i style="height:'+Math.max(6,v/mxH*100)+'%"></i>':'')+'</div>'}).join('');
+  $('#gapWhenLabs').innerHTML=Array.from({length:24},(_,i)=>'<div>'+(i%3===0?i:'')+'</div>').join('');
+  // ---- ticks: one label per day ----
+  $('#gapTicks').style.gridTemplateColumns='repeat('+nd+',1fr)';
+  $('#gapTicks').innerHTML=Array.from({length:nd},(_,i)=>'<span>'+gShort(gAdd(lo,i))+'</span>').join('');
+  // ---- timeline rows ----
+  const mxDem=Math.max(...rows.map(r=>r[2]),1);
+  rowsEl.innerHTML=rows.length?rows.map(r=>{
+    const [st,hrs,dem,wins]=r;
+    const segs=wins.map(w=>{
+      const s0=gDiff(lo,w[0])*H+(w[1]-h0), e0=gDiff(lo,w[2])*H+(w[3]-h0), span=Math.max(1,e0-s0+1);
+      const inten=.42+.58*Math.min(1,(w[5]||0)/(mxDem||1));
+      const t=st+' uncovered '+gDay(w[0])+' '+hh(w[1])+'-'+hh(w[3]+1)+' ('+w[4]+'h)'+(w[5]?' &#183; about '+w[5]+' arrivals/day normally':'');
+      return '<i class="gtseg" style="grid-column:'+(s0+1)+'/span '+span+';opacity:'+inten.toFixed(2)+'" title="'+t+'"></i>'}).join('');
+    const days=Array.from({length:nd-1},(_,i)=>'<i class="gtday" style="grid-column:'+((i+1)*H+1)+'/span 1"></i>').join('');
+    return '<div class="gtrow"><div class="gtlab"><b>'+st+'</b><small>'+hrs+'h</small></div>'+
+      '<div class="gttrack" style="grid-template-columns:repeat('+N+',1fr)">'+days+segs+'</div></div>'}).join(''):'';
+  $('#gapNote').textContent=rows.length?('bar position = when, bar shade = how much normal volume sits in that state '
+    +'· '+nd+' days × '+H+' hours · schedule clock'):'';
 }
 function wireGaps(){
   if($('#gapFrom')&&!$('#gapFrom')._w){$('#gapFrom')._w=1;
-    $('#gapFrom').onchange=e=>{GW.from=e.target.value||null;markGapPreset(null);renderGaps()};
-    $('#gapTo').onchange=e=>{GW.to=e.target.value||null;markGapPreset(null);renderGaps()};
-    $('#gapBase').onchange=e=>{GW.base=+e.target.value;renderGaps()};
+    $('#gapFrom').onchange=e=>{GW.from=e.target.value||null;markGapPreset(null);gapFetch()};
+    $('#gapTo').onchange=e=>{GW.to=e.target.value||null;markGapPreset(null);gapFetch()};
     $$('#gapPresets .qbtn').forEach(b=>b.onclick=()=>{const k=b.dataset.g,t=gToday();
-      if(k==='wknd'){const d=gDate(t),wd=d.getUTCDay(),toSat=(6-wd+7)%7;GW.from=gAdd(t,toSat===0&&wd!==6?0:toSat);if(wd===0)GW.from=gAdd(t,-1);GW.to=gAdd(GW.from,1)}
+      if(k==='wknd'){const wd=gDate(t).getUTCDay();let sat=gAdd(t,(6-wd+7)%7);if(wd===0)sat=gAdd(t,-1);GW.from=sat;GW.to=gAdd(sat,1)}
       else if(k==='7d'){GW.from=t;GW.to=gAdd(t,6)}
-      else{GW.from=(GAPS.range&&GAPS.range.min)||null;GW.to=(GAPS.range&&GAPS.range.max)||null}
-      $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);renderGaps()})}
+      else{GW.from=(SHIFTS.loaded&&SHIFTS.loaded.min)||null;GW.to=(SHIFTS.loaded&&SHIFTS.loaded.max)||null}
+      $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);gapFetch()});
+    for(let h=0;h<24;h++){$('#gapH0').innerHTML+='<option value="'+h+'">'+hh(h)+'</option>';
+      $('#gapH1').innerHTML+='<option value="'+h+'"'+(h===23?' selected':'')+'>'+hh(h)+'</option>'}
+    $('#gapH0').onchange=e=>{GW.h0=+e.target.value;gapFetch()};
+    $('#gapH1').onchange=e=>{GW.h1=+e.target.value;gapFetch()}}
+  if(SHIFTS&&SHIFTS.by_service_line&&SHIFTS.by_service_line.length)
+    calPop('#gapCalBtn','#gapCalPop','#gapCalLbl',[...SHIFTS.by_service_line].map(x=>x.name).sort((a,b)=>String(a).localeCompare(String(b))),GW.cal,()=>gapFetch());
 }
 // ---------- WHO'S ON — the plain read: bodies per hour + which states have nobody ----------
 // No demand, no scoring, no heatmap. Bars you can read at a glance.
 let WO={}, WOF={from:null,to:null,cal:new Set(),cred:new Set(),_init:0};
-const WCOL={Doctor:'var(--accent)',NP:'var(--good)',PA:'#7c6bd6',MA:'#d69b2b',GC:'#3aa6a6',MS:'#b06bd6'};
+const WCOL={Doctor:'var(--cred-doctor)',NP:'var(--cred-np)',PA:'var(--cred-pa)',MA:'var(--cred-ma)',GC:'var(--cred-gc)',MS:'var(--cred-ms)'};
 window.__kickWhosOn=function(){if(WOF._init)return;WOF._init=1;woDefaults();woFetch()};
 async function woFetch(){
-  if(!RANGE_API||!RANGE_API.whosOn){renderWhosOn();return}
+  if(!RANGE_API||!RANGE_API.whosOn){
+    WO={_st:'err',_msg:'The schedule service is not connected in this build.'};renderWhosOn();return}
   try{const r=await RANGE_API.whosOn({p_from:WOF.from,p_to:WOF.to,
       p_service_line:WOF.cal.size?[...WOF.cal]:null,p_cred:WOF.cred.size?[...WOF.cred]:null});
-    if(r&&!r.error)WO=r.data||{};}catch(_){}
+    if(r&&r.error)WO={_st:'err',_msg:r.error.message||String(r.error)};
+    else if(r&&r.data)WO=Object.assign({},r.data,{_st:'ok'});
+    else WO={_st:'err',_msg:'The schedule service returned no payload.'};}
+  catch(e){WO={_st:'err',_msg:(e&&e.message)||String(e)}}
   renderWhosOn()}
 function woDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
   if(hi&&hi>=t){WOF.from=t;WOF.to=gAdd(t,2)>hi?hi:gAdd(t,2)}else if(hi){WOF.from=gAdd(hi,-2);WOF.to=hi}
@@ -1444,33 +1756,57 @@ function woDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday
 function renderWhosOn(){
   const bodyEl=$('#woBody');if(!bodyEl)return;
   const rows=WO.rows||[];
-  $('#woScope').innerHTML=`Who's on the schedule · <b>${WOF.cal.size?[...WOF.cal].join(' + '):'All calendars'}</b> · `
-    +(WOF.from&&WOF.to?gDay(WOF.from)+' – '+gDay(WOF.to):'all loaded')
-    +(WOF.cred.size?' · '+[...WOF.cred].join(', '):'');
+  // label the data that came back, not the request that went out - they differ
+  // whenever a fetch is in flight or the server clamped the window
+  const WW=WO.window||{},wlo=WW.from||WOF.from,whi=WW.to||WOF.to;
+  $('#woScope').innerHTML=`Who's on the schedule &#183; <b>${WOF.cal.size?[...WOF.cal].join(' + '):'All calendars'}</b> &#183; `
+    +(wlo&&whi?gDay(wlo)+' to '+gDay(whi):'all loaded')
+    +(WOF.cred.size?' &#183; '+[...WOF.cred].join(', '):'');
   $('#woKey').innerHTML=CREDS6.map(c=>`<span><i style="background:${WCOL[c]}"></i>${c}</span>`).join('')
     +'<span class="muted">· hours are the schedule’s own clock</span>';
+  // A failed read is never allowed to look like "nobody is scheduled".
+  if(WO._st==='err'){$('#woStats').innerHTML='';
+    bodyEl.innerHTML='<div class="gapfail"><b>The schedule could not be read.</b> '
+      +'<span class="muted">'+hesc(WO._msg||'The request failed.')+'</span>'
+      +'<button class="qbtn" id="woRetry" type="button">Try again</button></div>';
+    const rb=$('#woRetry');if(rb)rb.onclick=()=>woFetch();return}
   if(!rows.length){$('#woStats').innerHTML='';bodyEl.innerHTML='<div class="empty">No shifts scheduled in this window'
     +(WO.loaded&&WO.loaded.min?` — the loaded schedule runs <b>${WO.loaded.min} → ${WO.loaded.max}</b>.`:'.')+'</div>';return}
   const peak=WO.peak||Math.max(...rows.map(r=>r[2]),1);
-  const covered=rows.filter(r=>r[2]>0).length, gapHrs=rows.filter(r=>r[9]>0).length;
+  const covered=rows.filter(r=>r[2]>0).length, bare=rows.length-covered;
+  const bodyHrs=rows.reduce((a,r)=>a+(r[2]||0),0);
+  // "hours with a state gap" moved out: the Gaps tab answers which states are
+  // uncovered and when, properly. Repeating it per hour here was the noise that
+  // made this tab a wall.
   $('#woStats').innerHTML=[
     {k:'People on the schedule',v:nf(WO.total_bodies||0),d:'distinct clinicians in this window'},
     {k:'Busiest hour',v:peak,d:'most on at once'},
-    {k:'Hours with anyone on',v:nf(covered),d:'of '+nf(rows.length)+' hours listed'},
-    {k:'Hours with a state gap',v:nf(gapHrs),d:'some state has nobody licensed on'},
+    {k:'Body-hours scheduled',v:nf(bodyHrs),d:'across '+nf(covered)+' staffed hours'},
+    {k:'Hours with nobody on',v:nf(bare),d:'of '+nf(rows.length)+' hours in this window'},
   ].map(tileHTML).join('');
   const cals=(WO.calendars||[]).map(c=>c[0]);
   if(cals.length)calPop('#woCalBtn','#woCalPop','#woCalLbl',cals,WOF.cal,()=>woFetch());
   const byDay={};rows.forEach(r=>{(byDay[r[0]]=byDay[r[0]]||[]).push(r)});
-  bodyEl.innerHTML=Object.keys(byDay).sort().map(d=>{
-    const hrs=byDay[d];const seen={};hrs.forEach(r=>seen[r[1]]=r);
-    return `<div class="wday"><h3>${gDay(d)}</h3>`+Array.from({length:24},(_,h)=>{
-      const r=seen[h];const tot=r?r[2]:0;
-      const segs=r?CREDS6.map((c,i)=>r[3+i]?`<i style="width:${r[3+i]/peak*100}%;background:${WCOL[c]}" title="${r[3+i]} ${c}"></i>`:'').join(''):'';
-      const gap=r&&r[9]>0?`<span style="color:var(--bad);font-size:11px;margin-left:7px" title="No licensed clinician on for: ${r[10]}">${r[9]} states uncovered</span>`:'';
-      return `<div class="wrow${tot?'':' zero'}"><div class="wh">${h}:00</div>`+
-        `<div class="wb">${segs}</div><div class="wn">${tot||'·'}${''}</div></div>`+
-        (gap?`<div class="wrow" style="padding:0"><div></div><div style="line-height:1">${gap}</div><div></div></div>`:'')}).join('')+`</div>`}).join('');
+  const days=Object.keys(byDay).sort();
+  // one shared scale across every day, so a thin Sunday reads as thin next to
+  // a full Tuesday instead of being re-normalised to look the same height
+  const scale=Math.max(peak,1);
+  bodyEl.innerHTML=days.map(d=>{
+    const seen={};byDay[d].forEach(r=>seen[r[1]]=r);
+    const dayTot=Array.from({length:24},(_,h)=>seen[h]?seen[h][2]:0).reduce((a,b)=>a+b,0);
+    const cells=Array.from({length:24},(_,h)=>{
+      const r=seen[h],tot=r?r[2]:0;
+      if(!tot)return '<div class="wcell none" title="'+gDay(d)+' '+hh(h)+' &#183; nobody on"></div>';
+      const parts=CREDS6.map((c,i)=>({c,n:r[3+i]||0})).filter(x=>x.n);
+      const segs=parts.map(x=>'<i style="flex:0 0 '+(x.n/scale*100)+'%;background:'+WCOL[x.c]+'"></i>').join('');
+      const who=parts.map(x=>x.n+' '+x.c).join(', ');
+      return '<div class="wcell" title="'+gDay(d)+' '+hh(h)+' &#183; '+tot+' on'+(who?' ('+who+')':'')+'">'+segs+'</div>'}).join('');
+    return '<div class="wgrid"><div class="wdlab">'+gDay(d)+'</div>'
+      +'<div class="wstrip">'+cells+'</div>'
+      +'<div class="wdtot" title="body-hours scheduled this day">'+nf(dayTot)+'h</div></div>'}).join('')
+    +'<div class="wgrid"><div></div><div class="wruler">'
+      +Array.from({length:24},(_,h)=>'<span>'+(h%3===0?h:'')+'</span>').join('')
+      +'</div><div></div></div>';
 }
 function wireWhosOn(){
   if($('#woFrom')&&!$('#woFrom')._w){$('#woFrom')._w=1;
@@ -1522,9 +1858,11 @@ async function stFetch(){
   try{const [r,e]=await Promise.all([
       RANGE_API.staffing(Object.assign({},A,{p_base_weeks:SW.base,p_clear_per_hr:SW.clr,p_sync_min:SW.syncMin,p_offshift:SW.off/100})),
       RANGE_API.staffingEntities?RANGE_API.staffingEntities(A):Promise.resolve({data:[]})]);
-    if(r&&!r.error)STC=r.data||{};
+    if(r&&r.error)STC={_st:'err',_msg:r.error.message||String(r.error)};
+    else if(r&&r.data)STC=Object.assign({},r.data,{_st:'ok'});
+    else STC={_st:'err',_msg:'The coverage service returned no payload.'};
     if(e&&!e.error)STE=e.data||[];}
-  catch(_){}
+  catch(ex){STC={_st:'err',_msg:(ex&&ex.message)||String(ex)}}
   if(bar)bar.style.opacity='';renderStates()}
 function stDefaults(){const lo=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.min,hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
   if(hi&&hi>=t){SW.from=t;SW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markStPreset('7d')}
@@ -1535,6 +1873,12 @@ function markStPreset(k){$$('#stPresets .qbtn').forEach(b=>b.classList.toggle('o
 function vTone(v){return v==='Covered'?'good':v==='Stretched'?'warn':'bad'}
 function renderStates(){
   const hero=$('#stHero');if(!hero)return;
+  // A failed read must not render as a coverage verdict.
+  if(STC._st==='err'){hero.innerHTML='<div class="gapfail" style="flex-basis:100%">'
+      +'<b>Coverage could not be computed.</b> <span class="muted">'+hesc(STC._msg||'The request failed.')+'</span>'
+      +'<button class="qbtn" id="stRetry" type="button">Try again</button></div>';
+    ['#stGrid','#stStates','#stEnt','#stNotes'].forEach(x=>{if($(x))$(x).innerHTML=''});
+    const rb=$('#stRetry');if(rb)rb.onclick=()=>stFetch();return}
   const P=STC.pool,bl=STC.baseline,W=STC.window||{},as=STC.assumptions||{};
   const dowTxt=SW.dow.size?[...SW.dow].sort().map(d=>SDOW[d-1]).join(' '):'all days';
   $('#stScope').innerHTML=`Staffing coverage · <b>${SW.svc.size?[...SW.svc].join(' + '):'All coverage-counted calendars'}</b> · ${SW.from&&SW.to?gDay(SW.from)+' – '+gDay(SW.to):'all loaded'} · ${dowTxt}`
@@ -1559,6 +1903,7 @@ function renderStates(){
   // hides the day that is actually thin.
   const byH=STC.by_hour||[];
   $('#stGridDesc').textContent='whole clinicians scheduled in each hour, by credential — one row per day, never averaged · Central time';
+  clFix('#stHrHead',[{w:'70px'},{w:'70px'},...CREDS6.map(()=>({w:'80px'})),{w:'80px'}]);
   $('#stHrHead').innerHTML=['Day','Hour',...CREDS6,'Total'].map((c,i)=>`<th class="${i>1?'r':''}">${c}</th>`).join('');
   const sorted=[...byH].sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
   $('#stHrBody').innerHTML=sorted.length?sorted.map(r=>
@@ -1586,6 +1931,7 @@ function renderStates(){
   // ---- by state ----
   const rows=STC.by_state||[];
   const cols=['State',...(showA?['Async/day']:[]),...(showS?['Sync/day']:[]),'Licensed & scheduled','Status'];
+  clFix('#stStHead',cols.map((c,i)=>({w:i===0?'90px':(i===cols.length-1?'110px':'130px')})));
   $('#stStHead').innerHTML=cols.map((c,i)=>`<th class="${i?'r':''}">${c}</th>`).join('');
   $('#stBody').innerHTML=rows.length?rows.map(r=>{const [st,a,s,b,hg]=r;
     if(!showA&&!s&&!b&&!hg)return '';
@@ -1625,8 +1971,24 @@ function wireStates(){
 function stSyncDow(){$$('#stDow .qbtn').forEach(b=>b.classList.toggle('on',SW.dow.has(+b.dataset.d)))}
 // ---------- FORECAST (demand vs coverage, next-week load) ----------
 function renderForecast(){
+  wireCapFilters('forecast','fc');
+  capCalPop('forecast','fc',(SHIFTS.facets&&SHIFTS.facets.calendars)||(SHIFTS.by_service_line||[]).map(x=>x.name));
+  capClinPop('forecast','fc',CLINROSTER);
+  capNote('forecast','fc');
+  const n=$('#fcNote');
+  if(n)n.textContent="consults per on-shift clinician \u00b7 day and hour \u00b7 the schedule\u2019s own clock";
   const dg=DEM.grid||[], cg=COV.grid||[];
-  if(!dg.length){$('#fcStats').innerHTML='';$('#fcHeat').innerHTML='<div class="empty" style="grid-column:1/-1">No demand pattern yet — it comes from the consult log.</div>';$('#fcTight').innerHTML='';$('#fcDiag').innerHTML='';return}
+  // "no demand" and "the demand export does not reach this window" are different
+  // answers. Demand runs to its own horizon; the schedule runs further ahead.
+  if(!dg.length){$('#fcStats').innerHTML='';
+    const L=DEM.loaded,W=(COV.window||{});
+    const past=L&&L.max&&W&&W.from&&W.from>L.max;
+    $('#fcHeat').innerHTML='<div class="empty" style="grid-column:1/-1">'
+      +(L&&L.max
+        ? (past?'No demand data for this window - arrivals are loaded through <b>'+hesc(L.max)+'</b>, and this window starts after that.'
+               :'No demand in this window. Arrivals are loaded <b>'+hesc(L.min)+'</b> to <b>'+hesc(L.max)+'</b>.')
+        : 'No demand pattern yet - it comes from the consult log.')+'</div>';
+    $('#fcTight').innerHTML='';$('#fcDiag').innerHTML='';return}
   const cov={};cg.forEach(r=>{(cov[r[0]]=cov[r[0]]||{})[r[1]]=r[2]});
   const slots=[];let totDemand=0,busiest=dg[0];
   dg.forEach(r=>{const d=r[2];totDemand+=d;if(d>busiest[2])busiest=r;const c=(cov[r[0]]&&cov[r[0]][r[1]])||0;const load=d>0?(c>0?d/c:Infinity):0;slots.push({dow:r[0],hr:r[1],d,c,load})});
@@ -1646,7 +2008,7 @@ function renderForecast(){
   let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
   for(let dw=1;dw<=7;dw++){html+=`<div class="hmlab">${DOWL7[dw]}</div>`;for(let h=0;h<24;h++){const s=by[dw]&&by[dw][h];
     if(!s||s.d===0){html+='<div class="hmcell empty">·</div>'}
-    else if(s.c===0){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:#fff;font-weight:700" title="${DOWL7[dw]} ${h}:00 · ${s.d} consults/hr · no coverage">!</div>`}
+    else if(s.c===0){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:var(--on-accent);font-weight:700" title="${DOWL7[dw]} ${h}:00 · ${s.d} consults/hr · no coverage">!</div>`}
     else{const ratio=median?s.load/median:1;const hue=Math.round(Math.max(0,Math.min(1,(1.6-ratio)/1.1))*145);html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${DOWL7[dw]} ${h}:00 · ${s.d} consults / ${s.c} on shift · load ${s.load.toFixed(1)}/clinician">${s.load.toFixed(1)}</div>`}}}
   grid.innerHTML=html;
   const tight=[...slots.filter(s=>s.d>=1)].sort((a,b)=>(isFinite(b.load)?b.load:1e9)-(isFinite(a.load)?a.load:1e9)).slice(0,8);
