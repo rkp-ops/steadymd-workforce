@@ -309,6 +309,79 @@
   .pb .m{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
   .pb code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:1px 5px;color:var(--ink)}.pb b{color:var(--ink)}
   .foot{margin-top:26px;padding-top:14px;border-top:1px solid var(--border);color:var(--ink-3);font-size:11.5px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  /* ---- coverage console (Gaps / Who's on / State coverage) ---- */
+  .cvx{font-variant-numeric:tabular-nums}
+  .cvx .cvctrl{gap:8px 14px}
+  .cvx .chk{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);background:var(--surface);border:1px solid var(--border-2);border-radius:var(--radius);height:26px;padding:0 10px;cursor:pointer;user-select:none;white-space:nowrap}
+  .cvx .chk:hover{border-color:var(--ink-3);color:var(--ink)}
+  .cvx .chk:has(input:checked){background:var(--accent-soft);color:var(--accent-ink);border-color:transparent;font-weight:600}
+  .cvx .chk input{accent-color:var(--accent);margin:0;width:13px;height:13px;cursor:pointer}
+  .cvx .cvseg{display:flex;gap:6px;flex-wrap:wrap}
+  .cvx .scroll{overflow-x:auto}
+  .cvx .cvfoot{color:var(--ink-3);font-size:11.5px;padding:2px 16px 14px}
+  .cvx .cvfoot b{color:var(--ink-2)}
+  .cvx table.cvtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .cvx .cvtbl thead th{position:sticky;top:0;background:var(--surface-2);z-index:2;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);padding:8px 12px;border-bottom:1px solid var(--border-2);white-space:nowrap;cursor:pointer;user-select:none}
+  .cvx .cvtbl thead th.r{text-align:right}
+  .cvx .cvtbl thead th:hover{color:var(--ink)}
+  .cvx .cvtbl th .ar{opacity:.6;font-size:9px}
+  .cvx .cvtbl td{padding:0 12px;height:38px;border-bottom:1px solid var(--border);vertical-align:middle}
+  .cvx .cvtbl td.r{text-align:right;font-weight:500}
+  .cvx .cvtbl tr.sum{cursor:pointer}
+  .cvx .cvtbl tr.sum:hover,.cvx .cvtbl tr.sum.open{background:var(--surface-2)}
+  .cvx .cvtbl tr.grp td{background:var(--surface-2);border-top:1px solid var(--border-2);border-bottom:1px solid var(--border-2);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);height:30px}
+  .cvx .cvtbl tr.grp .cnt{color:var(--ink-3);font-weight:600;margin-left:8px}
+  .cvx .chev{display:inline-block;width:14px;color:var(--ink-3);transition:transform .12s ease;font-size:10px}
+  .cvx tr.sum.open .chev{transform:rotate(90deg);color:var(--accent-ink)}
+  .cvx .cred{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:1px 5px;white-space:nowrap}
+  .cvx .cred.doctor{color:var(--cred-doctor)}.cvx .cred.np{color:var(--cred-np)}.cvx .cred.pa{color:var(--cred-pa)}
+  .cvx .cred.ma{color:var(--cred-ma)}.cvx .cred.gc{color:var(--cred-gc)}.cvx .cred.ms{color:var(--cred-ms)}
+  .cvx .sl{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:1px 5px}
+  .cvx .pill{display:inline-block;font-size:10.5px;font-weight:650;border-radius:20px;padding:2px 9px}
+  .cvx .pill.gap{background:var(--bad-soft);color:var(--bad)}
+  .cvx .pill.ok{background:var(--surface-2);color:var(--ink-2)}
+  .cvx .pill.thin{background:var(--warn-soft);color:var(--warn)}
+  .cvx .subday{color:var(--ink-3);font-size:11px}
+  .cvx .muted{color:var(--ink-3)}
+  .cvx .a-async{color:var(--ink)}.cvx .a-sync{color:var(--bad);font-weight:600}
+  .cvx tr.det>td{background:var(--surface-2);border-bottom:1px solid var(--border-2);padding:0}
+  .cvx .det-inner{padding:11px 16px 13px 30px}
+  .cvx .det-inner .dh{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px}
+  .cvx .statelist{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.8;word-spacing:2px}
+  .cvx .who{display:grid;grid-template-columns:minmax(140px,1.3fr) 60px 52px minmax(170px,1.4fr) auto;gap:8px 14px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+  .cvx .who:last-child{border-bottom:0}
+  .cvx .who .nm{font-weight:600}.cvx .who .tm{color:var(--ink-2)}
+  .cvx .who .rt{text-align:right;display:flex;align-items:center;gap:8px;justify-content:flex-end}
+  .cvx .cvlive{color:var(--good);font-weight:600;font-size:11.5px}
+  .cvx .outbtn{appearance:none;border:1px solid var(--border-2);background:var(--surface);color:var(--ink-2);border-radius:20px;height:22px;padding:0 9px;font:inherit;font-size:10.5px;cursor:pointer;white-space:nowrap}
+  .cvx .outbtn:hover{border-color:var(--bad);color:var(--bad)}
+  .cvx .outbtn.isout{background:var(--bad-soft);color:var(--bad);border-color:transparent;font-weight:600}
+  .cvx tr.sum.out>td{background:var(--bad-soft)}
+  .cvx tr.sum.out:hover>td{background:var(--bad-soft)}
+  .cvx tr.sum.out>td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+  .cvx tr.sum.out b{text-decoration:line-through;color:var(--ink-3)}
+  .cvx .flagline{font-size:12px;color:var(--bad);margin:2px 0 9px;font-weight:600}
+  .cvx .cvempty{padding:30px;text-align:center;color:var(--ink-3)}
+  .cvx .gapfail{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:16px;color:var(--bad);font-weight:600}
+  .cvx .gapfail .muted{font-weight:400}
+  /* call-out banner */
+  .cvx .editbar{display:none;align-items:center;gap:10px 12px;flex-wrap:wrap;background:var(--bad-soft);border:1px solid var(--bad);border-left:4px solid var(--bad);border-radius:var(--radius);padding:9px 14px;margin-bottom:12px;font-size:12.5px}
+  .cvx .editbar.on{display:flex}
+  .cvx .editbar .lead{font-weight:700;color:var(--bad);white-space:nowrap}
+  .cvx .editbar .outs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .cvx .editbar .qbtn{margin-left:auto}
+  .cvx .outchip{display:inline-flex;align-items:center;gap:7px;background:var(--surface);color:var(--bad);border:1px solid var(--bad);border-radius:20px;height:25px;padding:0 7px 0 11px;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .cvx .outchip .dd{opacity:.65;font-weight:500}
+  .cvx .outchip .x{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px;line-height:1;font-weight:700}
+  .cvx .outchip:hover{background:var(--bad-soft)}
+  /* bodies-by-hour pivot */
+  .cvx table.cvpivot{border-collapse:collapse;font-size:12px}
+  .cvx .cvpivot th,.cvx .cvpivot td{padding:5px 8px;text-align:center;border:1px solid var(--border)}
+  .cvx .cvpivot thead th{background:var(--surface-2);font-size:11px;color:var(--ink-2);font-weight:600}
+  .cvx .cvpivot td.hrlab,.cvx .cvpivot th.hrlab{text-align:right;font-weight:600;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+  .cvx .cvpivot tr:hover td.hrlab{color:var(--accent-ink)}
+  .cvx .cvpivot td.z{color:var(--ink-3)}
+  .cvx .cvpivot tr.det>td{text-align:left}
 </style>
 
 <div class="wrap">
@@ -429,89 +502,77 @@
     <div class="muted" style="font-size:11.5px;line-height:1.55;margin-top:4px">Scheduled care is a separate population from on-demand — slot-based visits (Noom &amp; Futur) graded on whether they happened on time, never on queue-wait (a scheduled visit has no queue to wait in). It is deliberately excluded from every on-demand metric — SLA, wait, and the contract scoreboard.</div>
   </section>
 
-  <!-- GAPS — date-specific coverage vs expected demand. The Friday question: for the schedule
-       that's loaded, where exactly is this window thin, so it can be called out before it hurts. -->
+  <!-- WHO'S ON — client-side coverage engine (fed by coverage_feed) -->
   <section class="tab" data-tab="whoson">
-    <div class="scope" id="woScope">Who&#39;s on the schedule</div>
-    <div class="filterbar" style="margin-bottom:12px">
-      <div class="fgroup"><span class="fl">Dates</span><input type="date" class="dateinp" id="woFrom"><span class="muted">–</span><input type="date" class="dateinp" id="woTo"></div>
-      <div class="fgroup" id="woPresets">
-        <button class="qbtn" data-g="wknd">This weekend</button>
-        <button class="qbtn" data-g="7d">Next 7 days</button>
-        <button class="qbtn" data-g="loaded">All loaded</button>
-      </div>
-      <div class="fgroup"><span class="fl">Credential</span><div class="seg" id="woCred" style="flex-wrap:wrap"></div></div>
-      <div class="facet"><button class="ghost" id="woCalBtn" type="button">Calendars: <b id="woCalLbl">All</b> <span class="ar">▾</span></button><div class="pop" id="woCalPop" style="width:288px;overflow:auto"></div></div>
-    </div>
-    <div class="stats s4" id="woStats"></div>
-    <div class="wkey" id="woKey"></div>
-    <div class="card"><div class="bd" id="woBody"></div></div>
-  </section>
-
-  <section class="tab" data-tab="gaps">
-    <div class="scope" id="gapScope">State coverage gaps</div>
-    <div class="filterbar" style="margin-bottom:12px">
-      <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="gapFrom"><span class="muted">-</span><input type="date" class="dateinp" id="gapTo"></div>
-      <div class="fgroup" id="gapPresets">
-        <button class="qbtn" data-g="wknd">This weekend</button>
-        <button class="qbtn" data-g="7d">Next 7 days</button>
-        <button class="qbtn" data-g="loaded">All loaded</button>
-      </div>
-      <div class="facet"><button class="ghost" id="gapCalBtn" type="button">Calendars: <b id="gapCalLbl">All</b> <span class="ar">&#9662;</span></button><div class="pop" id="gapCalPop" style="width:288px;overflow:auto"></div></div>
-      <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="gapH0"></select><span class="muted">-</span><select class="dateinp" id="gapH1"></select></div>
-    </div>
-    <div class="ovhero" id="gapHero"></div>
-    <div class="card" id="gapTblCard"><div class="hd"><h2>Every gap, worst first</h2>
-        <span class="desc" id="gapTblDesc"></span></div>
-      <div class="bd">
-        <div style="overflow-x:auto"><table class="fx" id="gapTbl">
+    <div class="cvx">
+      <div class="filterbar cvctrl" id="cvWoCtrl"></div>
+      <div class="editbar" id="cvWoEdit"></div>
+      <div class="filterbar" style="margin-bottom:12px"><span class="fl">Credential</span><div class="cvseg" id="cvWoCred"></div></div>
+      <div class="card"><div class="hd"><h2>Who&#39;s on the schedule</h2><span class="desc" id="cvWoDesc"></span></div>
+        <div class="scroll"><table class="cvtbl" id="cvWoTbl">
           <thead><tr>
-            <th data-sort="st"  style="width:74px">State</th>
-            <th data-sort="day" style="width:132px">Day</th>
-            <th data-sort="beg" style="width:92px">Starts</th>
-            <th data-sort="end" style="width:132px">Ends</th>
-            <th data-sort="len" class="r" style="width:74px">Length</th>
-            <th data-sort="dem" class="r" style="width:118px">Arrivals/day</th>
-            <th data-sort="non" style="width:56px" class="r">On</th>
-            <th>Who is on shift then</th>
+            <th data-cvk="nm">Clinician</th>
+            <th data-cvk="cred" style="width:96px">Credential</th>
+            <th data-cvk="sl" style="width:104px">Service line</th>
+            <th data-cvk="beg" style="width:96px">Starts</th>
+            <th data-cvk="end" style="width:116px">Ends</th>
+            <th data-cvk="len" class="r" style="width:150px">On shift</th>
+            <th style="width:106px">&nbsp;</th>
           </tr></thead>
-          <tbody id="gapTblBody"></tbody>
+          <tbody id="cvWoBody"></tbody>
         </table></div>
-        <div class="muted" id="gapNote" style="font-size:11.5px;margin-top:10px"></div>
-      </div></div>
-  </section>
-
-  <section class="tab" data-tab="states">
-    <div class="scope" id="stScope">Staffing coverage · bodies on the schedule vs observed demand</div>
-    <div class="filterbar" id="stBar" style="margin-bottom:14px">
-      <div class="fgroup"><span class="fl">Window</span><input type="date" class="dateinp" id="stFrom"><span class="muted">–</span><input type="date" class="dateinp" id="stTo"></div>
-      <div class="fgroup" id="stPresets">
-        <button class="qbtn" data-g="wknd">This weekend</button>
-        <button class="qbtn" data-g="7d">Next 7 days</button>
-        <button class="qbtn" data-g="loaded">Loaded schedule</button>
-      </div>
-      <div class="fgroup"><span class="fl">Days</span><div class="seg" id="stDow" style="flex-wrap:wrap"></div></div>
-      <div class="fgroup"><span class="fl">Show</span><div class="seg" id="stMod">
-        <button data-m="all" class="on">Combined</button><button data-m="sync">Sync</button><button data-m="async">Async</button></div></div>
-      <div class="fgroup"><span class="fl">Demand baseline</span><select class="dateinp" id="stBase"><option value="2">last 2 wks</option><option value="4" selected>last 4 wks</option><option value="8">last 8 wks</option></select></div>
-      <div class="facet"><button class="ghost" id="stSvcBtn" type="button">Calendars: <b id="stSvcLbl">All</b> <span class="ar">▾</span></button><div class="pop" id="stSvcPop" style="width:288px;overflow:auto"></div></div>
-      <button class="ghost" id="stMoreBtn" type="button">More <span class="ar">▾</span></button>
-      <div class="morefilters" id="stMore" style="display:none">
-        <div class="fgroup"><span class="fl">Credential</span><div class="seg" id="stCred" style="flex-wrap:wrap"></div></div>
-        <div class="fgroup"><span class="fl">Hours</span><select class="dateinp" id="stH0"></select><span class="muted">–</span><select class="dateinp" id="stH1"></select></div>
-        <div class="fgroup"><span class="fl">Clears/hr</span><input class="dateinp" id="stClr" type="number" min="1" step="0.5" style="width:66px"></div>
-        <div class="fgroup"><span class="fl">Sync min</span><input class="dateinp" id="stSyncMin" type="number" min="1" step="0.1" style="width:66px"></div>
-        <div class="fgroup"><span class="fl">Off-shift %</span><input class="dateinp" id="stOff" type="number" min="0" max="99" step="1" style="width:60px"></div>
+        <div class="cvfoot">Each row is one shift block. <b>Call out</b> marks someone unavailable and Gaps + State coverage recompute on the spot. Expand a row for the states that clinician covers. Times are the schedule&#39;s own clock.</div>
       </div>
     </div>
-    <div class="ovhero" id="stHero"></div>
-    <div class="card"><div class="hd"><h2>Hours counted — by calendar</h2><span class="desc">exactly which shift calendars feed the numbers above, and what was left out. If this doesn't say what you expect, the filter is wrong.</span></div>
-      <div style="overflow:auto"><table id="stEntTbl" class="fx"><colgroup><col><col style="width:90px"><col style="width:130px"><col style="width:320px"></colgroup><thead><tr><th>Calendar</th><th class="r">Bodies</th><th class="r">Scheduled hours</th><th>Counted?</th></tr></thead><tbody id="stEntBody"></tbody></table></div></div>
-    <div class="card"><div class="hd"><h2>Bodies on shift, by hour</h2><span class="desc" id="stGridDesc">whole clinicians scheduled in each hour, by credential — one row per day, never averaged</span></div>
-      <div style="overflow:auto"><table id="stHrTbl"><thead><tr id="stHrHead"></tr></thead><tbody id="stHrBody"></tbody></table></div>
-      <div class="bd"><div class="heat" id="stHeat" style="display:grid;gap:3px"></div><div class="muted" id="stHeatNote" style="font-size:11.5px;margin-top:9px"></div></div></div>
-    <div class="card"><div class="hd"><h2>By state</h2><span class="desc">bodies licensed <b>and</b> scheduled vs arrivals · <b>gap</b> = demand with zero licensed body on shift · one clinician licensed in N states is ONE body, so this is not per-state capacity</span></div>
-      <div style="overflow:auto"><table id="stTbl"><thead><tr id="stStHead"></tr></thead><tbody id="stBody"></tbody></table></div></div>
+  </section>
+
+  <!-- GAPS — where a state has demand and no licensed clinician on shift -->
+  <section class="tab" data-tab="gaps">
+    <div class="cvx">
+      <div class="filterbar cvctrl" id="cvGapCtrl"></div>
+      <div class="editbar" id="cvGapEdit"></div>
+      <div class="card"><div class="hd"><h2>Gaps by day</h2><span class="desc" id="cvGapDesc"></span></div>
+        <div class="scroll"><table class="cvtbl" id="cvGapTbl">
+          <thead><tr>
+            <th data-cvk="st" style="width:120px">State</th>
+            <th data-cvk="beg" style="width:104px">Starts</th>
+            <th data-cvk="end" style="width:132px">Ends</th>
+            <th data-cvk="len" class="r" style="width:74px">Length</th>
+            <th data-cvk="async" class="r" style="width:128px">Async in window</th>
+            <th data-cvk="sync" class="r" style="width:122px">Sync in window</th>
+            <th data-cvk="non" class="r" style="width:52px">On</th>
+            <th style="width:150px">&nbsp;</th>
+          </tr></thead>
+          <tbody id="cvGapBody"></tbody>
+        </table></div>
+        <div class="cvfoot"><b>Async / Sync in window</b> is the arrivals expected during the gap hours only, per day, from the trailing 4-week baseline - so a state with heavy daytime volume but a quiet 2 AM shows small numbers here. Sync is called out in red because it is real-time. Expand a gap to see who is on shift (none licensed in that state) and mark anyone out.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATE COVERAGE — by-state licensed bodies vs demand, + bodies-by-hour -->
+  <section class="tab" data-tab="states">
+    <div class="cvx">
+      <div class="filterbar cvctrl" id="cvStCtrl"></div>
+      <div class="editbar" id="cvStEdit"></div>
+      <div class="filterbar" style="margin-bottom:12px"><span class="fl">Credential</span><div class="cvseg" id="cvStCred"></div></div>
+      <div class="card"><div class="hd"><h2>Coverage by state</h2><span class="desc" id="cvStDesc"></span></div>
+        <div class="scroll"><table class="cvtbl" id="cvStTbl">
+          <thead><tr>
+            <th data-cvk="st" style="width:80px">State</th>
+            <th data-cvk="async" class="r" style="width:130px">Async</th>
+            <th data-cvk="sync" class="r" style="width:120px">Sync</th>
+            <th data-cvk="bod" class="r" style="width:170px">Licensed &amp; scheduled</th>
+            <th data-cvk="stat">Status</th>
+          </tr></thead>
+          <tbody id="cvStBody"></tbody>
+        </table></div>
+        <div class="cvfoot"><b>Async</b> and <b>Sync</b> are the arrivals expected per typical day within the <b>hours you have selected</b> (all 24 by default), from the trailing 4-week baseline - narrow the hours and these numbers shrink to match. Bodies and licensing follow your dates, hours, calendars, and edits. Expand a state for who covers it - one row per clinician.</div>
+      </div>
+      <div class="card"><div class="hd"><h2>Bodies on shift, by hour</h2><span class="desc">clinicians scheduled each hour &middot; all 24 hours incl. 12 AM &middot; expand an hour for names</span></div>
+        <div class="scroll" style="padding:12px 16px 14px"><table class="cvpivot" id="cvPivTbl"></table></div>
+      </div>
+    </div>
   </section>
 
   <section class="tab" data-tab="shifts">
@@ -856,7 +917,7 @@ $$('.pop').forEach(p=>p.onclick=e=>e.stopPropagation());
 const MODS=[['','All (excl. lab)'],['messaging','Messaging'],['sync_video','Sync video'],['sync_phone','Critical call'],['other','Other'],['lab','+Lab']];
 $('#modseg').innerHTML=MODS.map(([k,l],i)=>`<button data-m="${k}" class="${i===0?'on':''}">${l}</button>`).join('');
 $$('#modseg button').forEach(b=>b.onclick=()=>{const m=b.dataset.m;FIL.mod=m?new Set([m]):new Set();$$('#modseg button').forEach(x=>x.classList.toggle('on',x===b));renderFiltered()});
-for(let h=0;h<24;h++){$('#h0').innerHTML+=`<option value="${h}">${h}:00</option>`;$('#h1').innerHTML+=`<option value="${h}" ${h===23?'selected':''}>${h}:59</option>`}
+for(let h=0;h<24;h++){$('#h0').innerHTML+=`<option value="${h}">${hh(h)}</option>`;$('#h1').innerHTML+=`<option value="${h}" ${h===23?'selected':''}>${hh(h).replace(':00',':59')}</option>`}
 $('#h0').onchange=e=>{FIL.h0=+e.target.value;renderFiltered()};$('#h1').onchange=e=>{FIL.h1=+e.target.value;renderFiltered()};
 $('#dfrom').onchange=e=>{FIL.from=e.target.value||null;markPreset(null);renderFiltered()};$('#dto').onchange=e=>{FIL.to=e.target.value||null;markPreset(null);renderFiltered()};
 // ---- date presets + open-to-last-completed-week (anchored to the newest LOADED date, not the wall clock) ----
@@ -961,8 +1022,8 @@ function renderPerf(rows){
   const hm={};for(const r of rows){if(r[DOW]==null||r[HR]==null||r[SLA]==null)continue;const k=r[DOW]+'_'+r[HR];(hm[k]=hm[k]||{n:0,met:0}),hm[k].n++,r[SLA]&&hm[k].met++}
   const DOWL=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],present=[...new Set(Object.keys(hm).map(k=>+k.split('_')[0]))].sort();
   const grid=$('#heat');grid.style.gridTemplateColumns='42px repeat(24,1fr)';
-  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
-  present.forEach(dw=>{html+=`<div class="hmlab">${DOWL[dw]}</div>`;for(let h=0;h<24;h++){const c=hm[dw+'_'+h];if(!c){html+='<div class="hmcell empty">·</div>'}else{const p=Math.round(1000*c.met/c.n)/10;html+=`<div class="hmcell" style="background:${slaCss(p)}" title="${DOWL[dw]} ${h}:00 · ${p}% · ${nf(c.n)} SLIs">${Math.round(p)}</div>`}}});
+  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${hc(h)}</div>`).join('');
+  present.forEach(dw=>{html+=`<div class="hmlab">${DOWL[dw]}</div>`;for(let h=0;h<24;h++){const c=hm[dw+'_'+h];if(!c){html+='<div class="hmcell empty">·</div>'}else{const p=Math.round(1000*c.met/c.n)/10;html+=`<div class="hmcell" style="background:${slaCss(p)}" title="${DOWL[dw]} ${hh(h)} · ${p}% · ${nf(c.n)} SLIs">${Math.round(p)}</div>`}}});
   grid.innerHTML=present.length?html:'<div class="empty" style="grid-column:1/-1">No data in this slice.</div>';
   // wait histogram (clickable bands)
   const buckets=[['<1m',0,60],['1-5m',60,300],['5-15m',300,900],['15-30m',900,1800],['30-60m',1800,3600],['1-4h',3600,14400],['4h+',14400,1e12]];
@@ -1453,21 +1514,21 @@ function renderCoverage(){
   $('#covStats').innerHTML=[
     {k:'Weekday 9–5',v:avg(bh),d:'avg clinicians on shift'},
     {k:'Weekend',v:avg(wknd),d:'avg clinicians on shift'},
-    {k:'Peak',v:peak[2],d:DOWL7[peak[0]]+' '+peak[1]+':00'},
+    {k:'Peak',v:peak[2],d:DOWL7[peak[0]]+' '+hh(peak[1])},
     {k:'Unreliable slots',v:unrel.length,d:'swing hard or drop to zero'},
   ].map(tileHTML).join('');
   $('#covNote').textContent=`avg across ${COV.weeks||0} weeks · Central time · number = clinicians on shift`;
   const grid=$('#covHeat');grid.style.gridTemplateColumns='42px repeat(24,1fr)';
   const by={};g.forEach(r=>{(by[r[0]]=by[r[0]]||{})[r[1]]=r});
-  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
+  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${hc(h)}</div>`).join('');
   for(let dw=1;dw<=7;dw++){html+=`<div class="hmlab">${DOWL7[dw]}</div>`;for(let h=0;h<24;h++){const r=by[dw]&&by[dw][h];
     if(!r||r[2]===0){html+='<div class="hmcell empty">·</div>'}
-    else{const hue=Math.round(Math.min(1,r[2]/mx)*145);html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${DOWL7[dw]} ${h}:00 · avg ${r[2]} (min ${r[3]}, max ${r[4]}) · ${r[6]?r[6]+' week(s) at zero':'covered every week'}">${Math.round(r[2])}</div>`}}}
+    else{const hue=Math.round(Math.min(1,r[2]/mx)*145);html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${DOWL7[dw]} ${hh(h)} · avg ${r[2]} (min ${r[3]}, max ${r[4]}) · ${r[6]?r[6]+' week(s) at zero':'covered every week'}">${Math.round(r[2])}</div>`}}}
   grid.innerHTML=html;
   const thin=[...g].filter(r=>r[0]<=5&&r[1]>=7&&r[1]<=19).sort((a,b)=>a[2]-b[2]).slice(0,8);
-  $('#covThin').innerHTML=thin.map(r=>`<div class="rk" style="cursor:default"><div class="lab">${DOWL7[r[0]]} ${r[1]}:00<small>min ${r[3]} · max ${r[4]}${r[6]?' · '+r[6]+' wk at zero':''}</small></div><div class="val tnum">${r[2]}</div><div class="track"><i style="width:${Math.max(2,r[2]/mx*100)}%;background:hsl(${Math.round(Math.min(1,r[2]/mx)*145)} 68% 42%)"></i></div></div>`).join('')||'<div class="empty">—</div>';
+  $('#covThin').innerHTML=thin.map(r=>`<div class="rk" style="cursor:default"><div class="lab">${DOWL7[r[0]]} ${hh(r[1])}<small>min ${r[3]} · max ${r[4]}${r[6]?' · '+r[6]+' wk at zero':''}</small></div><div class="val tnum">${r[2]}</div><div class="track"><i style="width:${Math.max(2,r[2]/mx*100)}%;background:hsl(${Math.round(Math.min(1,r[2]/mx)*145)} 68% 42%)"></i></div></div>`).join('')||'<div class="empty">—</div>';
   const ur=[...unrel].sort((a,b)=>(b[5]/Math.max(b[2],1))-(a[5]/Math.max(a[2],1))).slice(0,8);
-  $('#covUnrel').innerHTML=ur.map(r=>`<div class="rk" style="cursor:default"><div class="lab">${DOWL7[r[0]]} ${r[1]}:00<small>avg ${r[2]} · swings ±${r[5]}${r[6]?' · '+r[6]+' wk at zero':''}</small></div><div class="val tnum" style="color:var(--warn)">±${r[5]}</div><div class="track"><i style="width:${Math.max(2,Math.min(100,r[5]/Math.max(r[2],1)*100))}%;background:var(--warn)"></i></div></div>`).join('')||'<div class="empty">Coverage holds steady week to week.</div>';
+  $('#covUnrel').innerHTML=ur.map(r=>`<div class="rk" style="cursor:default"><div class="lab">${DOWL7[r[0]]} ${hh(r[1])}<small>avg ${r[2]} · swings ±${r[5]}${r[6]?' · '+r[6]+' wk at zero':''}</small></div><div class="val tnum" style="color:var(--warn)">±${r[5]}</div><div class="track"><i style="width:${Math.max(2,Math.min(100,r[5]/Math.max(r[2],1)*100))}%;background:var(--warn)"></i></div></div>`).join('')||'<div class="empty">Coverage holds steady week to week.</div>';
 }
 // ---------- USERS (admin access management) ----------
 let USERS=[], USERS_ADMIN=false, USERS_API=null, USERS_WIRED=false;
@@ -1602,246 +1663,39 @@ function wireScoreboard(){
   const c=$('#sbCard');if(!c||c._wired)return;c._wired=true;
   c.addEventListener('click',e=>{const ed=e.target.closest('[data-sb-edit]'),ad=e.target.closest('[data-sb-add]');if(ed)sbOpenEdit(ed.dataset.sbEdit);else if(ad)sbOpenEdit('')});
 }
-// ---------- GAPS (date-specific coverage vs projected demand) ----------
-// The Friday question: for the schedule that's actually loaded, where is THIS window thin?
-// Coverage comes from coverage_by_date (real dates, filled + posted-unfilled); expected demand is
-// projected client-side from the SLI response log (current), as the same-weekday/hour average over a
-// user-chosen lookback. Nothing here is a typical-week composite and no window is static.
-// ---------- STATE COVERAGE GAPS (exceptions on a time axis) ----------
-// A 51-state x 24-hour grid is unreadable as a list and the signal is sparse: on
-// live data ~1% of state-hours are uncovered. So render only the exceptions, as
-// contiguous windows positioned on a shared time axis. Server does the island
-// merging (state_gap_windows); this draws it.
-// _st is the load state and it is load-bearing: 'idle' (never fetched), 'ok'
-// (the server answered) or 'err' (it did not). Only 'ok' may render the
-// all-clear. An empty GAPS.rows on its own means nothing - it is also what a
-// failed request leaves behind, and reporting a failure as "every state is
-// covered" is the worst thing this page can do.
-let GAPS={windows:[],_st:'idle',_msg:''}, GW={from:null,to:null,cal:new Set(),h0:0,h1:23,_init:0};
+// ============================================================================
+// COVERAGE CONSOLE — Gaps / Who's on / State coverage, one client-side engine.
+//
+// The three tabs share ONE date/hour/calendar control and recompute instantly
+// as the operator narrows the hours, toggles a calendar, or marks a clinician
+// out (a hypothetical, never persisted - so it can only live client-side). The
+// whole thing is fed by coverage_feed(from,to): raw shift blocks + a per-state
+// x hour on-demand demand baseline. Changing the DATE window refetches (the feed
+// is windowed); hours, calendars and call-outs are pure client recompute.
+//
+// Shared helpers below (gDate.. / hh / hesc / calPop / CREDS6) are reused by
+// other tabs and MUST stay defined here.
+// ----------------------------------------------------------------------------
 const GMON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const GDOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],GDOWL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 function gDate(s){const p=String(s).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]))}
 function gIso(d){return d.toISOString().slice(0,10)}
 function gAdd(s,n){const d=gDate(s);d.setUTCDate(d.getUTCDate()+n);return gIso(d)}
-function gDay(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+' '+GMON[d.getUTCMonth()]+' '+d.getUTCDate()}
-function gShort(s){const d=gDate(s);return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+' '+d.getUTCDate()}
+function gDay(s){const d=gDate(s);return GDOW[d.getUTCDay()]+' '+GMON[d.getUTCMonth()]+' '+d.getUTCDate()}
+function gLong(s){const d=gDate(s);return GDOWL[d.getUTCDay()]+' '+GMON[d.getUTCMonth()]+' '+d.getUTCDate()}
+function gShort(s){const d=gDate(s);return GDOW[d.getUTCDay()]+' '+d.getUTCDate()}
 function gToday(){return new Date().toISOString().slice(0,10)}
 function gDiff(a,b){return Math.round((gDate(b)-gDate(a))/86400000)}
-function hh(n){return String(n).padStart(2,'0')+':00'}
+// 12-hour time, everywhere. Handles 0->12 AM and 12->12 PM. Used site-wide.
+function hh(n){n=((n%24)+24)%24;const ap=n<12?'AM':'PM';let h=n%12;if(h===0)h=12;return h+':00 '+ap}
+function hhL(n){n=((n%24)+24)%24;const ap=n<12?'AM':'PM';let h=n%12;if(h===0)h=12;return h+' '+ap}
+function cvFmt(h,m){h=((h%24)+24)%24;const ap=h<12?'AM':'PM';let ho=h%12;if(ho===0)ho=12;return ho+':'+(m<10?'0'+m:m)+' '+ap}
+function hc(n){n=((n%24)+24)%24;const ap=n<12?'a':'p';let h=n%12;if(h===0)h=12;return h+ap}  // compact 12-hour axis label
 function hesc(v){return String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-window.__kickGaps=function(){if(GW._init)return;GW._init=1;gapDefaults();gapFetch()};
-async function gapFetch(){
-  if(!RANGE_API||!RANGE_API.stateGaps){
-    GAPS={windows:[],_st:'err',_msg:'The coverage service is not connected in this build.'};renderGaps();return}
-  const bar=document.querySelector('[data-tab="gaps"] .filterbar');if(bar)bar.style.opacity=.55;
-  try{const r=await RANGE_API.stateGaps({p_from:GW.from,p_to:GW.to,
-      p_service_line:GW.cal.size?[...GW.cal]:null,p_hour0:GW.h0,p_hour1:GW.h1});
-    if(r&&r.error)GAPS={windows:[],_st:'err',_msg:r.error.message||String(r.error)};
-    else if(r&&r.data)GAPS=Object.assign({windows:[]},r.data,{_st:'ok',_msg:''});
-    else GAPS={windows:[],_st:'err',_msg:'The coverage service returned no payload.'};}
-  catch(e){GAPS={windows:[],_st:'err',_msg:(e&&e.message)||String(e)}}
-  if(bar)bar.style.opacity='';renderGaps()}
-function gapDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
-  if(hi&&hi>=t){GW.from=t;GW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markGapPreset('7d')}
-  else if(hi){GW.from=gAdd(hi,-6);GW.to=hi;markGapPreset('loaded')}
-  if($('#gapFrom'))$('#gapFrom').value=GW.from||'';if($('#gapTo'))$('#gapTo').value=GW.to||''}
-function markGapPreset(k){$$('#gapPresets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.g===k))}
-// Arya posts nobody claimed: a gap that has not happened yet.
-function unfTxt(){const u=GAPS.unfilled;return (u&&u.hours)?(' '+nf(u.hours)+' posted shift-hours in this window are still unfilled.'):''}
-function unf(){const u=GAPS.unfilled;return (u&&u.hours)?
-  ('<div class="line" style="color:var(--warn)"><b>'+nf(u.hours)+'</b> posted shift-hours still unfilled ('+nf(u.posts)+' open posts) - gaps that have not happened yet</div>'):''}
-// Sort state for the gap table. Default is worst-first by demand at risk;
-// every column is clickable because "when does it start" and "which state" are
-// different questions and both get asked.
-let GSORT={k:'dem',dir:-1};
-function renderGaps(){
-  const body=$('#gapTblBody');if(!body)return;
-  const W=GAPS.window||{},wins=GAPS.windows||[];
-  const lo=W.from||GW.from,hi=W.to||GW.to,h0=W.h0==null?GW.h0:W.h0,h1=W.h1==null?GW.h1:W.h1;
-  const exc=GAPS.excluded||[];
-  $('#gapScope').innerHTML='State coverage gaps &#183; <b'
-    +(GW.cal.size?'':(exc.length?' title="Excludes '+exc.join(', ').replace(/"/g,'&quot;')+' - siloed or staffing-only, so they never count as on-demand coverage"':''))+'>'
-    +(GW.cal.size?[...GW.cal].join(' + '):'All on-demand calendars')
-    +'</b> &#183; '+(lo&&hi?gDay(lo)+' to '+gDay(hi):'all loaded')+(h0>0||h1<23?' &#183; '+hh(h0)+'-'+hh(h1):'')
-    +(GW.cal.size||!exc.length?'':' <span class="muted">('+exc.length+' siloed calendars excluded)</span>');
+const CREDS6=['Doctor','NP','PA','MA','GC','MS'];
+const SDOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];   // isodow 1..7 (shared: capacity filters)
 
-  const card=$('#gapTblCard');
-  const bail=(html)=>{$('#gapHero').innerHTML=html;body.innerHTML='';
-    if(card)card.classList.add('hide');$('#gapNote').textContent=''};
-  if(GAPS._st==='err'){
-    bail('<div class="gapfail" style="flex-basis:100%"><b>Coverage could not be checked.</b> '
-      +'<span class="muted">'+hesc(GAPS._msg||'The request failed.')+'</span>'
-      +'<button class="qbtn" id="gapRetry" type="button">Try again</button></div>');
-    const rb=$('#gapRetry');if(rb)rb.onclick=()=>gapFetch();return}
-  if(GAPS._st==='idle'){bail('<div class="empty" style="flex-basis:100%">Checking coverage&#8230;</div>');return}
-  if(!lo||GAPS.no_schedule){bail('<div class="empty" style="flex-basis:100%">No schedule loaded. Upload the Arya export via Settings &#8250; Import.</div>');return}
-  if(!wins.length){
-    bail('<div class="gapclear" style="flex-basis:100%"><span class="pipdot"></span>'
-      +'<b>Every state is covered for every hour in this window.</b>'
-      +'<span class="muted">No licensed-coverage gaps to escalate.'+unfTxt()+'</span></div>');return}
-  if(card)card.classList.remove('hide');
-
-  const totalHrs=wins.reduce((a,w)=>a+w[5],0), totalDem=wins.reduce((a,w)=>a+w[6],0);
-  const nStates=new Set(wins.map(w=>w[0])).size;
-  const worst=wins.reduce((a,w)=>w[6]>a[6]?w:a,wins[0]);
-  // which hours of the day it clusters in, said in words rather than drawn
-  const bh=(GAPS.by_hour||[]).slice().sort((a,b)=>b[1]-a[1]).slice(0,3).filter(x=>x[1]>0);
-  const clusters=bh.length?bh.map(x=>hh(x[0])).join(', '):'';
-  $('#gapHero').innerHTML=
-    '<div class="hero-sla"><div class="k">States going uncovered</div><div class="v" style="color:var(--bad)">'+nStates+'</div>'+
-    '<div class="d">of 51 &#183; '+nf(totalHrs)+' uncovered state-hours in '+wins.length+' gaps</div></div>'+
-    '<div class="hero-meta">'+
-    '<div class="line">Worst gap: <b>'+worst[0]+' '+gDay(worst[1])+' '+hh(worst[2])+' to '+hh(worst[4])
-      +'</b> ('+worst[5]+'h, about '+worst[6]+' arrivals/day)</div>'+
-    '<div class="line muted">'+nf(Math.round(totalDem))+' arrivals/day of normal volume falls in an uncovered hour'
-      +(clusters?' &#183; most gaps start around '+clusters:'')+'</div>'+unf()+'</div>';
-
-  // sort
-  const key={st:w=>w[0],day:w=>w[1]+' '+String(w[2]).padStart(2,'0'),beg:w=>w[2],
-             end:w=>w[3]+' '+String(w[4]).padStart(2,'0'),len:w=>w[5],dem:w=>w[6],non:w=>w[7]}[GSORT.k]||(w=>w[6]);
-  const rows=wins.slice().sort((a,b)=>{const x=key(a),y=key(b);
-    return (x<y?-1:x>y?1:0)*GSORT.dir || (b[6]-a[6])});
-  $$('#gapTbl th').forEach(th=>{const on=th.dataset.sort===GSORT.k;
-    th.style.cursor='pointer';
-    th.setAttribute('aria-sort',on?(GSORT.dir<0?'descending':'ascending'):'none');
-    const base=th.textContent.replace(/[ \u2191\u2193]+$/,'');
-    th.textContent=base+(on?(GSORT.dir<0?' \u2193':' \u2191'):'')});
-
-  body.innerHTML=rows.map(w=>{
-    const [st,d0,hb,d1,he,len,dem,non,mix]=w;
-    const sameDay=d0===d1;
-    const ends=hh(he)+(sameDay?'':' <span class="muted">'+gShort(d1)+'</span>');
-    const who=non===0?'<span style="color:var(--bad)">nobody on shift</span>'
-      :(mix||[]).map(m=>'<span class="cred '+credClass(m[0]).toLowerCase()+'">'+m[1]+' '+m[0]+'</span>').join(' ')
-        +' <span class="muted">- none licensed in '+st+'</span>';
-    return '<tr>'
-      +'<td><b>'+st+'</b></td>'
-      +'<td>'+gDay(d0)+'</td>'
-      +'<td>'+hh(hb)+'</td>'
-      +'<td>'+ends+'</td>'
-      +'<td class="r">'+len+'h</td>'
-      +'<td class="r">'+(dem>=1?Math.round(dem):dem)+'</td>'
-      +'<td class="r">'+non+'</td>'
-      +'<td>'+who+'</td>'
-      +'</tr>'}).join('');
-  $('#gapTblDesc').textContent=wins.length+' gap'+(wins.length===1?'':'s')+' across '+nStates
-    +' state'+(nStates===1?'':'s')+' \u00b7 click a column to sort';
-  $('#gapNote').textContent='times are the schedule\u2019s own clock \u00b7 "on shift" counts everyone working '
-    +'that window on the selected calendars, none of whom hold a licence for that state';
-}
-function wireGaps(){
-  const tb=$('#gapTbl');
-  if(tb&&!tb._w){tb._w=1;tb.querySelectorAll('th[data-sort]').forEach(th=>th.onclick=()=>{
-    const k=th.dataset.sort;
-    // a new column starts on the reading most people want: biggest first for
-    // magnitudes, earliest first for names and times
-    if(GSORT.k===k)GSORT.dir=-GSORT.dir; else {GSORT.k=k;GSORT.dir=(k==='len'||k==='dem'||k==='non')?-1:1}
-    renderGaps()})}
-  if($('#gapFrom')&&!$('#gapFrom')._w){$('#gapFrom')._w=1;
-    $('#gapFrom').onchange=e=>{GW.from=e.target.value||null;markGapPreset(null);gapFetch()};
-    $('#gapTo').onchange=e=>{GW.to=e.target.value||null;markGapPreset(null);gapFetch()};
-    $$('#gapPresets .qbtn').forEach(b=>b.onclick=()=>{const k=b.dataset.g,t=gToday();
-      if(k==='wknd'){const wd=gDate(t).getUTCDay();let sat=gAdd(t,(6-wd+7)%7);if(wd===0)sat=gAdd(t,-1);GW.from=sat;GW.to=gAdd(sat,1)}
-      else if(k==='7d'){GW.from=t;GW.to=gAdd(t,6)}
-      else{GW.from=(SHIFTS.loaded&&SHIFTS.loaded.min)||null;GW.to=(SHIFTS.loaded&&SHIFTS.loaded.max)||null}
-      $('#gapFrom').value=GW.from||'';$('#gapTo').value=GW.to||'';markGapPreset(k);gapFetch()});
-    for(let h=0;h<24;h++){$('#gapH0').innerHTML+='<option value="'+h+'">'+hh(h)+'</option>';
-      $('#gapH1').innerHTML+='<option value="'+h+'"'+(h===23?' selected':'')+'>'+hh(h)+'</option>'}
-    $('#gapH0').onchange=e=>{GW.h0=+e.target.value;gapFetch()};
-    $('#gapH1').onchange=e=>{GW.h1=+e.target.value;gapFetch()}}
-  if(SHIFTS&&SHIFTS.by_service_line&&SHIFTS.by_service_line.length)
-    calPop('#gapCalBtn','#gapCalPop','#gapCalLbl',[...SHIFTS.by_service_line].map(x=>x.name).sort((a,b)=>String(a).localeCompare(String(b))),GW.cal,()=>gapFetch());
-}
-// ---------- WHO'S ON — the plain read: bodies per hour + which states have nobody ----------
-// No demand, no scoring, no heatmap. Bars you can read at a glance.
-let WO={}, WOF={from:null,to:null,cal:new Set(),cred:new Set(),_init:0};
-const WCOL={Doctor:'var(--cred-doctor)',NP:'var(--cred-np)',PA:'var(--cred-pa)',MA:'var(--cred-ma)',GC:'var(--cred-gc)',MS:'var(--cred-ms)'};
-window.__kickWhosOn=function(){if(WOF._init)return;WOF._init=1;woDefaults();woFetch()};
-async function woFetch(){
-  if(!RANGE_API||!RANGE_API.whosOn){
-    WO={_st:'err',_msg:'The schedule service is not connected in this build.'};renderWhosOn();return}
-  try{const r=await RANGE_API.whosOn({p_from:WOF.from,p_to:WOF.to,
-      p_service_line:WOF.cal.size?[...WOF.cal]:null,p_cred:WOF.cred.size?[...WOF.cred]:null});
-    if(r&&r.error)WO={_st:'err',_msg:r.error.message||String(r.error)};
-    else if(r&&r.data)WO=Object.assign({},r.data,{_st:'ok'});
-    else WO={_st:'err',_msg:'The schedule service returned no payload.'};}
-  catch(e){WO={_st:'err',_msg:(e&&e.message)||String(e)}}
-  renderWhosOn()}
-function woDefaults(){const hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
-  if(hi&&hi>=t){WOF.from=t;WOF.to=gAdd(t,2)>hi?hi:gAdd(t,2)}else if(hi){WOF.from=gAdd(hi,-2);WOF.to=hi}
-  if($('#woFrom'))$('#woFrom').value=WOF.from||'';if($('#woTo'))$('#woTo').value=WOF.to||''}
-function renderWhosOn(){
-  const bodyEl=$('#woBody');if(!bodyEl)return;
-  const rows=WO.rows||[];
-  // label the data that came back, not the request that went out - they differ
-  // whenever a fetch is in flight or the server clamped the window
-  const WW=WO.window||{},wlo=WW.from||WOF.from,whi=WW.to||WOF.to;
-  $('#woScope').innerHTML=`Who's on the schedule &#183; <b>${WOF.cal.size?[...WOF.cal].join(' + '):'All calendars'}</b> &#183; `
-    +(wlo&&whi?gDay(wlo)+' to '+gDay(whi):'all loaded')
-    +(WOF.cred.size?' &#183; '+[...WOF.cred].join(', '):'');
-  $('#woKey').innerHTML=CREDS6.map(c=>`<span><i style="background:${WCOL[c]}"></i>${c}</span>`).join('')
-    +'<span class="muted">· hours are the schedule’s own clock</span>';
-  // A failed read is never allowed to look like "nobody is scheduled".
-  if(WO._st==='err'){$('#woStats').innerHTML='';
-    bodyEl.innerHTML='<div class="gapfail"><b>The schedule could not be read.</b> '
-      +'<span class="muted">'+hesc(WO._msg||'The request failed.')+'</span>'
-      +'<button class="qbtn" id="woRetry" type="button">Try again</button></div>';
-    const rb=$('#woRetry');if(rb)rb.onclick=()=>woFetch();return}
-  if(!rows.length){$('#woStats').innerHTML='';bodyEl.innerHTML='<div class="empty">No shifts scheduled in this window'
-    +(WO.loaded&&WO.loaded.min?` — the loaded schedule runs <b>${WO.loaded.min} → ${WO.loaded.max}</b>.`:'.')+'</div>';return}
-  const peak=WO.peak||Math.max(...rows.map(r=>r[2]),1);
-  const covered=rows.filter(r=>r[2]>0).length, bare=rows.length-covered;
-  const bodyHrs=rows.reduce((a,r)=>a+(r[2]||0),0);
-  // "hours with a state gap" moved out: the Gaps tab answers which states are
-  // uncovered and when, properly. Repeating it per hour here was the noise that
-  // made this tab a wall.
-  $('#woStats').innerHTML=[
-    {k:'People on the schedule',v:nf(WO.total_bodies||0),d:'distinct clinicians in this window'},
-    {k:'Busiest hour',v:peak,d:'most on at once'},
-    {k:'Body-hours scheduled',v:nf(bodyHrs),d:'across '+nf(covered)+' staffed hours'},
-    {k:'Hours with nobody on',v:nf(bare),d:'of '+nf(rows.length)+' hours in this window'},
-  ].map(tileHTML).join('');
-  const cals=(WO.calendars||[]).map(c=>c[0]);
-  if(cals.length)calPop('#woCalBtn','#woCalPop','#woCalLbl',cals,WOF.cal,()=>woFetch());
-  const byDay={};rows.forEach(r=>{(byDay[r[0]]=byDay[r[0]]||[]).push(r)});
-  const days=Object.keys(byDay).sort();
-  // one shared scale across every day, so a thin Sunday reads as thin next to
-  // a full Tuesday instead of being re-normalised to look the same height
-  const scale=Math.max(peak,1);
-  bodyEl.innerHTML=days.map(d=>{
-    const seen={};byDay[d].forEach(r=>seen[r[1]]=r);
-    const dayTot=Array.from({length:24},(_,h)=>seen[h]?seen[h][2]:0).reduce((a,b)=>a+b,0);
-    const cells=Array.from({length:24},(_,h)=>{
-      const r=seen[h],tot=r?r[2]:0;
-      if(!tot)return '<div class="wcell none" title="'+gDay(d)+' '+hh(h)+' &#183; nobody on"></div>';
-      const parts=CREDS6.map((c,i)=>({c,n:r[3+i]||0})).filter(x=>x.n);
-      const segs=parts.map(x=>'<i style="flex:0 0 '+(x.n/scale*100)+'%;background:'+WCOL[x.c]+'"></i>').join('');
-      const who=parts.map(x=>x.n+' '+x.c).join(', ');
-      return '<div class="wcell" title="'+gDay(d)+' '+hh(h)+' &#183; '+tot+' on'+(who?' ('+who+')':'')+'">'+segs+'</div>'}).join('');
-    return '<div class="wgrid"><div class="wdlab">'+gDay(d)+'</div>'
-      +'<div class="wstrip">'+cells+'</div>'
-      +'<div class="wdtot" title="body-hours scheduled this day">'+nf(dayTot)+'h</div></div>'}).join('')
-    +'<div class="wgrid"><div></div><div class="wruler">'
-      +Array.from({length:24},(_,h)=>'<span>'+(h%3===0?h:'')+'</span>').join('')
-      +'</div><div></div></div>';
-}
-function wireWhosOn(){
-  if($('#woFrom')&&!$('#woFrom')._w){$('#woFrom')._w=1;
-    $('#woFrom').onchange=e=>{WOF.from=e.target.value||null;$$('#woPresets .qbtn').forEach(b=>b.classList.remove('on'));woFetch()};
-    $('#woTo').onchange=e=>{WOF.to=e.target.value||null;$$('#woPresets .qbtn').forEach(b=>b.classList.remove('on'));woFetch()};
-    $$('#woPresets .qbtn').forEach(b=>b.onclick=()=>{const k=b.dataset.g,t=gToday();
-      if(k==='wknd'){const wd=gDate(t).getUTCDay();let sat=gAdd(t,(6-wd+7)%7);if(wd===0)sat=gAdd(t,-1);WOF.from=sat;WOF.to=gAdd(sat,1)}
-      else if(k==='7d'){WOF.from=t;WOF.to=gAdd(t,6)}
-      else{WOF.from=(WO.loaded&&WO.loaded.min)||null;WOF.to=(WO.loaded&&WO.loaded.max)||null}
-      $('#woFrom').value=WOF.from||'';$('#woTo').value=WOF.to||'';
-      $$('#woPresets .qbtn').forEach(x=>x.classList.toggle('on',x===b));woFetch()});
-    $('#woCred').innerHTML=CREDS6.map(c=>`<button class="qbtn" data-c="${c}" style="margin:2px">${c}</button>`).join('');
-    $$('#woCred .qbtn').forEach(b=>b.onclick=()=>{const c=b.dataset.c;WOF.cred.has(c)?WOF.cred.delete(c):WOF.cred.add(c);b.classList.toggle('on');woFetch()})}
-  const cals=(WO.calendars||[]).map(c=>c[0]);
-  if(cals.length)calPop('#woCalBtn','#woCalPop','#woCalLbl',cals,WOF.cal,()=>woFetch());
-}
-// A compact multi-pick popover: one button, a scrollable checkbox list, All/None.
-// Long option lists (17+ shift calendars) must never render as inline chips —
-// that buries the actual content under a wall of filter chrome.
+// A compact multi-pick popover (kept: other tabs use it).
 function calPop(btnSel,popSel,lblSel,names,sel,onChange){
   const btn=$(btnSel),pop=$(popSel),lbl=$(lblSel);if(!btn||!pop)return;
   const paint=()=>{lbl.textContent=!sel.size?'All':(sel.size===1?[...sel][0]:sel.size+' selected');
@@ -1855,136 +1709,350 @@ function calPop(btnSel,popSel,lblSel,names,sel,onChange){
   $(popSel+' [data-call]').onclick=()=>{sel.clear();paint();onChange()};
   $(popSel+' [data-cnone]').onclick=()=>{sel.clear();names.forEach(n=>sel.add(n));paint();onChange()};
 }
-// ---------- STAFFING COVERAGE (bodies on the schedule vs observed demand) ----------
-// Server-side (staffing_coverage RPC): needs individual shift rows + licensure the
-// browser doesn't hold. Everything here is BODIES. Verdicts: Covered / Stretched /
-// Exposed, calibrated from this operation's own history. Every control refetches.
-let STC={}, STE=[], SW={from:null,to:null,base:4,svc:new Set(),cred:new Set(),dow:new Set(),
-              h0:0,h1:23,mod:'all',clr:7,syncMin:17.3,off:69,_init:0};
-const SDOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];   // isodow 1..7
-const CREDS6=['Doctor','NP','PA','MA','GC','MS'];
-window.__setStaffing=function(d){STC=d||{};renderStates()};
-window.__kickStateCov=function(){if(SW._init)return;SW._init=1;stDefaults();stFetch()};
-async function stFetch(){
-  if(!RANGE_API||!RANGE_API.staffing){renderStates();return}
-  const bar=$('#stBar');if(bar)bar.style.opacity=.55;
-  const A={p_from:SW.from,p_to:SW.to,p_service_line:SW.svc.size?[...SW.svc]:null,
-           p_cred:SW.cred.size?[...SW.cred]:null,p_hour0:SW.h0,p_hour1:SW.h1,
-           p_dow:SW.dow.size?[...SW.dow]:null};
-  try{const [r,e]=await Promise.all([
-      RANGE_API.staffing(Object.assign({},A,{p_base_weeks:SW.base,p_clear_per_hr:SW.clr,p_sync_min:SW.syncMin,p_offshift:SW.off/100})),
-      RANGE_API.staffingEntities?RANGE_API.staffingEntities(A):Promise.resolve({data:[]})]);
-    if(r&&r.error)STC={_st:'err',_msg:r.error.message||String(r.error)};
-    else if(r&&r.data)STC=Object.assign({},r.data,{_st:'ok'});
-    else STC={_st:'err',_msg:'The coverage service returned no payload.'};
-    if(e&&!e.error)STE=e.data||[];}
-  catch(ex){STC={_st:'err',_msg:(ex&&ex.message)||String(ex)}}
-  if(bar)bar.style.opacity='';renderStates()}
-function stDefaults(){const lo=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.min,hi=SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max,t=gToday();
-  if(hi&&hi>=t){SW.from=t;SW.to=gAdd(t,6)>hi?hi:gAdd(t,6);markStPreset('7d')}
-  else if(hi){SW.from=gAdd(hi,-6)<lo?lo:gAdd(hi,-6);SW.to=hi;markStPreset('loaded')}
-  if($('#stFrom'))$('#stFrom').value=SW.from||'';if($('#stTo'))$('#stTo').value=SW.to||'';
-  if($('#stClr'))$('#stClr').value=SW.clr;if($('#stSyncMin'))$('#stSyncMin').value=SW.syncMin;if($('#stOff'))$('#stOff').value=SW.off}
-function markStPreset(k){$$('#stPresets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.g===k))}
-function vTone(v){return v==='Covered'?'good':v==='Stretched'?'warn':'bad'}
-function renderStates(){
-  const hero=$('#stHero');if(!hero)return;
-  // A failed read must not render as a coverage verdict.
-  if(STC._st==='err'){hero.innerHTML='<div class="gapfail" style="flex-basis:100%">'
-      +'<b>Coverage could not be computed.</b> <span class="muted">'+hesc(STC._msg||'The request failed.')+'</span>'
-      +'<button class="qbtn" id="stRetry" type="button">Try again</button></div>';
-    ['#stGrid','#stStates','#stEnt','#stNotes'].forEach(x=>{if($(x))$(x).innerHTML=''});
-    const rb=$('#stRetry');if(rb)rb.onclick=()=>stFetch();return}
-  const P=STC.pool,bl=STC.baseline,W=STC.window||{},as=STC.assumptions||{};
-  const dowTxt=SW.dow.size?[...SW.dow].sort().map(d=>SDOW[d-1]).join(' '):'all days';
-  $('#stScope').innerHTML=`Staffing coverage · <b>${SW.svc.size?[...SW.svc].join(' + '):'All coverage-counted calendars'}</b> · ${SW.from&&SW.to?gDay(SW.from)+' – '+gDay(SW.to):'all loaded'} · ${dowTxt}`
-    +(bl?` · demand baseline last ${bl.weeks} wks (${bl.from} → ${bl.to})`:'');
-  if(!P||!P.bodies){hero.innerHTML='<div class="empty" style="flex-basis:100%">No schedule loaded for this window. Upload the Arya export covering it via Settings → Import.</div>';
-    $('#stHrHead').innerHTML='';$('#stHrBody').innerHTML='';$('#stHeat').innerHTML='';$('#stHeatNote').textContent='';
-    $('#stStHead').innerHTML='';$('#stBody').innerHTML='';return}
-  const showA=SW.mod!=='sync', showS=SW.mod!=='async';
-  const gap=Math.max(0,(P.async_per_day||0)-(P.sched_capacity_per_day||0));
-  hero.innerHTML=
-    `<div class="hero-sla"><div class="k">Coverage</div><div class="v" style="color:var(--${vTone(P.verdict)})">${P.verdict}</div>`+
-    `<div class="d">${nf(P.bodies)} bodies · ${nf(P.body_hours)} scheduled hours</div></div>`+
-    `<div class="hero-meta">`+
-      (showA?`<div class="line"><b>${nf(P.async_per_day)}</b> async arrivals/day vs <b>${nf(P.sched_capacity_per_day)}</b> the schedule covers`+
-        (gap>0?` · <span style="color:var(--${vTone(P.verdict)})">${nf(gap)}/day rests on off-shift pickup</span>`:'')+`</div>`:'')+
-      (showA?`<div class="line muted">${P.load_per_body_hour} async per scheduled body-hour · SLA historically slips past ~13.5</div>`:'')+
-      (showS?`<div class="line"><b>${nf(P.sync_per_day)}</b> sync arrivals/day · <b>${P.sync_bodies_needed}</b> bodies tied up at once (${as.sync_min||17.3}m each)</div>`:'')+
-      (showS?`<div class="line muted">Sync gets no staffing band — adding bodies has not moved sync attainment; the misses are structural.</div>`:'')+
-    `</div>`;
-  // ---- bodies by hour, ONE ROW PER DAY, whole people only ----
-  // Never average across days: half a clinician cannot be staffed, and an average
-  // hides the day that is actually thin.
-  const byH=STC.by_hour||[];
-  $('#stGridDesc').textContent='whole clinicians scheduled in each hour, by credential — one row per day, never averaged · Central time';
-  clFix('#stHrHead',[{w:'70px'},{w:'70px'},...CREDS6.map(()=>({w:'80px'})),{w:'80px'}]);
-  $('#stHrHead').innerHTML=['Day','Hour',...CREDS6,'Total'].map((c,i)=>`<th class="${i>1?'r':''}">${c}</th>`).join('');
-  const sorted=[...byH].sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
-  $('#stHrBody').innerHTML=sorted.length?sorted.map(r=>
-    `<tr><td>${SDOW[r[0]-1]}</td><td><b>${r[1]}:00</b></td>`+
-    [3,4,5,6,7,8].map(i=>`<td class="r tnum${r[i]?'':' muted'}">${r[i]||'—'}</td>`).join('')+
-    `<td class="r tnum"><b>${r[2]}</b></td></tr>`).join(''):
-    '<tr><td colspan="9" class="muted">No scheduled hours in this slice.</td></tr>';
-  // ---- which calendars fed this ----
-  const eb=$('#stEntBody');
-  if(eb)eb.innerHTML=STE.length?STE.map(e=>{const [ent,bod,hrs,cnt,why]=e;
-    return `<tr><td><b>${ent}</b></td><td class="r tnum">${nf(bod)}</td><td class="r tnum">${nf(hrs)}</td>`+
-      `<td>${cnt?'<span style="color:var(--good);font-weight:650">counted</span>':`<span class="muted">excluded — ${why}</span>`}</td></tr>`}).join(''):
-    '<tr><td colspan="4" class="muted">No shift calendars in this window.</td></tr>';
-  // ---- day x hour heatmap of bodies (never hides a per-day dip behind an average) ----
-  const heat=$('#stHeat'),dows=[...new Set(byH.map(r=>r[0]))].sort((a,b)=>a-b),mx=Math.max(...byH.map(r=>r[2]),1);
-  heat.style.gridTemplateColumns='52px repeat(24,1fr)';
-  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
-  dows.forEach(dw=>{html+=`<div class="hmlab">${SDOW[dw-1]}</div>`;
-    for(let h=0;h<24;h++){const c=byH.find(r=>r[0]===dw&&r[1]===h);
-      if(!c||!c[2]){html+='<div class="hmcell empty">·</div>';continue}
-      const hue=Math.round(Math.min(1,c[2]/mx)*145);
-      html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${SDOW[dw-1]} ${h}:00 · ${c[2]} on shift (${CREDS6.map((n,i)=>c[3+i]?c[3+i]+' '+n:'').filter(Boolean).join(', ')||'—'})">${c[2]}</div>`}});
-  heat.innerHTML=dows.length?html:'<div class="empty" style="grid-column:1/-1">No scheduled hours in this slice.</div>';
-  $('#stHeatNote').textContent='cell = bodies on shift that hour · hover for the credential split';
-  // ---- by state ----
-  const rows=STC.by_state||[];
-  const cols=['State',...(showA?['Async/day']:[]),...(showS?['Sync/day']:[]),'Licensed & scheduled','Status'];
-  clFix('#stStHead',cols.map((c,i)=>({w:i===0?'90px':(i===cols.length-1?'110px':'130px')})));
-  $('#stStHead').innerHTML=cols.map((c,i)=>`<th class="${i?'r':''}">${c}</th>`).join('');
-  $('#stBody').innerHTML=rows.length?rows.map(r=>{const [st,a,s,b,hg]=r;
-    if(!showA&&!s&&!b&&!hg)return '';
-    return `<tr><td><b>${st}</b></td>`+
-      (showA?`<td class="r tnum">${a||'—'}</td>`:'')+(showS?`<td class="r tnum">${s||'—'}</td>`:'')+
-      `<td class="r tnum">${b}</td>`+
-      `<td class="r">${hg?'<span style="color:var(--bad);font-weight:700">gap</span>':(b>0?'<span class="muted">staffed</span>':'<span class="muted">—</span>')}</td></tr>`}).join(''):
-    '<tr><td colspan="5" class="muted">No demand or licensure in this slice.</td></tr>';
+
+// ---------- coverage engine state ----------
+const CVSTATES=['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+let CVR=[];              // parsed roster rows for the fetched window
+let CVDEM={};            // demand lookup [state][hour] = [async,sync]
+let CVCALMETA=[];        // [[abbrev,name,bodies],...] coverage calendars present
+let CVBASE=null;         // window.from (dayIx origin)
+let CVDAYS=[];           // ISO dates in the fetched window
+let CVMIND=null, CVMAXD=null;   // loaded schedule bounds (date-picker limits)
+let CVWIN={from:null,to:null};  // the fetched (= selected) date window
+let CVH0=0, CVH1=24;     // selected hour range [H0,H1), 24 = end of day
+const CVCALS=new Set();  // checked calendar abbrevs (default: all coverage calendars)
+const CVOUT=new Set();   // called-out shift keys (client-only override)
+let CVCRED='all';        // credential filter for who's on + state coverage
+let CVST='loading', CVMSG=''; // fetch status
+let CVBUSY=false;
+
+function cvDayIx(s){return gDiff(CVBASE,s)}
+function cvNum(n){return n>=10?Math.round(n):Math.round(n*10)/10}
+function cvDur(mins){mins=Math.round(mins);const h=Math.floor(mins/60),m=mins%60;return ((h?h+'h':'')+(m?(h?' ':'')+m+'m':''))||'0m'}
+function cvDemAt(st,hr){return (CVDEM[st]&&CVDEM[st][hr])||[0,0]}
+function cvCredCls(c){return ({Doctor:'doctor',NP:'np',PA:'pa',MA:'ma',GC:'gc',MS:'ms'})[c]||''}
+function cvCredTag(c){const cc=cvCredCls(c);return '<span class="cred '+cc+'">'+(cc?c:'n/a')+'</span>'}
+function cvAllHours(){return CVH0===0&&CVH1===24}
+function cvHourRange(){return cvAllHours()?'all hours':hh(CVH0)+' to '+(CVH1===24?hh(0):hh(CVH1))}
+function cvWinLabel(){if(!CVWIN.from)return '';const f=CVWIN.from,t=CVWIN.to;
+  if(f===t)return gDay(f);return gDay(f)+' to '+gDay(t)}
+function cvCalLabel(){const on=CVCALMETA.filter(c=>CVCALS.has(c[0]));
+  if(!on.length)return 'no calendars';if(on.length===CVCALMETA.length)return 'all calendars';
+  return on.map(c=>c[1]).join(' + ')}
+function cvNowMin(){const t=gToday();if(!CVBASE||t<CVWIN.from||t>CVWIN.to)return null;
+  const now=new Date();return cvDayIx(t)*1440+now.getUTCHours()*60+now.getUTCMinutes()}
+
+// parse a coverage_feed roster payload -> engine rows keyed to CVBASE
+function cvParse(feed){
+  CVBASE=(feed.window&&feed.window.from)||null;
+  CVWIN={from:CVBASE,to:(feed.window&&feed.window.to)||null};
+  CVMIND=(feed.loaded&&feed.loaded.min)||CVBASE; CVMAXD=(feed.loaded&&feed.loaded.max)||CVWIN.to;
+  CVDAYS=[];for(let d=CVWIN.from;d&&d<=CVWIN.to;d=gAdd(d,1))CVDAYS.push(d);
+  CVDEM={};(feed.demand||[]).forEach(r=>{(CVDEM[r[0]]=CVDEM[r[0]]||{})[r[1]]=[+r[2],+r[3]]});
+  CVCALMETA=(feed.calendars||[]).map(c=>[c[1],c[2],c[3]]);   // [abbrev,name,bodies]
+  CVR=(feed.roster||[]).map(r=>{const[nm,cred,sl,s,e,states]=r;
+    const sp=s.split('T'),ep=e.split('T');
+    const[sh,sm]=sp[1].split(':').map(Number),[eh,em]=ep[1].split(':').map(Number);
+    const sMin=cvDayIx(sp[0])*1440+sh*60+sm,eMin=cvDayIx(ep[0])*1440+eh*60+em;
+    return {nm,cred,sl,sd:sp[0],ed:ep[0],sh,sm,eh,em,sMin,eMin,
+            states:states?states.split(','):[],key:nm+'|'+sl+'|'+sMin}});
 }
-function wireStates(){
-  if($('#stFrom')&&!$('#stFrom')._w){$('#stFrom')._w=1;
-    $('#stFrom').onchange=e=>{SW.from=e.target.value||null;markStPreset(null);stFetch()};
-    $('#stTo').onchange=e=>{SW.to=e.target.value||null;markStPreset(null);stFetch()};
-    $('#stBase').onchange=e=>{SW.base=+e.target.value;stFetch()};
-    $$('#stPresets .qbtn').forEach(b=>b.onclick=()=>{const k=b.dataset.g,t=gToday();
-      if(k==='wknd'){const wd=gDate(t).getUTCDay();let sat=gAdd(t,(6-wd+7)%7);if(wd===0)sat=gAdd(t,-1);SW.from=sat;SW.to=gAdd(sat,1)}
-      else if(k==='7d'){SW.from=t;SW.to=gAdd(t,6)}
-      else{SW.from=(SHIFTS.loaded&&SHIFTS.loaded.min)||null;SW.to=(SHIFTS.loaded&&SHIFTS.loaded.max)||null}
-      $('#stFrom').value=SW.from||'';$('#stTo').value=SW.to||'';SW.dow=new Set();stSyncDow();markStPreset(k);stFetch()});
-    $('#stDow').innerHTML=SDOW.map((d,i)=>`<button class="qbtn" data-d="${i+1}" style="margin:2px">${d}</button>`).join('');
-    $$('#stDow .qbtn').forEach(b=>b.onclick=()=>{const d=+b.dataset.d;if(SW.dow.has(d))SW.dow.delete(d);else SW.dow.add(d);b.classList.toggle('on');stFetch()});
-    $$('#stMod button').forEach(b=>b.onclick=()=>{SW.mod=b.dataset.m;$$('#stMod button').forEach(x=>x.classList.toggle('on',x===b));renderStates()});
-    $('#stMoreBtn').onclick=()=>{const r=$('#stMore'),open=r.style.display!=='none';r.style.display=open?'none':'flex';const a=$('#stMoreBtn').querySelector('.ar');if(a)a.textContent=open?'▾':'▴'};
-    $('#stCred').innerHTML=CREDS6.map(c=>`<button class="qbtn" data-c="${c}" style="margin:2px">${c}</button>`).join('');
-    $$('#stCred .qbtn').forEach(b=>b.onclick=()=>{const c=b.dataset.c;if(SW.cred.has(c))SW.cred.delete(c);else SW.cred.add(c);b.classList.toggle('on');stFetch()});
-    for(let h=0;h<24;h++){$('#stH0').innerHTML+=`<option value="${h}">${h}:00</option>`;$('#stH1').innerHTML+=`<option value="${h}" ${h===23?'selected':''}>${h}:59</option>`}
-    $('#stH0').onchange=e=>{SW.h0=+e.target.value;stFetch()};$('#stH1').onchange=e=>{SW.h1=+e.target.value;stFetch()};
-    $('#stClr').onchange=e=>{SW.clr=+e.target.value||7;stFetch()};
-    $('#stSyncMin').onchange=e=>{SW.syncMin=+e.target.value||17.3;stFetch()};
-    $('#stOff').onchange=e=>{SW.off=Math.min(99,Math.max(0,+e.target.value||0));stFetch()};
-  }
-  if(SHIFTS&&SHIFTS.by_service_line&&SHIFTS.by_service_line.length){
-    calPop('#stSvcBtn','#stSvcPop','#stSvcLbl',
-      [...SHIFTS.by_service_line].map(x=>x.name).sort((a,b)=>String(a).localeCompare(String(b))),
-      SW.svc, ()=>stFetch())}
+
+// which calendars a person's shift block belongs to is p.sl (abbrev)
+function cvActive(){return CVR.filter(p=>CVCALS.has(p.sl)&&!CVOUT.has(p.key))}
+function cvCredOK(p){return CVCRED==='all'||p.cred===CVCRED}
+
+// minutes of a shift within the selected hours across all window days
+function cvSelMins(p){let m=0;for(let i=0;i<CVDAYS.length;i++){const b=i*1440,s=b+CVH0*60,e=b+CVH1*60;
+  const o=Math.min(p.eMin,e)-Math.max(p.sMin,s);if(o>0)m+=o}return m}
+function cvInSel(p){return cvSelMins(p)>0}
+function cvSelDays(p){const out=[];for(let i=0;i<CVDAYS.length;i++){const b=i*1440,s=b+CVH0*60,e=b+CVH1*60;
+  if(Math.min(p.eMin,e)-Math.max(p.sMin,s)>0)out.push(CVDAYS[i])}return out}
+
+// ---------- GAP ENGINE ----------
+function cvComputeGaps(){
+  const ND=CVDAYS.length,TOT=ND*24;
+  const active=cvActive();
+  const cov=[],onp=[];for(let a=0;a<TOT;a++){cov.push(new Set());onp.push([])}
+  active.forEach(p=>{
+    let a0=Math.max(0,Math.floor(p.sMin/60)),a1=Math.min(TOT-1,Math.ceil(p.eMin/60)-1);
+    for(let a=a0;a<=a1;a++){if(p.sMin<(a+1)*60&&p.eMin>a*60){p.states.forEach(s=>cov[a].add(s));onp[a].push(p)}}
+  });
+  const wins=[];
+  CVSTATES.forEach(st=>{
+    let run=null;
+    for(let a=0;a<TOT;a++){const hr=a%24;
+      if(hr<CVH0||hr>=CVH1){if(run){wins.push(cvMkWin(st,run,onp));run=null}continue}
+      const d=cvDemAt(st,hr),hasDem=d[0]+d[1]>0,uncov=hasDem&&!cov[a].has(st);
+      if(uncov){if(!run)run={a0:a,a1:a};else run.a1=a}
+      else if(run){wins.push(cvMkWin(st,run,onp));run=null}}
+    if(run)wins.push(cvMkWin(st,run,onp));
+  });
+  return wins;
 }
-function stSyncDow(){$$('#stDow .qbtn').forEach(b=>b.classList.toggle('on',SW.dow.has(+b.dataset.d)))}
+function cvMkWin(st,run,onp){
+  let async=0,sync=0;const seen=new Set(),ppl=[];
+  for(let a=run.a0;a<=run.a1;a++){const d=cvDemAt(st,a%24);async+=d[0];sync+=d[1];
+    onp[a].forEach(p=>{if(!seen.has(p.key)){seen.add(p.key);ppl.push(p)}})}
+  const d0=CVDAYS[Math.floor(run.a0/24)],h0=run.a0%24,d1=CVDAYS[Math.floor(run.a1/24)],h1=(run.a1%24)+1;
+  return {st,d0,h0,d1,h1:h1===24?0:h1,len:run.a1-run.a0+1,async,sync,startAbs:run.a0,
+    ppl:ppl.sort((a,b)=>a.cred<b.cred?-1:a.cred>b.cred?1:a.nm.localeCompare(b.nm)),non:ppl.length}
+}
+
+function cvWhoLine(p,gapState,withOut){
+  const nowMin=cvNowMin();
+  const live=(nowMin!=null&&p.sMin<=nowMin&&p.eMin>nowMin&&!CVOUT.has(p.key))?'<span class="cvlive">'+cvDur(p.eMin-nowMin)+' left</span>':'';
+  return '<div class="who"><span class="nm">'+hesc(p.nm)+'</span>'+cvCredTag(p.cred)+'<span class="sl">'+hesc(p.sl)+'</span>'+
+    '<span class="tm">'+cvFmt(p.sh,p.sm)+' to '+cvFmt(p.eh,p.em)+' &middot; '+cvDur(p.eMin-p.sMin)+'</span>'+
+    '<span class="rt">'+live+(withOut?cvOutBtn(p):'')+'</span></div>'}
+function cvOutBtn(p){const isout=CVOUT.has(p.key);
+  return '<button class="outbtn'+(isout?' isout':'')+'" data-cvout="'+hesc(p.key)+'">'+(isout?'Undo call-out':'Call out')+'</button>'}
+
+// ---------- GAPS TAB ----------
+let CVGSORT={k:null,dir:1};const CVGOPEN=new Set();
+function cvDrawGaps(){
+  const body=$('#cvGapBody');if(!body)return;
+  $('#cvGapDesc').textContent='';
+  if(!cvGuard('#cvGapBody',8))return;
+  const wins=cvComputeGaps();
+  const nStates=new Set(wins.map(w=>w.st)).size;
+  $('#cvGapDesc').textContent=wins.length+' gap'+(wins.length===1?'':'s')+(wins.length?' across '+nStates+' state'+(nStates>1?'s':''):'')+
+    ' · '+cvWinLabel()+(cvAllHours()?'':' · '+cvHourRange())+' · '+cvCalLabel()+(CVOUT.size?' · edited':'');
+  if(!wins.length){body.innerHTML='<tr><td colspan="8" class="cvempty">Every state with demand has a licensed clinician on for every selected hour in this window. No gaps to escalate.</td></tr>';return}
+  const byDate={};wins.forEach(w=>{(byDate[w.d0]=byDate[w.d0]||[]).push(w)});
+  const sortWins=arr=>{if(!CVGSORT.k)return arr.sort((a,b)=>(b.async+b.sync)-(a.async+a.sync)||b.len-a.len);
+    const key={st:w=>w.st,beg:w=>w.startAbs,end:w=>w.startAbs+w.len,len:w=>w.len,async:w=>w.async,sync:w=>w.sync,non:w=>w.non}[CVGSORT.k];
+    return arr.sort((a,b)=>{const x=key(a),y=key(b);return (typeof x==='number'?x-y:String(x).localeCompare(y))*CVGSORT.dir})};
+  body.innerHTML='';
+  CVDAYS.filter(d=>byDate[d]).forEach(d=>{
+    const g=document.createElement('tr');g.className='grp';
+    g.innerHTML='<td colspan="8">'+gLong(d)+'<span class="cnt">'+byDate[d].length+' gap'+(byDate[d].length>1?'s':'')+'</span></td>';
+    body.appendChild(g);
+    sortWins(byDate[d]).forEach(w=>{
+      const id=w.st+'|'+w.startAbs,isOpen=CVGOPEN.has(id);
+      const tr=document.createElement('tr');tr.className='sum'+(isOpen?' open':'');
+      const crossM=w.d0!==w.d1?' <span class="subday">'+gShort(w.d1)+'</span>':'';
+      tr.innerHTML='<td><span class="chev">&#9656;</span><b>'+w.st+'</b></td>'+
+        '<td>'+hh(w.h0)+'</td><td>'+hh(w.h1)+crossM+'</td>'+
+        '<td class="r">'+w.len+'h</td>'+
+        '<td class="r a-async">'+cvNum(w.async)+'</td>'+
+        '<td class="r '+(w.sync>=1?'a-sync':'muted')+'">'+cvNum(w.sync)+'</td>'+
+        '<td class="r">'+w.non+'</td>'+
+        '<td><span class="pill gap">no one licensed</span></td>';
+      tr.onclick=e=>{if(e.target.closest('.outbtn'))return;isOpen?CVGOPEN.delete(id):CVGOPEN.add(id);cvDrawGaps()};
+      body.appendChild(tr);
+      if(isOpen){const dt=document.createElement('tr');dt.className='det';
+        const head=w.ppl.length?'<div class="flagline">'+w.non+' on shift during this window, none licensed in '+w.st+':</div>'
+          :'<div class="flagline">Nobody is on shift here - a staffing gap, not a licensing one.</div>';
+        dt.innerHTML='<td colspan="8"><div class="det-inner">'+head+w.ppl.map(p=>cvWhoLine(p,w.st,true)).join('')+'</div></td>';
+        body.appendChild(dt)}
+    });
+  });
+}
+
+// ---------- WHO'S ON TAB ----------
+let CVWSORT={k:'beg',dir:1};const CVWOPEN=new Set();
+function cvDrawWho(){
+  const body=$('#cvWoBody');if(!body)return;
+  $('#cvWoDesc').textContent='';
+  if(!cvGuard('#cvWoBody',7))return;
+  let list=CVR.filter(p=>cvInSel(p)&&CVCALS.has(p.sl)&&cvCredOK(p));
+  const key={nm:p=>p.nm,cred:p=>p.cred,sl:p=>p.sl,beg:p=>p.sMin,end:p=>p.eMin,len:p=>p.eMin-p.sMin}[CVWSORT.k];
+  if(key)list=list.slice().sort((a,b)=>{const x=key(a),y=key(b);return (typeof x==='number'?x-y:String(x).localeCompare(y))*CVWSORT.dir});
+  const ppl=new Set(list.map(p=>p.nm)).size,outN=list.filter(p=>CVOUT.has(p.key)).length;
+  $('#cvWoDesc').textContent=ppl+' clinician'+(ppl===1?'':'s')+' · '+list.length+' shift block'+(list.length===1?'':'s')+
+    ' · '+cvWinLabel()+(cvAllHours()?'':' · '+cvHourRange())+' · '+cvCalLabel()+(CVCRED!=='all'?' · '+CVCRED:'')+(outN?' · '+outN+' out':'');
+  const nowMin=cvNowMin();
+  body.innerHTML='';
+  if(!list.length){body.innerHTML='<tr><td colspan="7" class="cvempty">No shifts match this window, these hours, and the selected calendars.</td></tr>';return}
+  list.forEach(p=>{const id=p.key,isOpen=CVWOPEN.has(id),isout=CVOUT.has(p.key);
+    const live=(nowMin!=null&&p.sMin<=nowMin&&p.eMin>nowMin&&!isout)?' <span class="cvlive">&middot; '+cvDur(p.eMin-nowMin)+' left</span>':'';
+    const crossM=p.ed!==p.sd?' <span class="subday">'+gShort(p.ed)+'</span>':'';
+    const tr=document.createElement('tr');tr.className='sum'+(isOpen?' open':'')+(isout?' out':'');
+    tr.innerHTML='<td><span class="chev">&#9656;</span><b>'+hesc(p.nm)+'</b></td>'+
+      '<td>'+cvCredTag(p.cred)+'</td><td><span class="sl">'+hesc(p.sl)+'</span></td>'+
+      '<td>'+cvFmt(p.sh,p.sm)+'</td><td>'+cvFmt(p.eh,p.em)+crossM+'</td>'+
+      '<td class="r">'+(isout?'<span class="pill gap">called out</span>':cvDur(p.eMin-p.sMin)+live)+'</td>'+
+      '<td>'+cvOutBtn(p)+'</td>';
+    tr.onclick=e=>{if(e.target.closest('.outbtn'))return;isOpen?CVWOPEN.delete(id):CVWOPEN.add(id);cvDrawWho()};
+    body.appendChild(tr);
+    if(isOpen){const dt=document.createElement('tr');dt.className='det';
+      dt.innerHTML='<td colspan="7"><div class="det-inner"><div class="dh">Licensed in '+p.states.length+' states</div>'+
+        '<div class="statelist">'+(p.states.join('  ')||'none on file')+'</div></div></td>';
+      body.appendChild(dt)}
+  });
+}
+
+// ---------- STATE COVERAGE TAB ----------
+let CVSTSORT={k:'async',dir:-1};const CVSTOPEN=new Set();
+function cvStateDemand(st){let as=0,sy=0;for(let h=CVH0;h<CVH1;h++){const d=cvDemAt(st,h);as+=d[0];sy+=d[1]}return[as,sy]}
+function cvBodiesFor(st){const n=new Set();cvActive().forEach(p=>{if(cvCredOK(p)&&p.states.includes(st)&&cvInSel(p))n.add(p.nm)});return n.size}
+function cvCovering(st){const by={};
+  cvActive().forEach(p=>{if(!cvCredOK(p)||!p.states.includes(st))return;const m=cvSelMins(p);if(m<=0)return;
+    const g=by[p.nm]||(by[p.nm]={nm:p.nm,cred:p.cred,sl:p.sl,days:new Set(),mins:0,states:p.states});
+    g.mins+=m;cvSelDays(p).forEach(d=>g.days.add(d))});
+  return Object.values(by).sort((a,b)=>(a.cred<b.cred?-1:a.cred>b.cred?1:0)||a.nm.localeCompare(b.nm))}
+function cvDrawStates(){
+  const body=$('#cvStBody');if(!body)return;
+  $('#cvStDesc').textContent='';
+  if(!cvGuard('#cvStBody',5)){cvDrawPivot();return}
+  $('#cvStDesc').textContent=cvWinLabel()+(cvAllHours()?'':' · '+cvHourRange())+' · '+cvCalLabel()+(CVCRED!=='all'?' · '+CVCRED:'');
+  let rows=CVSTATES.map(st=>{const[as,sy]=cvStateDemand(st),bod=cvBodiesFor(st);return {st,as,sy,bod}})
+    .filter(r=>r.as+r.sy>0.05||r.bod>0);
+  const key={st:r=>r.st,async:r=>r.as,sync:r=>r.sy,bod:r=>r.bod,stat:r=>r.bod}[CVSTSORT.k];
+  rows.sort((a,b)=>{const x=key(a),y=key(b);return (typeof x==='number'?x-y:String(x).localeCompare(y))*CVSTSORT.dir});
+  body.innerHTML='';
+  if(!rows.length){body.innerHTML='<tr><td colspan="5" class="cvempty">No demand or scheduled bodies in this window/these hours.</td></tr>';cvDrawPivot();return}
+  rows.forEach(r=>{const id='s'+r.st,isOpen=CVSTOPEN.has(id);
+    const stat=r.bod===0?'<span class="pill gap">no one on</span>':r.bod<=2&&r.as>20?'<span class="pill thin">thin</span>':'<span class="pill ok">'+r.bod+' on</span>';
+    const tr=document.createElement('tr');tr.className='sum'+(isOpen?' open':'');
+    tr.innerHTML='<td><span class="chev">&#9656;</span><b>'+r.st+'</b></td>'+
+      '<td class="r">'+cvNum(r.as)+'</td><td class="r '+(r.sy>=1?'a-sync':'muted')+'">'+cvNum(r.sy)+'</td>'+
+      '<td class="r">'+r.bod+'</td><td>'+stat+'</td>';
+    tr.onclick=()=>{isOpen?CVSTOPEN.delete(id):CVSTOPEN.add(id);cvDrawStates()};
+    body.appendChild(tr);
+    if(isOpen){const cc=cvCovering(r.st);const dt=document.createElement('tr');dt.className='det';
+      dt.innerHTML='<td colspan="5"><div class="det-inner">'+
+        (cc.length?'<div class="dh">'+cc.length+' clinician'+(cc.length>1?'s':'')+' licensed in '+r.st+', on shift in '+cvWinLabel()+(cvAllHours()?'':', '+cvHourRange())+' &middot; one row each</div>'+
+          cc.map(g=>'<div class="who"><span class="nm">'+hesc(g.nm)+'</span>'+cvCredTag(g.cred)+'<span class="sl">'+hesc(g.sl)+'</span>'+
+            '<span class="tm">'+g.days.size+' day'+(g.days.size>1?'s':'')+' &middot; '+cvDur(g.mins)+' on shift</span>'+
+            '<span class="rt muted">'+g.states.length+' states</span></div>').join('')
+        :'<div class="flagline">No one licensed in '+r.st+' is on shift in '+cvWinLabel()+(cvAllHours()?'':', '+cvHourRange())+' - a hard gap.</div>')+
+        '</div></td>';
+      body.appendChild(dt)}
+  });
+  cvDrawPivot();
+}
+const CVPIVOPEN=new Set();
+function cvBodiesAt(dayIdx,hr){const m0=dayIdx*1440+hr*60,m1=m0+60,n=new Set();
+  CVR.forEach(p=>{if(CVCALS.has(p.sl)&&!CVOUT.has(p.key)&&cvCredOK(p)&&p.sMin<m1&&p.eMin>m0)n.add(p.nm)});return [...n]}
+function cvDrawPivot(){
+  const t=$('#cvPivTbl');if(!t)return;
+  if(!CVDAYS.length){t.innerHTML='';return}
+  let mx=1;const grid={};CVDAYS.forEach((d,i)=>{for(let h=0;h<24;h++){const n=cvBodiesAt(i,h).length;grid[i+'|'+h]=n;if(n>mx)mx=n}});
+  let html='<thead><tr><th class="hrlab">Hour</th>'+CVDAYS.map(d=>'<th>'+gShort(d)+'</th>').join('')+'</tr></thead><tbody>';
+  for(let h=0;h<24;h++){html+='<tr><td class="hrlab" data-h="'+h+'">'+hhL(h)+'</td>'+
+    CVDAYS.map((d,i)=>{const n=grid[i+'|'+h];const bg=n?('background:color-mix(in srgb,var(--accent) '+Math.round(15+70*n/mx)+'%,var(--surface))'):'';
+      return '<td class="'+(n?'':'z')+'" style="'+bg+'">'+(n||'&middot;')+'</td>'}).join('')+'</tr>';
+    if(CVPIVOPEN.has(h)){html+='<tr class="det"><td colspan="'+(CVDAYS.length+1)+'"><div class="det-inner"><div class="dh">On shift at '+hhL(h)+' each day</div>'+
+      CVDAYS.map((d,i)=>{const ppl=cvBodiesAt(i,h);return '<div class="who"><span class="nm">'+gShort(d)+'</span><span></span><span></span><span class="tm" style="grid-column:span 2">'+(ppl.length?ppl.map(hesc).join(', '):'<span class="muted">nobody</span>')+'</span></div>'}).join('')+'</div></td></tr>'}}
+  html+='</tbody>';t.innerHTML=html;
+  t.querySelectorAll('.hrlab[data-h]').forEach(td=>td.onclick=()=>{const h=+td.dataset.h;CVPIVOPEN.has(h)?CVPIVOPEN.delete(h):CVPIVOPEN.add(h);cvDrawPivot()})}
+
+// ---------- fetch-status guard (never render a failed read as an all-clear) ----------
+function cvGuard(sel,cols){const el=$(sel);if(!el)return false;
+  if(CVST==='ok')return true;
+  const msg=CVST==='err'?'<div class="gapfail"><b>Coverage could not be read.</b> <span class="muted">'+hesc(CVMSG||'The request failed.')+'</span> <button class="qbtn" data-cvretry="1" type="button">Try again</button></div>'
+    :CVST==='loading'?'<div class="cvempty">Reading the schedule&#8230;</div>'
+    :'<div class="cvempty">No schedule loaded.</div>';
+  el.innerHTML='<tr><td colspan="'+cols+'">'+msg+'</td></tr>';
+  const rb=el.querySelector('[data-cvretry]');if(rb)rb.onclick=()=>cvFetch(CVWIN.from,CVWIN.to);
+  return false;
+}
+
+// ---------- call-out banner (who you have marked out) ----------
+function cvRenderEdit(){
+  ['#cvGapEdit','#cvWoEdit','#cvStEdit'].forEach(hostSel=>{const el=$(hostSel);if(!el)return;
+    el.classList.toggle('on',CVOUT.size>0);
+    if(!CVOUT.size){el.innerHTML='';return}
+    const keys=[...CVOUT].map(k=>CVR.find(x=>x.key===k)).filter(Boolean).sort((a,b)=>a.nm.localeCompare(b.nm)||a.sMin-b.sMin);
+    el.innerHTML='<span class="lead">Called out ('+CVOUT.size+')</span><div class="outs">'+
+      keys.map(p=>'<button class="outchip" data-cvout="'+hesc(p.key)+'" title="Undo call-out"><span>'+hesc(p.nm)+'</span><span class="dd">'+gShort(p.sd)+' '+cvFmt(p.sh,p.sm)+'</span><span class="x">&times;</span></button>').join('')+
+      '</div><button class="qbtn" data-cvreset="1" type="button">Reset all</button>';
+    const rb=el.querySelector('[data-cvreset]');if(rb)rb.onclick=()=>{CVOUT.clear();cvRedraw()};
+  });
+}
+function cvToggleOut(key){CVOUT.has(key)?CVOUT.delete(key):CVOUT.add(key);cvRedraw()}
+
+// ---------- shared control bar (dates + presets + hours + calendars), 3 hosts ----------
+const CVBARS=['#cvGapCtrl','#cvWoCtrl','#cvStCtrl'];
+function cvPresets(){if(!CVMIND||!CVMAXD)return [];const t=(gToday()>=CVMIND&&gToday()<=CVMAXD)?gToday():CVMAXD;
+  const wk0=gAdd(CVMAXD,-6)<CVMIND?CVMIND:gAdd(CVMAXD,-6);
+  const wknd=CVDAYS.filter(d=>{const g=gDate(d).getUTCDay();return g===0||g===6});
+  return [['today','Today',[t,t]],['tmrw','Tomorrow',[gAdd(t,1)>CVMAXD?CVMAXD:gAdd(t,1),gAdd(t,1)>CVMAXD?CVMAXD:gAdd(t,1)]],
+    ['week','This week',[wk0,CVMAXD]],
+    ['wknd','This weekend',wknd.length?[wknd[0],wknd[wknd.length-1]]:[wk0,CVMAXD]]]}
+function cvCtrlBar(hostSel){const el=$(hostSel);if(!el)return;
+  const H0OPT=Array.from({length:24},(_,h)=>'<option value="'+h+'">'+hhL(h)+'</option>').join('');
+  const H1OPT=Array.from({length:24},(_,i)=>{const h=i+1;return '<option value="'+h+'">'+(h===24?'12 AM':hhL(h))+'</option>'}).join('');
+  el.innerHTML='<div class="fgroup"><span class="fl">Dates</span>'+
+      '<input type="date" class="dateinp" data-cvfrom><span class="muted">to</span><input type="date" class="dateinp" data-cvto></div>'+
+    '<div class="fgroup">'+cvPresets().map(p=>'<button class="qbtn" data-cvpreset="'+p[0]+'">'+p[1]+'</button>').join('')+'</div>'+
+    '<div class="fgroup"><span class="fl">Hours</span><select class="dateinp" data-cvh0>'+H0OPT+'</select>'+
+      '<span class="muted">to</span><select class="dateinp" data-cvh1>'+H1OPT+'</select>'+
+      '<button class="qbtn" data-cvhall>All day</button></div>'+
+    '<div class="fgroup"><span class="fl">Calendars</span>'+
+      CVCALMETA.map(c=>'<label class="chk"><input type="checkbox" data-cvcal="'+hesc(c[0])+'">'+hesc(c[1])+'</label>').join('')+'</div>';
+  const fr=el.querySelector('[data-cvfrom]'),to=el.querySelector('[data-cvto]');
+  fr.min=to.min=CVMIND;fr.max=to.max=CVMAXD;
+  fr.onchange=e=>{let v=e.target.value;if(!v)return;if(v<CVMIND)v=CVMIND;if(v>CVMAXD)v=CVMAXD;if(v>CVWIN.to)v=CVWIN.to;cvFetch(v,CVWIN.to)};
+  to.onchange=e=>{let v=e.target.value;if(!v)return;if(v<CVMIND)v=CVMIND;if(v>CVMAXD)v=CVMAXD;if(v<CVWIN.from)v=CVWIN.from;cvFetch(CVWIN.from,v)};
+  el.querySelectorAll('[data-cvpreset]').forEach(b=>b.onclick=()=>{const p=cvPresets().find(x=>x[0]===b.dataset.cvpreset);if(p)cvFetch(p[2][0],p[2][1])});
+  el.querySelector('[data-cvh0]').onchange=e=>{let a=+e.target.value,b=CVH1;if(b<=a)b=Math.min(24,a+1);CVH0=a;CVH1=b;cvRedraw()};
+  el.querySelector('[data-cvh1]').onchange=e=>{let b=+e.target.value,a=CVH0;if(b<=a)a=Math.max(0,b-1);CVH0=a;CVH1=b;cvRedraw()};
+  el.querySelector('[data-cvhall]').onclick=()=>{CVH0=0;CVH1=24;cvRedraw()};
+  el.querySelectorAll('[data-cvcal]').forEach(b=>b.onchange=()=>cvToggleCal(b.dataset.cvcal,b.checked));
+}
+function cvSyncBars(){const pset=cvPresets();
+  CVBARS.forEach(hostSel=>{const el=$(hostSel);if(!el)return;
+    const fr=el.querySelector('[data-cvfrom]'),to=el.querySelector('[data-cvto]');if(fr)fr.value=CVWIN.from||'';if(to)to.value=CVWIN.to||'';
+    const s0=el.querySelector('[data-cvh0]'),s1=el.querySelector('[data-cvh1]');if(s0)s0.value=CVH0;if(s1)s1.value=CVH1;
+    const ha=el.querySelector('[data-cvhall]');if(ha)ha.classList.toggle('on',cvAllHours());
+    el.querySelectorAll('[data-cvpreset]').forEach(b=>{const p=pset.find(x=>x[0]===b.dataset.cvpreset);
+      b.classList.toggle('on',!!p&&CVWIN.from===p[2][0]&&CVWIN.to===p[2][1])});
+    el.querySelectorAll('[data-cvcal]').forEach(b=>b.checked=CVCALS.has(b.dataset.cvcal))})}
+function cvToggleCal(c,on){if(on)CVCALS.add(c);else{if(CVCALS.size<=1){cvSyncBars();return}CVCALS.delete(c)}cvRedraw()}
+
+// credential filter (Who's on + State coverage)
+function cvWireCred(){['#cvWoCred','#cvStCred'].forEach(sel=>{const el=$(sel);if(!el)return;
+  el.innerHTML='<button class="qbtn'+(CVCRED==='all'?' on':'')+'" data-cvcred="all">All</button>'+
+    CREDS6.map(c=>'<button class="qbtn'+(CVCRED===c?' on':'')+'" data-cvcred="'+c+'">'+c+'</button>').join('');
+  el.querySelectorAll('[data-cvcred]').forEach(b=>b.onclick=()=>{CVCRED=b.dataset.cvcred;cvWireCred();cvDrawWho();cvDrawStates()})})}
+
+function cvRedraw(){cvSyncBars();cvRenderEdit();cvDrawGaps();cvDrawWho();cvDrawStates()}
+
+// ---------- data fetch (date window -> refetch) ----------
+async function cvFetch(from,to){
+  if(!RANGE_API||!RANGE_API.coverageFeed){CVST='err';CVMSG='The coverage service is not connected in this build.';cvRenderAll();return}
+  CVST='loading';CVBUSY=true;cvBars(.55);cvRenderAll();
+  try{const r=await RANGE_API.coverageFeed(from||null,to||null);
+    if(r&&r.error){CVST='err';CVMSG=r.error.message||String(r.error)}
+    else if(r&&r.data){cvParse(r.data);
+      // keep calendar selection if it still applies; otherwise select all present
+      const present=new Set(CVCALMETA.map(c=>c[0]));
+      [...CVCALS].forEach(c=>{if(!present.has(c))CVCALS.delete(c)});
+      if(!CVCALS.size)CVCALMETA.forEach(c=>CVCALS.add(c[0]));
+      CVST=r.data.no_schedule?'noschedule':'ok';CVMSG=''}
+    else {CVST='err';CVMSG='The coverage service returned no payload.'}}
+  catch(e){CVST='err';CVMSG=(e&&e.message)||String(e)}
+  CVBUSY=false;cvBars('');CVBARS.forEach(cvCtrlBar);cvWireCred();cvSyncBars();cvRenderAll();
+}
+function cvBars(op){CVBARS.forEach(sel=>{const b=$(sel);if(b)b.style.opacity=op})}
+function cvRenderAll(){cvRenderEdit();cvDrawGaps();cvDrawWho();cvDrawStates()}
+
+function cvWireSort(tblSel,st,draw){const t=$(tblSel);if(!t||t._cvw)return;t._cvw=1;
+  t.querySelectorAll('thead th[data-cvk]').forEach(th=>th.onclick=()=>{const k=th.dataset.cvk;
+    if(st.k===k)st.dir=-st.dir;else{st.k=k;st.dir=(['async','sync','len','non','bod','beg','end'].includes(k))?-1:1}
+    t.querySelectorAll('thead th .ar').forEach(a=>a.remove());
+    const ar=document.createElement('span');ar.className='ar';ar.textContent=st.dir<0?' ▾':' ▴';th.appendChild(ar);draw()})}
+
+// initCoverage runs first at boot() (before RANGE_API exists) and again from the
+// wave-2 kick (once it does). Wiring happens once; the fetch defers until the
+// coverage service is connected, then runs once.
+let CVWIRED=false, CVFETCHED=false;
+function initCoverage(){
+  if(!CVWIRED){CVWIRED=true;
+    document.addEventListener('click',e=>{const b=e.target.closest('[data-cvout]');if(b){e.stopPropagation();cvToggleOut(b.dataset.cvout)}});
+    CVBARS.forEach(cvCtrlBar);cvWireCred();
+    cvWireSort('#cvGapTbl',CVGSORT,cvDrawGaps);cvWireSort('#cvWoTbl',CVWSORT,cvDrawWho);cvWireSort('#cvStTbl',CVSTSORT,cvDrawStates);
+    cvRenderAll()}
+  if(!CVFETCHED&&RANGE_API&&RANGE_API.coverageFeed){CVFETCHED=true;
+    const hi=(SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.max)||null, lo=(SHIFTS&&SHIFTS.loaded&&SHIFTS.loaded.min)||null;
+    let from=null,to=null;
+    if(hi){to=hi;from=gAdd(hi,-6);if(lo&&from<lo)from=lo}
+    cvFetch(from,to)}
+}
+window.__kickCoverage=initCoverage;
 // ---------- FORECAST (demand vs coverage, next-week load) ----------
 function renderForecast(){
   wireCapFilters('forecast','fc');
@@ -2014,22 +2082,22 @@ function renderForecast(){
   const uncovered=slots.filter(s=>s.d>=1&&s.c===0);
   $('#fcStats').innerHTML=[
     {k:'Typical week',v:nf(Math.round(totDemand)),d:'consults · '+(DEM.weeks||0)+'-wk avg'},
-    {k:'Busiest hour',v:Math.round(busiest[2]),d:DOWL7[busiest[0]]+' '+busiest[1]+':00'},
-    {k:'Peak load',v:isFinite(peak.load)?peak.load.toFixed(1):'—',d:'per clinician · '+DOWL7[peak.dow]+' '+peak.hr+':00'},
+    {k:'Busiest hour',v:Math.round(busiest[2]),d:DOWL7[busiest[0]]+' '+hh(busiest[1])},
+    {k:'Peak load',v:isFinite(peak.load)?peak.load.toFixed(1):'—',d:'per clinician · '+DOWL7[peak.dow]+' '+hh(peak.hr)},
     {k:'Uncovered hours',v:uncovered.length,d:'arrivals, nobody on'},
   ].map(tileHTML).join('');
   $('#fcNote').textContent=`consults per on-shift clinician · ${DEM.weeks||0}-week average · Central time · typical ${median?median.toFixed(1):'—'}/clinician`;
   const grid=$('#fcHeat');grid.style.gridTemplateColumns='42px repeat(24,1fr)';
   const by={};slots.forEach(s=>{(by[s.dow]=by[s.dow]||{})[s.hr]=s});
-  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${h}</div>`).join('');
+  let html='<div></div>'+Array.from({length:24},(_,h)=>`<div class="hmlab col">${hc(h)}</div>`).join('');
   for(let dw=1;dw<=7;dw++){html+=`<div class="hmlab">${DOWL7[dw]}</div>`;for(let h=0;h<24;h++){const s=by[dw]&&by[dw][h];
     if(!s||s.d===0){html+='<div class="hmcell empty">·</div>'}
-    else if(s.c===0){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:var(--on-accent);font-weight:700" title="${DOWL7[dw]} ${h}:00 · ${s.d} consults/hr · no coverage">!</div>`}
-    else{const ratio=median?s.load/median:1;const hue=Math.round(Math.max(0,Math.min(1,(1.6-ratio)/1.1))*145);html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${DOWL7[dw]} ${h}:00 · ${s.d} consults / ${s.c} on shift · load ${s.load.toFixed(1)}/clinician">${s.load.toFixed(1)}</div>`}}}
+    else if(s.c===0){html+=`<div class="hmcell" style="background:repeating-linear-gradient(45deg,var(--bad),var(--bad) 3px,var(--bad-soft) 3px,var(--bad-soft) 6px);color:var(--on-accent);font-weight:700" title="${DOWL7[dw]} ${hh(h)} · ${s.d} consults/hr · no coverage">!</div>`}
+    else{const ratio=median?s.load/median:1;const hue=Math.round(Math.max(0,Math.min(1,(1.6-ratio)/1.1))*145);html+=`<div class="hmcell" style="background:hsl(${hue} 68% ${hue>95?37:42}%)" title="${DOWL7[dw]} ${hh(h)} · ${s.d} consults / ${s.c} on shift · load ${s.load.toFixed(1)}/clinician">${s.load.toFixed(1)}</div>`}}}
   grid.innerHTML=html;
   const tight=[...slots.filter(s=>s.d>=1)].sort((a,b)=>(isFinite(b.load)?b.load:1e9)-(isFinite(a.load)?a.load:1e9)).slice(0,8);
   const mxLoad=Math.max(...tight.map(s=>isFinite(s.load)?s.load:0),median*2,1);
-  $('#fcTight').innerHTML=tight.map(s=>{const hot=s.c===0||(median&&s.load>median*1.5);const need=s.c===0?'staff this hour':(median&&s.load>median*1.25?`+${Math.max(1,Math.ceil(s.d/median)-Math.round(s.c))} to ease`:'holding');const loadTxt=isFinite(s.load)?s.load.toFixed(1)+'/clin':'no cover';return `<div class="rk" style="cursor:default"><div class="lab">${DOWL7[s.dow]} ${s.hr}:00<small>${s.d} consults · ${s.c?s.c+' on shift':'0 on shift'} · ${need}</small></div><div class="val tnum" style="color:${hot?'var(--bad)':'var(--ink)'}">${loadTxt}</div><div class="track"><i style="width:${Math.max(2,(isFinite(s.load)?s.load:mxLoad)/mxLoad*100)}%;background:${hot?'var(--bad)':'var(--accent)'}"></i></div></div>`}).join('')||'<div class="empty">—</div>';
+  $('#fcTight').innerHTML=tight.map(s=>{const hot=s.c===0||(median&&s.load>median*1.5);const need=s.c===0?'staff this hour':(median&&s.load>median*1.25?`+${Math.max(1,Math.ceil(s.d/median)-Math.round(s.c))} to ease`:'holding');const loadTxt=isFinite(s.load)?s.load.toFixed(1)+'/clin':'no cover';return `<div class="rk" style="cursor:default"><div class="lab">${DOWL7[s.dow]} ${hh(s.hr)}<small>${s.d} consults · ${s.c?s.c+' on shift':'0 on shift'} · ${need}</small></div><div class="val tnum" style="color:${hot?'var(--bad)':'var(--ink)'}">${loadTxt}</div><div class="track"><i style="width:${Math.max(2,(isFinite(s.load)?s.load:mxLoad)/mxLoad*100)}%;background:${hot?'var(--bad)':'var(--accent)'}"></i></div></div>`}).join('')||'<div class="empty">—</div>';
   let dWell=0,dStretch=0,dUncov=0;
   slots.forEach(s=>{if(s.d<=0)return;if(s.c===0)dUncov+=s.d;else if(median&&s.load>median*1.5)dStretch+=s.d;else dWell+=s.d});
   const align=totDemand?Math.round(dWell/totDemand*100):0, pct=x=>totDemand?Math.round(x/totDemand*100):0;
@@ -2089,7 +2157,7 @@ function reviewFlags(){
   // Coverage — recurring weekday-daytime holes
   const g=(COV.grid||[]),wks=COV.weeks||0;
   g.filter(r=>r[0]<=5&&r[1]>=8&&r[1]<=18&&r[6]>0).sort((a,b)=>b[6]-a[6]||a[2]-b[2]).slice(0,6).forEach(r=>{
-    F.push({key:`coverage-zero:${r[0]}-${r[1]}`,cat:'coverage',sev:(wks&&r[6]>=Math.max(2,wks*0.34))?'high':'med',subject:`${DOWL7[r[0]]} ${r[1]}:00`,detail:`No one scheduled in ${r[6]} of ${wks} week${wks===1?'':'s'} (avg ${r[2]} on shift) — a recurring weekday-daytime coverage hole.`,act:'coverage',ackable:true}); });
+    F.push({key:`coverage-zero:${r[0]}-${r[1]}`,cat:'coverage',sev:(wks&&r[6]>=Math.max(2,wks*0.34))?'high':'med',subject:`${DOWL7[r[0]]} ${hh(r[1])}`,detail:`No one scheduled in ${r[6]} of ${wks} week${wks===1?'':'s'} (avg ${r[2]} on shift) — a recurring weekday-daytime coverage hole.`,act:'coverage',ackable:true}); });
   // Roster hygiene (action-only — fixing in Clinicians auto-clears these)
   DATA.filter(d=>d.st==='NEEDS-CORRECTION').forEach(d=>{ F.push({key:'roster-correction:'+(d.npi||d.n),cat:'roster',sev:'med',subject:d.n,detail:`Missing ${needText(d.needs)} — an incomplete roster entry.`,act:'clinicians',ackable:false}); });
   DATA.filter(d=>d.st==='ADD-TO-ROSTER').forEach(d=>{ F.push({key:'roster-add:'+(d.npi||d.n),cat:'roster',sev:'low',subject:d.n,detail:`Seen in the activity data but not on the roster — confirm or dismiss from Clinicians.`,act:'clinicians',ackable:false}); });
@@ -2246,7 +2314,7 @@ function wireImport(){
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
 }
-function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();wireGaps();renderGaps();wireWhosOn();renderWhosOn();wireStates();renderStates();wireWinbars();winNotes();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
+function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();initCoverage();wireWinbars();winNotes();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
 if(SLI.length||Object.keys(CD).length)boot();
 </script>

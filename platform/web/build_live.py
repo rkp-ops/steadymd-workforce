@@ -119,9 +119,10 @@ AUTH_JS = r"""
       staffingEntities:(a)=>sb.rpc('staffing_entities',a),
       whosOn:(a)=>sb.rpc('whos_on',a),
       stateGaps:(a)=>sb.rpc('state_gap_windows',a),
+      coverageFeed:(f,t)=>sb.rpc('coverage_feed',{p_from:f,p_to:t}),
     });
     Promise.all([sb.rpc('consult_summary'),sb.rpc('coverage_grid'),sb.rpc('demand_grid'),sb.rpc('vph_trend'),sb.rpc('review_acks')])
-      .then(([b,g,dmd,f,rvk])=>{ window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickStateCov)window.__kickStateCov(); if(window.__kickWhosOn)window.__kickWhosOn(); if(window.__kickGaps)window.__kickGaps(); })
+      .then(([b,g,dmd,f,rvk])=>{ window.__init(null,(b&&!b.error)?b.data:null,null,null,null,(f&&!f.error)?f.data:null,(g&&!g.error)?g.data:null,(rvk&&!rvk.error)?rvk.data:null,(dmd&&!dmd.error)?dmd.data:null,null); if(window.__kickCoverage)window.__kickCoverage(); })
       .catch(()=>{}); // background enrichment only; the console is already usable without it
   }
   function denied(em){ body.innerHTML='<div class="lead">You’re signed in as <b>'+H(em||'this account')+'</b>, but it isn’t provisioned for the console yet. Ask an admin to add you, then reload.</div><button type="button" class="linkbtn" id="a-out">Sign out</button>'; document.getElementById('a-out').onclick=async()=>{await sb.auth.signOut();location.reload();}; }
@@ -201,11 +202,11 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "function applyDefaultWindow","lastCompletedWeek",'id="presets"','data-range="wk"','id="moreRow"',  # IA step 4: open to last completed week + presets + More disclosure
           "newest LOADED date, not the wall clock",'class="fgroup"',  # anchored default + label-stranding fix (label glued to its inputs)
           "function credBucket","credBucket(S.by_cred","credBucket(I.by_license","credClass(x.cred)","credClass(x.license)",  # credentials NEVER raw: 6 buckets on every list, badge, export
-          "function renderGaps",'data-tab="gaps"','id="gapPresets"',  # Gaps view: state-coverage exceptions
-          "still unfilled",  # Arya unfilled posts surfaced as a leading indicator beside realised gaps
-          "All on-demand calendars","siloed calendars excluded",  # SILO: "All" never silently counts TC/30M/MA-P2 as coverage
-          "Coverage could not be checked","_st==='err'","gapRetry",  # a failed coverage read NEVER renders as an all-clear
-          ".wstrip{","wdlab","Hours with nobody on",  # Who's on is one row per DAY on a shared axis, not one row per hour
+          'data-tab="gaps"','data-tab="whoson"','data-tab="states"',  # the three coverage tabs
+          "function initCoverage","coverage_feed","__kickCoverage",  # one client-side engine fed by one windowed feed
+          "function cvComputeGaps",'id="cvGapBody"',"Gaps by day","Async in window",  # gaps grouped by date, per-window async/sync
+          'id="cvWoBody"',"function cvDrawWho",  # Who's on is a sortable roster TABLE, not hover bars
+          "Coverage could not be read","data-cvretry",  # a failed feed read NEVER renders as an all-clear
           "function searchPop","p_clinician:F.clin","more not shown",  # clinicians filterable via a SEARCHABLE picker; truncation is stated, never silent
           'id="fcFilters"',"capArgs('forecast'","Arrivals are loaded",  # Forecast owns its filters (never inherits Coverage's) and names the demand horizon
           "__setRangeApi","function winFetch","function wireWinbars",  # no-static-windows: every summary tab refetches windowed
@@ -233,24 +234,12 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           'data-tab="scheduled"', "renderScheduled",  # dedicated Scheduled lane tab
           "chunkCsvText","CHUNK_ROWS=12000","uploadParts",  # console-side row-bounded Load chunking (durable non-2xx fix)
           "reconcile_partner_snapshot",  # one clean whole-load volume snapshot after chunked Load
-          'data-tab="states"',"function renderStates","function stFetch","staffing_coverage","__setStaffing",  # staffing coverage view + RPC
-          "Covered","Stretched","Exposed","rests on off-shift pickup",  # calibrated verdicts + the discretionary-labour dependency
-          "Sync gets no staffing band",  # sync: concurrency only, no invented band
-          "is ONE body",  # shared-pool rule stated in the UI (no per-state capacity double-count)
-          'id="stDow"','id="stMod"','id="stCred"','id="stClr"',  # day picker, sync/async toggle, credential buckets, rate overrides
-          "Bodies on shift, by hour","const CREDS6=",  # by-hour x credential staffing grid
-          "staffing_entities","Hours counted — by calendar",'id="stEntBody"',  # verifiable calendar provenance
-          "never averaged",  # whole people per day; averaging across days (0.5 of a person) is banned
-          'data-tab="whoson"',"function renderWhosOn","whos_on","function calPop",  # plain coverage read + compact calendar picker
-          # Gaps is a TABLE, not a chart. A 7-day window compressed 168 hour-columns
-          # into ~1000px, so a 1-hour gap was a 6px splotch and every fact -
-          # which day, what hour, how long, who was on - needed a hover to read.
-          # The engine already merges contiguous hours into ~30 discrete windows;
-          # 30 rows of text is the readable form of that.
-          "state_gap_windows","function renderGaps",'id="gapTbl"','id="gapTblBody"',
-          "Every gap, worst first","Who is on shift then","none licensed in",
-          "click a column to sort","GAPS.windows",
-          "Every state is covered for every hour",  # empty state collapses to one line
+          "function cvDrawStates","Coverage by state",'id="cvStBody"',  # by-state table, one row per clinician on expand
+          "Bodies on shift, by hour","const CREDS6=",'id="cvPivTbl"',  # bodies-by-hour pivot, all 24 hours incl. 12 AM
+          "function calPop","staffing_coverage","state_gap_windows",  # shared popover kept; legacy RPCs still mapped
+          "none licensed in","one row per clinician",  # gap expand names the on-shift set; state expand dedups by clinician
+          "Called out (","data-cvout","function cvRenderEdit",  # call-out override layer, clearly highlighted
+          "return h+':00 '+ap",  # hh() renders 12-hour AM/PM everywhere, never 24-hour
           "cons-theme",  # theme choice survives reload (no more snapping back on refresh)
           "guideSel","Keeping the data current","Is this real-time?"):
     assert k in doc, k
