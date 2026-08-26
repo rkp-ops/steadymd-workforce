@@ -742,7 +742,7 @@
         <div class="hd"><h2>How it works</h2><span class="desc">no terminal, no keys</span></div>
         <div class="bd" style="font-size:12.5px;line-height:1.65;color:var(--ink-2)">
           <p style="margin:0 0 9px">Files upload to secure storage, then a server-side function parses and loads them — the database key stays on the server, never in your browser. Recognized by their columns, so renamed files still land right.</p>
-          <p style="margin:0 0 9px"><b style="color:var(--ink)">Preview</b> detects each file and shows the row counts without changing anything. <b style="color:var(--ink)">Load</b> replaces the data and re-links every clinician to their stable identity, then the console reads it live — just refresh.</p>
+          <p style="margin:0 0 9px"><b style="color:var(--ink)">Preview</b> detects each file and shows the row counts without changing anything. <b style="color:var(--ink)">Load</b> merges each file in (matching rows update, new rows are added) and re-links every clinician to their stable identity, then the console reads it live — just refresh. To take a loaded file back out, use <b style="color:var(--ink)">Loaded uploads</b> below.</p>
           <p style="margin:0">Discontinued partners (Astellas, Rezilient, MedZip) are dropped automatically and flagged if they reappear. Load the full monthly set together for the cleanest refresh.</p>
         </div>
       </div>
@@ -750,6 +750,10 @@
     <div class="card" id="impReportCard" style="margin-bottom:0;display:none">
       <div class="hd"><h2 id="impReportTitle">Result</h2><span class="desc" id="impReportSub"></span></div>
       <div class="bd"><div id="impReport"></div></div>
+    </div>
+    <div class="card" id="impUploadsCard" style="margin-bottom:0;margin-top:12px">
+      <div class="hd"><h2>Loaded uploads</h2><span class="desc">every file that has been loaded &middot; remove one to take its data back out (refresh after to update the console)</span></div>
+      <div class="bd"><div id="impUploads"><div class="muted" style="font-size:12.5px">Loading&#8230;</div></div></div>
     </div>
   </section>
 
@@ -2241,12 +2245,24 @@ function wireReview(){
 }
 // ---------- IMPORT (admin data uploader) ----------
 let IMPORT_ADMIN=false, IMPORT_API=null, IMP_FILES=[];
-window.__setImportAdmin=function(isAdmin,api){IMPORT_ADMIN=!!isAdmin;IMPORT_API=isAdmin?(api||null):null;buildNav()};
+window.__setImportAdmin=function(isAdmin,api){IMPORT_ADMIN=!!isAdmin;IMPORT_API=isAdmin?(api||null):null;buildNav();if($('#impUploads'))renderUploads()};
 function fmtBytes(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':(n/1048576).toFixed(1)+' MB'}
 function renderImpList(){const el=$('#impList');if(!el)return;
   el.innerHTML=IMP_FILES.map((f,i)=>`<div class="impf ${f.status==='up'?'up':f.status==='err'?'err':''}"><span>${f.status==='up'?'✓':f.status==='err'?'✕':'📄'}</span><span class="fn">${uH(f.file.name)}</span><span class="fsz">${fmtBytes(f.file.size)}</span><button class="fx" data-imp-rm="${i}" title="remove">✕</button></div>`).join('');
   const b=$('#impBtns');if(b)b.style.display=IMP_FILES.length?'flex':'none';}
 function addFiles(list){for(const f of list){if(f&&!IMP_FILES.some(x=>x.file.name===f.name&&x.file.size===f.size))IMP_FILES.push({file:f,path:null,status:''})}renderImpList()}
+// ---- Loaded uploads: list what has been loaded, remove one (admin only) ----
+function fmtUpDate(iso){if(!iso)return '';const d=new Date(iso);return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+async function renderUploads(){const el=$('#impUploads');if(!el)return;
+  if(!IMPORT_API||!IMPORT_API.listUploads){el.innerHTML='<div class="muted" style="font-size:12.5px">Sign in as an admin to manage loaded uploads.</div>';return}
+  el.innerHTML='<div class="muted" style="font-size:12.5px">Loading&#8230;</div>';
+  let list;try{list=await IMPORT_API.listUploads()}catch(e){el.innerHTML='<div class="adderr">Couldn’t load uploads: '+uH((e&&e.message)||e)+'</div>';return}
+  if(!list||!list.length){el.innerHTML='<div class="muted" style="font-size:12.5px">Nothing loaded yet.</div>';return}
+  el.innerHTML=list.map(u=>`<div class="impf" data-uk="${uH(u.kind)}" data-uf="${uH(u.filename||'')}">`
+    +`<span class="fn"><b>${uH(u.filename||'(no name)')}</b> <span class="muted" style="font-size:11px">${uH(u.kind)}${u.parts>1?' · '+u.parts+' parts':''}</span></span>`
+    +`<span class="fsz">${fmtUpDate(u.last_uploaded_at)}</span>`
+    +`<button class="addbtn addbtn-ghost" data-up-rm title="remove this upload’s data">Remove</button></div>`).join('');
+}
 // A large upload can exceed one edge invocation's worker budget (CPU/wall-clock),
 // which is why big Loads intermittently died mid-insert with a non-2xx. The durable
 // fix: split each file into row-bounded parts CONSOLE-SIDE and load each part in its
@@ -2351,6 +2367,16 @@ function wireImport(){
   $('#impDry').onclick=()=>runImport('dry');
   $('#impLoad').onclick=()=>runImport('load');
   $('#impClear').onclick=()=>{IMP_FILES=[];renderImpList();$('#impReportCard').style.display='none';$('#impErr').textContent=''};
+  const ups=$('#impUploads');if(ups)ups.addEventListener('click',async e=>{
+    const btn=e.target.closest('[data-up-rm]');if(!btn||!IMPORT_API||!IMPORT_API.deleteUpload)return;
+    const row=btn.closest('[data-uk]'),kind=row.dataset.uk,fn=row.dataset.uf;
+    if(!confirm('Remove "'+(fn||kind)+'"?\n\nThis deletes the data this upload loaded, across every table. It cannot be undone.'))return;
+    btn.disabled=true;btn.textContent='Removing…';
+    try{const r=await IMPORT_API.deleteUpload(kind,fn);const gone=Object.entries((r&&r.deleted)||{}).filter(([k,v])=>v>0).map(([k,v])=>nf(v)+' '+k).join(', ');
+      row.innerHTML='<span class="fn"><b>Removed.</b> <span class="muted">'+uH(gone||'no rows')+'</span></span><span class="fsz muted">refresh to update</span>';
+      setTimeout(renderUploads,1100);
+    }catch(err){btn.disabled=false;btn.textContent='Remove';alert('Remove failed: '+((err&&err.message)||err))}});
+  renderUploads();
 }
 function boot(){buildNav();renderScheduled();renderConsults();renderShifts();renderCoverage();renderForecast();initCoverage();wireWinbars();winNotes();renderScoreboard();wireScoreboard();renderIncentives();renderVph();renderCl();renderUsers();wireUsers();wireImport();renderReview();wireReview();renderPlaybook();applyDefaultWindow();renderFiltered();$('#footRange').textContent=SLI.length?`${agg(SLI,DT).sort((a,b)=>a.name<b.name?-1:1)[0].name} → ${agg(SLI,DT).sort((a,b)=>a.name<b.name?1:-1)[0].name}`:'';const start=(location.hash||'#overview').slice(1);go(TABS.some(t=>t[0]===start)?start:'overview')}
 window.__init=function(sli,cd,roster,shifts,inc,vph,cov,acks,dem,tgt){if(sli)SLI.length=0,sli.forEach(r=>SLI.push(r));if(cd)Object.assign(CD,cd);if(roster)DATA.length=0,roster.forEach(r=>DATA.push(r));if(shifts)Object.assign(SHIFTS,shifts);if(inc)Object.assign(INC,inc);if(vph)Object.assign(VPH,vph);if(cov)Object.assign(COV,cov);if(dem)Object.assign(DEM,dem);if(tgt){TARGETS.length=0;tgt.forEach(x=>TARGETS.push(x))}if(acks)window.__setReviewAcks(acks);boot()};
@@ -2416,6 +2442,8 @@ if(SLI.length||Object.keys(CD).length)boot();
             upload: async(file)=>{ const path=`${Date.now()}-${Math.random().toString(36).slice(2)}/${file.name}`; const {error}=await sb.storage.from('imports').upload(path,file,{upsert:false,contentType:file.type||'text/csv'}); if(error) throw new Error(error.message||'upload failed'); return path; },
             run: async(paths,mode)=>{ const {data,error}=await sb.functions.invoke('ingest',{body:{mode,paths}}); if(error){ let m=error.message||'ingest failed'; try{ const b=await error.context.json(); if(b&&b.error) m=b.error; }catch(_){} throw new Error(m); } if(data&&data.error) throw new Error(data.error); return data; },
             reconcile: async(kind)=>{ const {data,error}=await sb.rpc('reconcile_partner_snapshot',{p_kind:kind}); if(error) throw new Error(error.message||'reconcile failed'); return data||[]; },
+            listUploads: async()=>{ const r=await sb.rpc('admin_list_uploads'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
+            deleteUpload: async(kind,fn)=>{ const r=await sb.rpc('admin_delete_upload',{p_kind:kind,p_filename:fn||null}); if(r.error) throw new Error(r.error.message||'remove failed'); return r.data; },
           });
         } else { window.__setImportAdmin(false); }
       }

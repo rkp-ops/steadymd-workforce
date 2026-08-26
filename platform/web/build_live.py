@@ -98,6 +98,8 @@ AUTH_JS = r"""
             upload: async(file)=>{ const path=`${Date.now()}-${Math.random().toString(36).slice(2)}/${file.name}`; const {error}=await sb.storage.from('imports').upload(path,file,{upsert:false,contentType:file.type||'text/csv'}); if(error) throw new Error(error.message||'upload failed'); return path; },
             run: async(paths,mode)=>{ const {data,error}=await sb.functions.invoke('ingest',{body:{mode,paths}}); if(error){ let m=error.message||'ingest failed'; try{ const b=await error.context.json(); if(b&&b.error) m=b.error; }catch(_){} throw new Error(m); } if(data&&data.error) throw new Error(data.error); return data; },
             reconcile: async(kind)=>{ const {data,error}=await sb.rpc('reconcile_partner_snapshot',{p_kind:kind}); if(error) throw new Error(error.message||'reconcile failed'); return data||[]; },
+            listUploads: async()=>{ const r=await sb.rpc('admin_list_uploads'); if(r.error) throw new Error(r.error.message||'load failed'); return r.data; },
+            deleteUpload: async(kind,fn)=>{ const r=await sb.rpc('admin_delete_upload',{p_kind:kind,p_filename:fn||null}); if(r.error) throw new Error(r.error.message||'remove failed'); return r.data; },
           });
         } else { window.__setImportAdmin(false); }
       }
@@ -228,6 +230,7 @@ for k in ("resetPasswordForEmail","PASSWORD_RECOVERY","viewRecovery","s-forgot",
           "SB_ADMIN&&t.note",  # scoreboard: internal notes hidden from non-admin (reader/admin split)
           "__setImportAdmin","wireImport",'data-tab="import"',"Refresh the data","runImport",
           "functions.invoke('ingest'","storage.from('imports')",
+          "admin_list_uploads","admin_delete_upload","function renderUploads",'id="impUploads"',"Loaded uploads","data-up-rm",  # remove an already-loaded upload (admin)
           "message|async|chart",  # smod: async work matched before video|urgent (so video_chat_message_followup reads async)
           "laneOf(r[CT])==='scheduled'",  # scheduled care never folded into on-demand (inFilter)
           "return'<1m'",  # fmtDur never emits raw seconds
