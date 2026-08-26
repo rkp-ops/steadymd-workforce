@@ -1761,9 +1761,12 @@ function cvAllHours(){return CVH0===0&&CVH1===24}
 function cvHourRange(){return cvAllHours()?'all hours':hh(CVH0)+' to '+(CVH1===24?hh(0):hh(CVH1))}
 function cvWinLabel(){if(!CVWIN.from)return '';const f=CVWIN.from,t=CVWIN.to;
   if(f===t)return gDay(f);return gDay(f)+' to '+gDay(t)}
+// Calendars the operator does not want by default (still checkable on demand).
+const CVHIDDEN=new Set(['EZH','HmL']);
+let CVSHOWCAL=false;   // reveal the hidden calendars in the picker
 function cvCalLabel(){const on=CVCALMETA.filter(c=>CVCALS.has(c[0]));
   if(!on.length)return 'no calendars';if(on.length===CVCALMETA.length)return 'all calendars';
-  return on.map(c=>c[1]).join(' + ')}
+  return on.map(c=>c[0]).join(' + ')}
 function cvNowMin(){const t=gToday();if(!CVBASE||t<CVWIN.from||t>CVWIN.to)return null;
   const now=new Date();return cvDayIx(t)*1440+now.getUTCHours()*60+now.getUTCMinutes()}
 
@@ -2006,8 +2009,7 @@ function cvCtrlBar(hostSel){const el=$(hostSel);if(!el)return;
     '<div class="fgroup"><span class="fl">Hours</span><select class="dateinp" data-cvh0>'+H0OPT+'</select>'+
       '<span class="muted">to</span><select class="dateinp" data-cvh1>'+H1OPT+'</select>'+
       '<button class="qbtn" data-cvhall>All day</button></div>'+
-    '<div class="fgroup"><span class="fl">Calendars</span>'+
-      CVCALMETA.map(c=>'<label class="chk"><input type="checkbox" data-cvcal="'+hesc(c[0])+'">'+hesc(c[1])+'</label>').join('')+'</div>';
+    '<div class="fgroup"><span class="fl">Calendars</span>'+cvCalPickHtml()+'</div>';
   const fr=el.querySelector('[data-cvfrom]'),to=el.querySelector('[data-cvto]');
   fr.min=to.min=CVMIND;fr.max=to.max=CVMAXD;
   fr.onchange=e=>{let v=e.target.value;if(!v)return;if(v<CVMIND)v=CVMIND;if(v>CVMAXD)v=CVMAXD;if(v>CVWIN.to)v=CVWIN.to;cvFetch(v,CVWIN.to)};
@@ -2017,6 +2019,16 @@ function cvCtrlBar(hostSel){const el=$(hostSel);if(!el)return;
   el.querySelector('[data-cvh1]').onchange=e=>{let b=+e.target.value,a=CVH0;if(b<=a)a=Math.max(0,b-1);CVH0=a;CVH1=b;cvRedraw()};
   el.querySelector('[data-cvhall]').onclick=()=>{CVH0=0;CVH1=24;cvRedraw()};
   el.querySelectorAll('[data-cvcal]').forEach(b=>b.onchange=()=>cvToggleCal(b.dataset.cvcal,b.checked));
+  el.querySelectorAll('[data-cvmore]').forEach(b=>b.onclick=()=>{CVSHOWCAL=(b.dataset.cvmore==='show');CVBARS.forEach(cvCtrlBar);cvSyncBars()});
+}
+// The calendar checkboxes: the default-visible calendars, standardized to their
+// short codes (CSL, WSL, ...), plus a reveal for the ones hidden by default.
+function cvCalPickHtml(){
+  const vis=CVCALMETA.filter(c=>!CVHIDDEN.has(c[0])||CVCALS.has(c[0])||CVSHOWCAL);
+  const nHidden=CVCALMETA.filter(c=>CVHIDDEN.has(c[0])&&!CVCALS.has(c[0])).length;
+  return vis.map(c=>'<label class="chk"><input type="checkbox" data-cvcal="'+hesc(c[0])+'">'+hesc(c[0])+'</label>').join('')
+    +(nHidden&&!CVSHOWCAL?'<button class="qbtn" data-cvmore="show">+ '+nHidden+' more</button>':'')
+    +(CVSHOWCAL&&CVCALMETA.some(c=>CVHIDDEN.has(c[0]))?'<button class="qbtn" data-cvmore="hide">fewer</button>':'');
 }
 function cvSyncBars(){const pset=cvPresets();
   CVBARS.forEach(hostSel=>{const el=$(hostSel);if(!el)return;
@@ -2043,10 +2055,11 @@ async function cvFetch(from,to){
   try{const r=await RANGE_API.coverageFeed(from||null,to||null);
     if(r&&r.error){CVST='err';CVMSG=r.error.message||String(r.error)}
     else if(r&&r.data){cvParse(r.data);
-      // keep calendar selection if it still applies; otherwise select all present
+      // keep calendar selection if it still applies; otherwise default to every
+      // present calendar EXCEPT the ones hidden by default (EZ Health, HealthOme)
       const present=new Set(CVCALMETA.map(c=>c[0]));
       [...CVCALS].forEach(c=>{if(!present.has(c))CVCALS.delete(c)});
-      if(!CVCALS.size)CVCALMETA.forEach(c=>CVCALS.add(c[0]));
+      if(!CVCALS.size)CVCALMETA.forEach(c=>{if(!CVHIDDEN.has(c[0]))CVCALS.add(c[0])});
       CVST=r.data.no_schedule?'noschedule':'ok';CVMSG=''}
     else {CVST='err';CVMSG='The coverage service returned no payload.'}}
   catch(e){CVST='err';CVMSG=(e&&e.message)||String(e)}

@@ -12,13 +12,17 @@ const FEED={
   loaded:{min:'2026-08-25',max:'2026-08-31'},
   baseline:{from:'2026-07-29',to:'2026-08-25'},
   calendars:[['Daytime Clinical Service Line','CSL','Daytime Clinical',3],
-             ['Weight Management Service Line','WSL','Weight Management',1]],
+             ['Weight Management Service Line','WSL','Weight Management',1],
+             ['Wisp Schedule','Wisp','Wisp',1],
+             ['EZ Health','EZH','EZ Health',1],
+             ['HealthOme Program Schedule','HmL','HealthOme',1]],
   roster:[
     ['Sarah Stone','Doctor','CSL','2026-08-25T09:00','2026-08-25T17:00','NC,TX,CA,FL,NY,GA'],
     ['Jane Doe','NP','CSL','2026-08-25T17:00','2026-08-26T01:00','TX,CA,FL'],
     ['Owen Knight','NP','CSL','2026-08-24T22:00','2026-08-25T06:00','TX'],
     ['Bob Rivera','NP','CSL','2026-08-26T09:00','2026-08-26T17:00','NC,GA,TX'],
-    ['Amy Ho','Doctor','WSL','2026-08-25T08:00','2026-08-25T13:30','IA,IL']
+    ['Amy Ho','Doctor','WSL','2026-08-25T08:00','2026-08-25T13:30','IA,IL'],
+    ['Zed Ez','NP','EZH','2026-08-25T17:00','2026-08-26T01:00','NC']   // covers NC evening, but EZH is off by default
   ],
   // [state, hour, async_per_day, sync_per_day]
   demand:(()=>{const d=[];
@@ -75,11 +79,12 @@ const who=await p.evaluate(()=>{
   const presets=[...ctrl.querySelectorAll('[data-cvpreset]')].map(b=>b.textContent);
   const cals=[...ctrl.querySelectorAll('[data-cvcal]')].map(c=>c.parentElement.textContent.trim());
   const hasHours=!!ctrl.querySelector('[data-cvh0]');
-  return {rows,presets,cals,hasHours,desc:document.querySelector('#cvWoDesc').textContent};
+  const more=!!ctrl.querySelector('[data-cvmore]');
+  return {rows,presets,cals,hasHours,more,desc:document.querySelector('#cvWoDesc').textContent};
 });
 ok(who.rows.length>=3,'whoson: roster table renders shift blocks ('+who.rows.length+')');
 ok(who.presets.join(',')==='Today,Tomorrow,This week,This weekend','whoson: presets are Today/Tomorrow/This week/This weekend ('+who.presets.join(',')+')');
-ok(who.hasHours && who.cals.length===2,'whoson: shared control has hours + calendar checkboxes ('+who.cals.join(', ')+')');
+ok(who.hasHours && who.cals.join(',')==='CSL,WSL,Wisp' && who.more,'whoson: calendars standardized to abbrevs; EZ Health + HealthOme hidden behind "+ more" ('+who.cals.join(', ')+')');
 await p.screenshot({path:resolve(dirname(fileURLToPath(import.meta.url)),'cov_whoson.png')});
 
 // ---- call-out override ----
@@ -101,6 +106,19 @@ await p.evaluate(()=>{const c=document.querySelector('#cvWoEdit .outchip');if(c)
 await p.waitForTimeout(120);
 const undone=await p.evaluate(()=>document.querySelector('#cvWoEdit').classList.contains('on'));
 ok(!undone,'call-out: undo via chip clears it');
+
+// ---- calendars: EZ Health / HealthOme hidden + off by default; checkable on demand ----
+await p.evaluate(()=>go('gaps')); await p.waitForTimeout(100);
+const ncBefore=await p.evaluate(()=>[...document.querySelectorAll('#cvGapBody tr.sum b')].map(b=>b.textContent).filter(s=>s==='NC').length);
+await p.evaluate(()=>{const m=document.querySelector('#cvGapCtrl [data-cvmore]');if(m)m.click();});   // reveal hidden calendars
+await p.waitForTimeout(80);
+const ezhVisible=await p.evaluate(()=>!!document.querySelector('#cvGapCtrl [data-cvcal="EZH"]'));
+await p.evaluate(()=>{const c=document.querySelector('#cvGapCtrl [data-cvcal="EZH"]');if(c&&!c.checked){c.checked=true;c.dispatchEvent(new Event('change',{bubbles:true}))}});
+await p.waitForTimeout(120);
+const ncAfter=await p.evaluate(()=>[...document.querySelectorAll('#cvGapBody tr.sum b')].map(b=>b.textContent).filter(s=>s==='NC').length);
+ok(ncBefore>=1 && !ezhVisible===false && ncAfter<ncBefore,'calendars: EZ Health hidden + off by default (NC gaps '+ncBefore+'); reveal + check it and its NC coverage counts ('+ncAfter+')');
+await p.evaluate(()=>{const c=document.querySelector('#cvGapCtrl [data-cvcal="EZH"]');if(c&&c.checked){c.checked=false;c.dispatchEvent(new Event('change',{bubbles:true}))}});   // restore default
+await p.waitForTimeout(100);
 
 // ---- State coverage: hour scoping ----
 await p.evaluate(()=>go('states')); await p.waitForTimeout(120);
