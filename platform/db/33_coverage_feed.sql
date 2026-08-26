@@ -51,6 +51,17 @@ begin
   order by lower(e), r.id;
   create index on _cr(em);
 
+  -- Siloed partners, resolved ONCE over the small distinct-partner set rather
+  -- than a correlated ilike per demand row. The per-row anti-join over ~86k
+  -- baseline rows was the cost; this makes demand a hash anti-join.
+  drop table if exists _silo;
+  create temp table _silo on commit drop as
+  select distinct p.partner from (select distinct partner from sli_response where lane='on_demand' and partner is not null) p
+  where exists (select 1 from service_line_map m
+                where m.demand_match is not null and not m.count_in_sla
+                  and p.partner ilike '%'||m.demand_match||'%');
+  create index on _silo(partner);
+
   select jsonb_build_object(
     'window',   jsonb_build_object('from', lo, 'to', hi),
     'loaded',   (select jsonb_build_object('min',min((start_at at time zone 'UTC')::date),
@@ -97,17 +108,14 @@ begin
                round(count(*) filter (where syn)::numeric / nd, 3)     spd
              from (select nullif(trim(sr.state),'') st,
                           extract(hour from sr.sli_received at time zone 'UTC')::int hr,
-                          (case when sr.consult_type ~* 'lab' then null
-                                when sr.consult_type ~* 'critical_values_phone' then true
-                                when sr.consult_type ~* 'message|async|chart' then false
-                                when sr.consult_type ~* 'video|urgent' then true
+                          -- sync = live video / urgent (the whatif-substrate rule); lab excluded
+                          (case when sr.consult_type ilike '%lab%' then null
+                                when sr.consult_type in ('video_chat','urgent-care') then true
                                 else false end) syn
                    from sli_response sr
                    where sr.lane = 'on_demand' and sr.state is not null
                      and (sr.sli_received at time zone 'UTC')::date between d_from and coalesce(d_to,current_date)
-                     and not exists (select 1 from service_line_map m
-                                     where m.demand_match is not null and not m.count_in_sla
-                                       and sr.partner ilike '%'||m.demand_match||'%')) q
+                     and not exists (select 1 from _silo z where z.partner = sr.partner)) q
              where q.st is not null and q.syn is not null
              group by st, hr) z), '[]'::jsonb)
   ) into out;
