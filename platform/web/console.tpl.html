@@ -974,8 +974,13 @@ function renderOverview(rows){
   const o=overall(rows),parts=agg(rows,P);
   // Hero SLA (the one number the console is about) + a demoted meta line for the counts.
   // The blended median/avg/p90 tiles are gone — response time now lives in the per-modality module.
-  $('#ovHero').innerHTML=
-    `<div class="hero-sla"><div class="k">SLA attainment</div><div class="v" style="color:${toneCss(slaTone(o.pct))}">${o.pct}%</div><div class="d">${nf(o.met)} / ${nf(o.scored)} SLIs met · floor ${Math.round(FLOOR*100)}%</div></div>`+
+  // Empty slice: only the attainment card drops to a neutral "no data" state — never a
+  // percentage computed from zero (which read as a red 0% failure). Response time and the
+  // attention callouts below still render, so a range with waits but no scored SLIs isn't blanked.
+  const heroSla=o.scored
+    ?`<div class="hero-sla"><div class="k">SLA attainment</div><div class="v" style="color:${toneCss(slaTone(o.pct))}">${o.pct}%</div><div class="d">${nf(o.met)} / ${nf(o.scored)} SLIs met · floor ${Math.round(FLOOR*100)}%</div></div>`
+    :`<div class="hero-sla"><div class="k">SLA attainment</div><div class="v" style="font-size:22px;color:var(--ink-3)">No data</div><div class="d">No SLIs for this range · widen the range or clear a filter</div></div>`;
+  $('#ovHero').innerHTML=heroSla+
     `<div class="hero-meta"><div class="line"><b>${nf(o.scored)}</b> SLIs · <b>${parts.length}</b> partner${parts.length===1?'':'s'} in view${anyFilter()?' · <span class="muted">filtered</span>':''}</div><div class="line muted">On-demand · ${periodLabel()}</div></div>`;
   renderModDist(rows);
   // callouts
