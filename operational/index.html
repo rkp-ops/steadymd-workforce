@@ -963,7 +963,24 @@ function setWindow(f,t){FIL.from=f;FIL.to=t;if($('#dfrom'))$('#dfrom').value=f||
 function markPreset(kind){$$('#presets .qbtn').forEach(b=>b.classList.toggle('on',b.dataset.range===kind))}
 $$('#presets .qbtn').forEach(b=>b.onclick=()=>{const[f,t]=rangeFor(b.dataset.range);setWindow(f,t);markPreset(b.dataset.range);renderFiltered()});
 $('#moreBtn').onclick=()=>{const r=$('#moreRow'),open=r.style.display!=='none';r.style.display=open?'none':'flex';const ar=$('#moreBtn').querySelector('.ar');if(ar)ar.textContent=open?'▾':'▴'};
-function applyDefaultWindow(){const a=maxDate();if(!a)return;const[f,t]=lastCompletedWeek(a);if(!SLI.some(r=>r[DT]&&r[DT]>=f&&r[DT]<=t))return;setWindow(f,t);markPreset('wk')}
+// Open on the most recent completed week that actually renders data. "Has data" is judged by
+// the tab's own inFilter predicate (on-demand, non-lab, in-window), never a copied date check,
+// so the guard and the render can't drift apart. Steps back a week at a time, stops at the
+// earliest loaded week (plus a hard cap), and falls to all-loaded if nothing qualifies.
+function applyDefaultWindow(){
+  const a=maxDate();if(!a)return;
+  let earliest='';for(const r of SLI){const d=r[DT];if(d&&(!earliest||d<earliest))earliest=d}
+  const has=(f,t)=>{FIL.from=f;FIL.to=t;return SLI.some(inFilter)};
+  const back=d=>{const p=d.split('-').map(Number),x=new Date(Date.UTC(p[0],p[1]-1,p[2]));x.setUTCDate(x.getUTCDate()-7);return isoUTC(x)};
+  let [f,t]=lastCompletedWeek(a),wk=true,ok=false;
+  for(let i=0;i<600;i++){
+    if(has(f,t)){ok=true;break}
+    if(t<earliest)break;
+    f=back(f);t=back(t);wk=false;
+  }
+  if(ok){setWindow(f,t);markPreset(wk?'wk':null)}
+  else{setWindow(null,null);markPreset(null)}
+}
 function renderChips(){const c=[];FIL[0].forEach(v=>c.push([0,v]));FIL[2].forEach(v=>c.push([2,v]));FIL[1].forEach(v=>c.push([1,v]));if(FIL.mod.size)FIL.mod.forEach(v=>c.push(['mod',MODLABEL[v]||v]));if(FIL.from)c.push(['from','from '+FIL.from]);if(FIL.to)c.push(['to','to '+FIL.to]);if(FIL.h0>0||FIL.h1<23)c.push(['hr',`${FIL.h0}:00–${FIL.h1}:59`]);
   $('#chips').innerHTML=c.length?c.map(([k,v])=>`<span class="chip">${v}<button data-k="${k}" data-v="${String(v).replace(/"/g,'')}">×</button></span>`).join('')+'<button class="clearall" id="clr">Clear all</button>':'';
   $$('#chips .chip button').forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(k==='mod'){FIL.mod=new Set();$$('#modseg button').forEach((x,i)=>x.classList.toggle('on',i===0))}else if(k==='from'){FIL.from=null;$('#dfrom').value=''}else if(k==='to'){FIL.to=null;$('#dto').value=''}else if(k==='hr'){FIL.h0=0;FIL.h1=23;$('#h0').value=0;$('#h1').value=23}else{FIL[k].delete(b.dataset.v)}renderFiltered()});
